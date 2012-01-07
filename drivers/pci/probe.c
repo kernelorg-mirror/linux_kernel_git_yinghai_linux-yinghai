@@ -1608,6 +1608,30 @@ EXPORT_SYMBOL(pci_scan_bus_parented);
 
 #ifdef CONFIG_HOTPLUG
 /**
+ * pci_rescan_bus_bridge_resize - scan a PCI bus for devices.
+ * @bridge: PCI bridge for the bus to scan
+ *
+ * Scan a PCI bus and child buses for new devices, adds them,
+ * and enables them, it will resize bridge mmio/io resource if it is possible
+ * for safe, caller should make sure that children get removed already.
+ *
+ * Returns the max number of subordinate bus discovered.
+ */
+unsigned int __ref pci_rescan_bus_bridge_resize(struct pci_dev *bridge)
+{
+	unsigned int max;
+	struct pci_bus *bus = bridge->subordinate;
+
+	max = pci_scan_child_bus(bus);
+
+	pci_assign_unassigned_bridge_resources(bridge);
+
+	pci_bus_add_devices(bus);
+
+	return max;
+}
+
+/**
  * pci_rescan_bus - scan a PCI bus for devices.
  * @bus: PCI bus to scan
  *
