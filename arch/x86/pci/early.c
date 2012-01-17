@@ -114,3 +114,78 @@ void early_dump_pci_devices(void)
 		}
 	}
 }
+
+static __init int
+early_pci_read(struct pci_bus *bus, unsigned int devfn, int where,
+			int size, u32 *value)
+{
+	int num, slot, func;
+
+	num = bus->number;
+	slot = devfn >> 3;
+	func = devfn & 7;
+	switch (size) {
+	case 1:
+		*value = read_pci_config_byte(num, slot, func, where);
+		break;
+	case 2:
+		*value = read_pci_config_16(num, slot, func, where);
+		break;
+	case 4:
+		*value = read_pci_config(num, slot, func, where);
+		break;
+	}
+
+	return 0;
+}
+
+static __init int
+early_pci_write(struct pci_bus *bus, unsigned int devfn, int where,
+			int size, u32 value)
+{
+	int num, slot, func;
+
+	num = bus->number;
+	slot = devfn >> 3;
+	func = devfn & 7;
+	switch (size) {
+	case 1:
+		write_pci_config_byte(num, slot, func, where, (u8)value);
+		break;
+	case 2:
+		write_pci_config_16(num, slot, func, where, (u16)value);
+		break;
+	case 4:
+		write_pci_config(num, slot, func, where, (u32)value);
+		break;
+	}
+
+	return 0;
+}
+
+static __initdata struct pci_ops pci_early_ops = {
+	.read  = early_pci_read,
+	.write = early_pci_write,
+};
+static __initdata struct pci_bus pci_early_bus = {
+	.ops = &pci_early_ops,
+};
+static __initdata char pci_early_init_name[8];
+static __initdata struct pci_dev pci_early_dev = {
+	.bus = &pci_early_bus,
+	.dev = {
+		.init_name = pci_early_init_name,
+	},
+};
+
+__init struct pci_dev *get_early_pci_dev(int num, int slot, int func)
+{
+	struct pci_dev *pdev;
+
+	pdev = &pci_early_dev;
+	pdev->devfn = (slot<<3) | (func & 7);
+	pdev->bus->number = num;
+	sprintf((char *)pdev->dev.init_name, "%02x:%02x.%01x", num, slot, func);
+
+	return pdev;
+}
