@@ -237,20 +237,22 @@ static struct chipset early_qrk[] __initdata = {
  */
 static int __init check_dev_quirk(int num, int slot, int func)
 {
+	u32 l;
 	u16 class;
 	u16 vendor;
 	u16 device;
 	u8 type;
 	int i;
 
+	l = read_pci_config(num, slot, func, PCI_VENDOR_ID);
+	/* some broken boards return 0 or ~0 if a slot is empty: */
+	if (l == 0xffffffff || l == 0x00000000 ||
+	    l == 0x0000ffff || l == 0xffff0000)
+		return 0;
+
 	class = read_pci_config_16(num, slot, func, PCI_CLASS_DEVICE);
-
-	if (class == 0xffff)
-		return -1; /* no class, treat as single function */
-
-	vendor = read_pci_config_16(num, slot, func, PCI_VENDOR_ID);
-
-	device = read_pci_config_16(num, slot, func, PCI_DEVICE_ID);
+	vendor = l & 0xffff;
+	device = l >> 16;
 
 	for (i = 0; early_qrk[i].f != NULL; i++) {
 		if (((early_qrk[i].vendor == PCI_ANY_ID) ||
@@ -266,27 +268,31 @@ static int __init check_dev_quirk(int num, int slot, int func)
 			}
 	}
 
-	type = read_pci_config_byte(num, slot, func,
-				    PCI_HEADER_TYPE);
-	if (!(type & 0x80))
-		return -1;
+	/* only check header type on func 0 */
+	if (func == 0) {
+		type = read_pci_config_byte(num, slot, func,
+					    PCI_HEADER_TYPE);
+		if (!(type & 0x80))
+			return -1;
+	}
 
 	return 0;
 }
 
 void __init early_quirks(void)
 {
-	int slot, func;
+	int num, slot, func;
 
 	if (!early_pci_allowed())
 		return;
 
 	/* Poor man's PCI discovery */
-	/* Only scan the root bus */
-	for (slot = 0; slot < 32; slot++)
-		for (func = 0; func < 8; func++) {
-			/* Only probe function 0 on single fn devices */
-			if (check_dev_quirk(0, slot, func))
-				break;
-		}
+	/* Only can scan first domain */
+	for (num = 0; num < 256; num++)
+		for (slot = 0; slot < 32; slot++)
+			for (func = 0; func < 8; func++) {
+				/* Only probe func 0 on single fn devices */
+				if (check_dev_quirk(num, slot, func))
+					break;
+			}
 }
