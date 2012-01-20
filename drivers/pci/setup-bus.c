@@ -1271,6 +1271,31 @@ static bool __init pci_realloc_enabled(void)
 	return pci_realloc_enable > 0;
 }
 
+static void __init pci_realloc_detect(void)
+{
+	struct pci_dev *dev = NULL;
+
+	if (pci_realloc_enable != -1)
+		return;
+
+#ifdef CONFIG_PCI_IOV
+	for_each_pci_dev(dev) {
+		int i;
+
+		for (i = PCI_IOV_RESOURCES; i <= PCI_IOV_RESOURCE_END; i++) {
+			struct resource *r = &dev->resource[i];
+
+			/* Not assigned, or rejected by kernel */
+			if (r->flags && !r->start) {
+				pci_realloc_enable = 2;
+
+				return;
+			}
+		}
+	}
+#endif
+}
+
 /*
  * first try will not touch pci bridge res
  * second  and later try will clear small leaf bridge res
@@ -1292,6 +1317,7 @@ pci_assign_unassigned_resources(void)
 	int pci_try_num = 1;
 
 	/* don't realloc if asked to do so */
+	pci_realloc_detect();
 	if (pci_realloc_enabled()) {
 		int max_depth = pci_get_max_depth();
 
