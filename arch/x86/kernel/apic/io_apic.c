@@ -3384,7 +3384,7 @@ dmar_msi_set_affinity(struct irq_data *data, const struct cpumask *mask,
 #endif /* CONFIG_SMP */
 
 static struct irq_chip dmar_msi_type = {
-	.name			= "DMAR_MSI",
+	.name			= "DMAR-MSI",
 	.irq_unmask		= dmar_msi_unmask,
 	.irq_mask		= dmar_msi_mask,
 	.irq_ack		= ack_apic_edge,
@@ -3437,7 +3437,7 @@ static int hpet_msi_set_affinity(struct irq_data *data,
 #endif /* CONFIG_SMP */
 
 static struct irq_chip hpet_msi_type = {
-	.name = "HPET_MSI",
+	.name = "HPET-MSI",
 	.irq_unmask = hpet_msi_unmask,
 	.irq_mask = hpet_msi_mask,
 	.irq_ack = ack_apic_edge,
