@@ -1313,7 +1313,6 @@ static void ioapic_register_intr(unsigned int irq, struct irq_cfg *cfg,
 
 	if (irq_remapped(cfg)) {
 		irq_set_status_flags(irq, IRQ_MOVE_PCNTXT);
-		irq_remap_modify_chip_defaults(chip);
 		fasteoi = trigger != 0;
 	}
 
@@ -2634,6 +2633,8 @@ static void ir_print_prefix(struct irq_data *data, struct seq_file *p)
 
 static void irq_remap_modify_chip_defaults(struct irq_chip *chip)
 {
+	apic_printk(APIC_DEBUG, KERN_DEBUG "irq_chip: %s ==> IR-%s",
+			 chip->name, chip->name);
 	chip->irq_print_chip = ir_print_prefix;
 	chip->irq_ack = ir_ack_apic_edge;
 	chip->irq_eoi = ir_ack_apic_level;
@@ -3268,10 +3269,8 @@ static int setup_msi_irq(struct pci_dev *dev, struct msi_desc *msidesc, int irq)
 	irq_set_msi_desc(irq, msidesc);
 	write_msi_msg(irq, &msg);
 
-	if (irq_remapped(irq_get_chip_data(irq))) {
+	if (irq_remapped(irq_get_chip_data(irq)))
 		irq_set_status_flags(irq, IRQ_MOVE_PCNTXT);
-		irq_remap_modify_chip_defaults(chip);
-	}
 
 	irq_set_chip_and_handler_name(irq, chip, handle_edge_irq, "edge");
 
@@ -3459,8 +3458,6 @@ int arch_setup_hpet_msi(unsigned int irq, unsigned int id)
 
 	hpet_msi_write(irq_get_handler_data(irq), &msg);
 	irq_set_status_flags(irq, IRQ_MOVE_PCNTXT);
-	if (irq_remapped(irq_get_chip_data(irq)))
-		irq_remap_modify_chip_defaults(chip);
 
 	irq_set_chip_and_handler_name(irq, chip, handle_edge_irq, "edge");
 	return 0;
@@ -3468,6 +3465,20 @@ int arch_setup_hpet_msi(unsigned int irq, unsigned int id)
 #endif
 
 #endif /* CONFIG_PCI_MSI */
+
+void irq_remap_modify_chips(void)
+{
+#ifdef CONFIG_IRQ_REMAP
+	irq_remap_modify_chip_defaults(&ioapic_chip);
+# ifdef CONFIG_PCI_MSI
+	irq_remap_modify_chip_defaults(&msi_chip);
+#  ifdef CONFIG_HPET_TIMER
+	irq_remap_modify_chip_defaults(&hpet_msi_type);
+#  endif
+# endif
+#endif
+}
+
 /*
  * Hypertransport interrupt support
  */

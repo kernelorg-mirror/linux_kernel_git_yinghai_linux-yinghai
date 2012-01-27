@@ -1512,6 +1512,8 @@ void enable_x2apic(void)
 int __init enable_IR(void)
 {
 #ifdef CONFIG_IRQ_REMAP
+	int ret;
+
 	if (!intr_remapping_supported()) {
 		pr_debug("intr-remapping not supported\n");
 		return -1;
@@ -1523,7 +1525,12 @@ int __init enable_IR(void)
 		return -1;
 	}
 
-	return enable_intr_remapping();
+	ret = enable_intr_remapping();
+
+	if (ret >= 0)
+		irq_remap_modify_chips();
+
+	return ret;
 #endif
 	return -1;
 }
