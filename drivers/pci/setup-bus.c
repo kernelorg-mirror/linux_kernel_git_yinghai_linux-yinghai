@@ -1346,6 +1346,9 @@ again:
 		goto enable_and_dump;
 
 	if (tried_times >= pci_try_num) {
+		if (pci_realloc_enable == enable_not_set)
+			printk(KERN_INFO "Some PCI device resources are unassigned, try booting with pci=realloc\n");
+
 		free_list(&fail_head);
 		goto enable_and_dump;
 	}
