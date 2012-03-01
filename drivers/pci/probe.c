@@ -691,6 +691,116 @@ static void __devinit pci_bus_shrink_top(struct pci_bus *parent,
 	pci_bus_update_top(parent, -size, parent_res);
 }
 
+static resource_size_t __devinit find_res_top_free_size(struct resource *res)
+{
+	resource_size_t n_size;
+	struct resource tmp_res;
+
+	/*
+	 *   find out number below res->end, that we can use at first
+	 *	res->start can not be used.
+	 */
+	n_size = resource_size(res) - 1;
+	memset(&tmp_res, 0, sizeof(struct resource));
+	while (n_size > 0) {
+		int ret;
+
+		ret = allocate_resource(res, &tmp_res, n_size,
+			res->end - n_size + 1, res->end,
+			1, NULL, NULL);
+		if (ret == 0) {
+			release_resource(&tmp_res);
+			break;
+		}
+		n_size--;
+	}
+
+	return n_size;
+}
+
+static int __devinit pci_bridge_probe_busn_res(struct pci_bus *bus,
+			 struct pci_dev *dev, struct resource *busn_res,
+			 resource_size_t needed_size, struct resource **p)
+{
+	int ret = -ENOMEM;
+	resource_size_t n_size;
+	struct pci_bus *parent;
+	struct resource *parent_res = NULL;
+	resource_size_t tmp = bus->busn_res.end + 1;
+	int free_sz = -1;
+
+again:
+	/*
+	 * find bigest range in bus->busn_res that we can use in the middle
+	 *  and we can not use bus->busn_res.start.
+	 */
+	n_size = resource_size(&bus->busn_res) - 1;
+	memset(busn_res, 0, sizeof(struct resource));
+	dev_printk(KERN_DEBUG, &dev->dev,
+			"find free busn in busn_res: %pR\n", &bus->busn_res);
+	while (n_size >= needed_size) {
+		ret = allocate_resource(&bus->busn_res, busn_res, n_size,
+				bus->busn_res.start + 1, bus->busn_res.end,
+				1, NULL, NULL);
+		if (ret == 0) {
+			/* found one, prepare to return */
+			release_resource(busn_res);
+
+			return ret;
+		}
+		n_size--;
+	}
+
+	/* try extend the top of parent bus, find free under top af first */
+	if (free_sz < 0) {
+		free_sz = find_res_top_free_size(&bus->busn_res);
+		dev_printk(KERN_DEBUG, &dev->dev,
+			"found free busn %d in busn_res: %pR top\n",
+				free_sz, &bus->busn_res);
+	}
+	n_size = free_sz;
+
+	/* can not extend cross domain boundary */
+	if ((0xff - bus->busn_res.end) < (needed_size - n_size))
+		goto reduce_needed_size;
+
+	/* find exteded range */
+	memset(busn_res, 0, sizeof(struct resource));
+	parent = bus->parent;
+	while (parent) {
+		ret = allocate_resource(&parent->busn_res, busn_res,
+			 needed_size - n_size,
+			 tmp, tmp + needed_size - n_size - 1,
+			 1, NULL, NULL);
+		if (ret == 0)
+			break;
+		parent = parent->parent;
+	}
+
+reduce_needed_size:
+	if (ret != 0) {
+		needed_size--;
+		if (!needed_size)
+			return ret;
+
+		goto again;
+	}
+
+	/* save parent_res, we need it as stopper later */
+	parent_res = busn_res->parent;
+
+	/* prepare busn_res for return */
+	release_resource(busn_res);
+	busn_res->start -= n_size;
+
+	/* extend parent bus top*/
+	pci_bus_extend_top(bus, needed_size - n_size, parent_res);
+
+	*p = parent_res;
+
+	return ret;
+}
+
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
