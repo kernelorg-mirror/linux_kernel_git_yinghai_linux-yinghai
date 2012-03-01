@@ -14,7 +14,7 @@ static struct pci_root_info *x86_find_pci_root_info(int bus)
 		return NULL;
 
 	list_for_each_entry(info, &pci_root_infos, list)
-		if (info->bus_min == bus)
+		if (info->busn.start == bus)
 			return info;
 
 	return NULL;
@@ -30,6 +30,8 @@ void x86_pci_root_bus_resources(int bus, struct list_head *resources)
 
 	printk(KERN_DEBUG "PCI: root bus %02x: hardware-probed resources\n",
 	       bus);
+
+	pci_add_resource(resources, &info->busn);
 
 	list_for_each_entry(root_res, &info->resources, list) {
 		struct resource *res;
@@ -54,6 +56,7 @@ default_resources:
 	printk(KERN_DEBUG "PCI: root bus %02x: using default resources\n", bus);
 	pci_add_resource(resources, &ioport_resource);
 	pci_add_resource(resources, &iomem_resource);
+	pci_add_resource(resources, &busn_resource);
 }
 
 struct pci_root_info __init *alloc_pci_root_info(int bus_min, int bus_max,
@@ -66,9 +69,13 @@ struct pci_root_info __init *alloc_pci_root_info(int bus_min, int bus_max,
 	if (!info)
 		return info;
 
+	sprintf(info->name, "PCI Bus #%02x", bus_min);
+
 	INIT_LIST_HEAD(&info->resources);
-	info->bus_min = bus_min;
-	info->bus_max = bus_max;
+	info->busn.name  = info->name;
+	info->busn.start = bus_min;
+	info->busn.end   = bus_max;
+	info->busn.flags = IORESOURCE_BUS;
 	info->node = node;
 	info->link = link;
 
@@ -80,14 +87,13 @@ struct pci_root_info __init *alloc_pci_root_info(int bus_min, int bus_max,
 void print_pci_root_info(struct pci_root_info *info, char *name, bool nodelink)
 {
 	struct pci_root_res *root_res;
-	int busnum = info->bus_min;
+	int busnum = info->busn.start;
 
 	if (!nodelink)
-		printk(KERN_DEBUG "%s: [%02x, %02x]\n", name,
-				info->bus_min, info->bus_max);
+		printk(KERN_DEBUG "%s: %pR\n", name, &info->busn);
 	else
-		printk(KERN_DEBUG "%s: [%02x, %02x] on node %x link %x\n", name,
-			info->bus_min, info->bus_max, info->node, info->link);
+		printk(KERN_DEBUG "%s: %pR on node %x link %x\n", name,
+			&info->busn, info->node, info->link);
 
 	list_for_each_entry(root_res, &info->resources, list)
 		printk(KERN_DEBUG "%s: %02x %pR\n", name, busnum,
