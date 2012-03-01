@@ -850,6 +850,46 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 	    (primary != bus->number || secondary <= bus->number))
 		broken = 1;
 
+	if (!pass && dev->subordinate) {
+		child = dev->subordinate;
+		/*
+		 * User could change bus register in bridge manually with
+		 * setpci and rescan. So double check the setting, and remove
+		 * old structs.  Don't set broken yet, let following check
+		 * to see if the new setting good.
+		 */
+		if (primary != child->primary ||
+		    secondary != child->secondary ||
+		    subordinate != child->subordinate) {
+			dev_info(&dev->dev,
+				"someone changed bus register from pri:%02x, sec:%02x, sub:%02x to pri:%02x, sec:%02x, sub:%02x\n",
+				child->primary, child->secondary, child->subordinate,
+				primary, secondary, subordinate);
+			if (!list_empty(&dev->subordinate->devices)) {
+				u32 old_buses;
+
+				dev_info(&dev->dev,
+				 "but children devices are not removed manually before that.\n");
+				/*
+				 * Try best to remove left children devices
+				 * but we need to set bus register back, otherwise
+				 * We can not access children device and stop them
+				 */
+				old_buses = (buses & 0xff000000)
+				   | ((unsigned int)(child->primary)     <<  0)
+				   | ((unsigned int)(child->secondary)   <<  8)
+				   | ((unsigned int)(child->subordinate) << 16);
+				pci_write_config_dword(dev, PCI_PRIMARY_BUS,
+							 old_buses);
+				pci_stop_and_remove_behind_bridge(dev);
+				pci_write_config_dword(dev, PCI_PRIMARY_BUS,
+							 buses);
+			}
+			pci_remove_bus(dev->subordinate);
+			dev->subordinate = NULL;
+		}
+	}
+
 	/* more strict checking */
 	if (!pass && !broken && !dev->subordinate)
 		broken = pci_bridge_check_busn_broken(bus, dev,
