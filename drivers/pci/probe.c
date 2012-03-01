@@ -1735,12 +1735,34 @@ struct pci_bus * __devinit pci_scan_root_bus(struct device *parent, int bus,
 		struct pci_ops *ops, void *sysdata, struct list_head *resources)
 {
 	struct pci_bus *b;
+	struct pci_host_bridge_window *window, *n;
+	struct resource *res;
+	bool found;
+
+	list_for_each_entry_safe(window, n, resources, list) {
+		res = window->res;
+		if (res->flags & IORESOURCE_BUS) {
+			found = true;
+			break;
+		}
+	}
 
 	b = pci_create_root_bus(parent, bus, ops, sysdata, resources);
 	if (!b)
 		return NULL;
 
+	if (!found) {
+		dev_info(&b->dev,
+		 "No busn resource found for root bus, will use [%02x, ff]\n",
+			bus);
+		pci_bus_insert_busn_res(b, bus, 255);
+	}
+
 	b->subordinate = pci_scan_child_bus(b);
+
+	if (!found)
+		pci_bus_update_busn_res_end(b, b->subordinate);
+
 	pci_bus_add_devices(b);
 	return b;
 }
