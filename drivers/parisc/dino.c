@@ -984,6 +984,10 @@ static int __init dino_probe(struct parisc_device *dev)
 	if (dino_dev->hba.gmmio_space.flags)
 		pci_add_resource(&resources, &dino_dev->hba.gmmio_space);
 
+	dino_dev->hba.bus_num.start = dino_current_bus;
+	dino_dev->hba.bus_num.end = 255;
+	dino_dev->hba.bus_num.flags |= IORESOURCE_BUS;
+	pci_add_resource(&resources, &dino_dev->hba.bus_num);
 	/*
 	** It's not used to avoid chicken/egg problems
 	** with configuration accessor functions.
@@ -999,6 +1003,7 @@ static int __init dino_probe(struct parisc_device *dev)
 		return 0;
 	}
 
+	pci_bus_update_busn_res_end(bus, bus->subordinate);
 	bus->subordinate = pci_scan_child_bus(bus);
 
 	/* This code *depends* on scanning being single threaded
