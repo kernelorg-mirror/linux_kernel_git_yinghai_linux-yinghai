@@ -625,7 +625,8 @@ static void release_pci_sysdata(struct pci_host_bridge *bridge)
 	kfree(sd);
 }
 
-struct pci_bus * __devinit pci_scan_bus_on_node(int busno, struct pci_ops *ops, int node)
+struct pci_bus * __devinit __pci_scan_bus_on_node(int busno,
+			 struct pci_ops *ops, int node, bool bus_add)
 {
 	LIST_HEAD(resources);
 	struct pci_bus *bus = NULL;
@@ -639,7 +640,7 @@ struct pci_bus * __devinit pci_scan_bus_on_node(int busno, struct pci_ops *ops, 
 	sd->node = node;
 	x86_pci_root_bus_resources(busno, &resources);
 	printk(KERN_DEBUG "PCI: Probing PCI hardware (bus %02x)\n", busno);
-	bus = pci_scan_root_bus(NULL, busno, ops, sd, &resources);
+	bus = __pci_scan_root_bus(NULL, busno, ops, sd, &resources, bus_add);
 	if (bus)
 		pci_set_host_bridge_release(to_pci_host_bridge(bus->bridge),
 					release_pci_sysdata, sd);
@@ -650,7 +651,11 @@ struct pci_bus * __devinit pci_scan_bus_on_node(int busno, struct pci_ops *ops, 
 
 	return bus;
 }
-
+struct pci_bus * __devinit pci_scan_bus_on_node(int busno,
+			 struct pci_ops *ops, int node)
+{
+	return __pci_scan_bus_on_node(busno, ops, node, true);
+}
 struct pci_bus * __devinit pci_scan_bus_with_sysdata(int busno)
 {
 	return pci_scan_bus_on_node(busno, &pci_root_ops, -1);
