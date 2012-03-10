@@ -1953,8 +1953,9 @@ void pci_bus_release_busn_res(struct pci_bus *b)
 			res, ret ? "can not be" : "is");
 }
 
-struct pci_bus * __devinit pci_scan_root_bus(struct device *parent, int bus,
-		struct pci_ops *ops, void *sysdata, struct list_head *resources)
+struct pci_bus * __devinit __pci_scan_root_bus(struct device *parent, int bus,
+		struct pci_ops *ops, void *sysdata, struct list_head *resources,
+		bool bus_add)
 {
 	struct pci_bus *b;
 	struct pci_host_bridge_window *window, *n;
@@ -1985,8 +1986,14 @@ struct pci_bus * __devinit pci_scan_root_bus(struct device *parent, int bus,
 	if (!found)
 		pci_bus_update_busn_res_end(b, b->subordinate);
 
-	pci_bus_add_devices(b);
+	if (bus_add)
+		pci_bus_add_devices(b);
 	return b;
+}
+struct pci_bus * __devinit pci_scan_root_bus(struct device *parent, int bus,
+		struct pci_ops *ops, void *sysdata, struct list_head *resources)
+{
+	return __pci_scan_root_bus(parent, bus, ops, sysdata, resources, true);
 }
 EXPORT_SYMBOL(pci_scan_root_bus);
 
