@@ -284,6 +284,7 @@ msi_bus_store(struct device *dev, struct device_attribute *attr,
 
 #ifdef CONFIG_HOTPLUG
 static DEFINE_MUTEX(pci_remove_rescan_mutex);
+void __weak arch_pci_root_rescan(void) { }
 static ssize_t bus_rescan_store(struct bus_type *bus, const char *buf,
 				size_t count)
 {
@@ -295,6 +296,7 @@ static ssize_t bus_rescan_store(struct bus_type *bus, const char *buf,
 
 	if (val) {
 		mutex_lock(&pci_remove_rescan_mutex);
+		arch_pci_root_rescan();
 		while ((b = pci_find_next_bus(b)) != NULL)
 			pci_rescan_bus(b);
 		mutex_unlock(&pci_remove_rescan_mutex);
