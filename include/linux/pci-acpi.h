@@ -35,6 +35,13 @@ static inline acpi_handle acpi_pci_get_bridge_handle(struct pci_bus *pbus)
 	return acpi_get_pci_rootbridge_handle(pci_domain_nr(pbus),
 					      pbus->number);
 }
+
+void acpi_pci_root_rescan(void);
+
+#else
+
+static inline void acpi_pci_root_rescan(void) { }
+
 #endif
 
 #ifdef CONFIG_ACPI_APEI

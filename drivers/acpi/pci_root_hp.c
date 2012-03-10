@@ -268,3 +268,20 @@ static int __init acpi_pci_root_hp_init(void)
 }
 
 subsys_initcall(acpi_pci_root_hp_init);
+
+static acpi_status
+rescan_root_bridge(acpi_handle handle, u32 lvl, void *context, void **rv)
+{
+	if (!acpi_is_root_bridge(handle))
+		return AE_OK;
+
+	handle_root_bridge_insertion(handle);
+
+	return AE_OK;
+}
+
+void acpi_pci_root_rescan(void)
+{
+	acpi_walk_namespace(ACPI_TYPE_DEVICE, ACPI_ROOT_OBJECT,
+		ACPI_UINT32_MAX, rescan_root_bridge, NULL, NULL, NULL);
+}
