@@ -665,6 +665,158 @@ static struct intel_iommu *device_to_iommu(int segment, u8 bus, u8 devfn)
 	return NULL;
 }
 
+#ifdef CONFIG_HOTPLUG
+struct dev_dmaru {
+	struct list_head list;
+	void *dmaru;
+	int index;
+	int segment;
+	unsigned char bus;
+	unsigned int devfn;
+};
+
+static int save_dev_dmaru(struct pci_dev *dev, void *dmaru,
+			  int index, struct list_head *lh)
+{
+	struct dev_dmaru *m;
+
+	m = kzalloc(sizeof(*m), GFP_KERNEL);
+	if (!m)
+		return -ENOMEM;
+
+	m->segment = pci_domain_nr(dev->bus);
+	m->bus     = dev->bus->number;
+	m->devfn   = dev->devfn;
+	m->dmaru   = dmaru;
+	m->index   = index;
+
+	list_add(&m->list, lh);
+
+	return 0;
+}
+
+static void *get_dev_dmaru(struct pci_dev *dev, int *index,
+				struct list_head *lh)
+{
+	int segment = pci_domain_nr(dev->bus);
+	unsigned char bus = dev->bus->number;
+	unsigned int devfn = dev->devfn;
+	struct dev_dmaru *m;
+	void *dmaru = NULL;
+
+	list_for_each_entry(m, lh, list) {
+		if (m->segment == segment &&
+		    m->bus == bus && m->devfn == devfn) {
+			*index = m->index;
+			dmaru  = m->dmaru;
+			list_del(&m->list);
+			kfree(m);
+			break;
+		}
+	}
+
+	return dmaru;
+}
+
+static LIST_HEAD(saved_dev_drhd_list);
+
+static void remove_dev_from_drhd(struct pci_dev *dev)
+{
+	struct dmar_drhd_unit *drhd = NULL;
+	int segment = pci_domain_nr(dev->bus);
+	int i;
+
+	for_each_drhd_unit(drhd) {
+		if (drhd->ignored)
+			continue;
+		if (segment != drhd->segment)
+			continue;
+
+		for (i = 0; i < drhd->devices_cnt; i++) {
+			if (drhd->devices[i] == dev) {
+				/* save it at first if it is in drhd */
+				save_dev_dmaru(dev, drhd, i,
+						&saved_dev_drhd_list);
+				/* always remove it */
+				pci_dev_put(dev);
+				drhd->devices[i] = NULL;
+				return;
+			}
+		}
+	}
+}
+
+static void restore_dev_to_drhd(struct pci_dev *dev)
+{
+	struct dmar_drhd_unit *drhd = NULL;
+	int i;
+
+	/* find the stored drhd */
+	drhd = get_dev_dmaru(dev, &i, &saved_dev_drhd_list);
+	/* restore that into drhd */
+	if (drhd)
+		drhd->devices[i] = pci_dev_get(dev);
+}
+#else
+static void remove_dev_from_drhd(struct pci_dev *dev)
+{
+}
+
+static void restore_dev_to_drhd(struct pci_dev *dev)
+{
+}
+#endif
+
+static LIST_HEAD(dmar_atsr_units);
+
+#if defined(CONFIG_INTEL_IOMMU) && defined(CONFIG_HOTPLUG)
+static LIST_HEAD(saved_dev_atsr_list);
+
+static void remove_dev_from_atsr(struct pci_dev *dev)
+{
+	struct dmar_atsr_unit *atsr = NULL;
+	int segment = pci_domain_nr(dev->bus);
+	int i;
+
+	for_each_atsr_unit(atsr) {
+		if (segment != atsr->segment)
+			continue;
+
+		for (i = 0; i < atsr->devices_cnt; i++) {
+			if (atsr->devices[i] == dev) {
+				/* save it at first if it is in drhd */
+				save_dev_dmaru(dev, atsr, i,
+						&saved_dev_atsr_list);
+				/* always remove it */
+				pci_dev_put(dev);
+				atsr->devices[i] = NULL;
+				return;
+			}
+		}
+	}
+}
+
+static void restore_dev_to_atsr(struct pci_dev *dev)
+{
+	struct dmar_atsr_unit *atsr = NULL;
+	int i;
+
+	/* find the stored atsr */
+	atsr = get_dev_dmaru(dev, &i, &saved_dev_atsr_list);
+	/* restore that into atsr */
+	if (atsr)
+		atsr->devices[i] = pci_dev_get(dev);
+}
+#else
+static void remove_dev_from_atsr(struct pci_dev *dev)
+{
+}
+
+static void restore_dev_to_atsr(struct pci_dev *dev)
+{
+}
+#endif
+
 static void domain_flush_cache(struct dmar_domain *domain,
 			       void *addr, int size)
 {
@@ -3460,8 +3612,6 @@ rmrr_parse_dev(struct dmar_rmrr_unit *rmrru)
 	return ret;
 }
 
-static LIST_HEAD(dmar_atsr_units);
-
 int __init dmar_parse_one_atsr(struct acpi_dmar_header *hdr)
 {
 	struct acpi_dmar_atsr *atsr;
@@ -3474,6 +3624,7 @@ int __init dmar_parse_one_atsr(struct acpi_dmar_header *hdr)
 
 	atsru->hdr = hdr;
 	atsru->include_all = atsr->flags & 0x1;
+	atsru->segment = atsr->segment;
 
 	list_add(&atsru->list, &dmar_atsr_units);
 
@@ -3505,16 +3656,13 @@ int dmar_find_matched_atsr_unit(struct pci_dev *dev)
 {
 	int i;
 	struct pci_bus *bus;
-	struct acpi_dmar_atsr *atsr;
 	struct dmar_atsr_unit *atsru;
 
 	dev = pci_physfn(dev);
 
-	list_for_each_entry(atsru, &dmar_atsr_units, list) {
-		atsr = container_of(atsru->hdr, struct acpi_dmar_atsr, header);
-		if (atsr->segment == pci_domain_nr(dev->bus))
+	list_for_each_entry(atsru, &dmar_atsr_units, list)
+		if (atsru->segment == pci_domain_nr(dev->bus))
 			goto found;
-	}
 
 	return 0;
 
@@ -3574,20 +3722,36 @@ static int device_notifier(struct notifier_block *nb,
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct dmar_domain *domain;
 
-	if (iommu_no_mapping(dev))
+	if (unlikely(dev->bus != &pci_bus_type))
 		return 0;
 
-	domain = find_domain(pdev);
-	if (!domain)
-		return 0;
+	switch (action) {
+	case BUS_NOTIFY_UNBOUND_DRIVER:
+		if (iommu_no_mapping(dev))
+			goto out;
 
-	if (action == BUS_NOTIFY_UNBOUND_DRIVER && !iommu_pass_through) {
+		if (iommu_pass_through)
+			goto out;
+
+		domain = find_domain(pdev);
+		if (!domain)
+			goto out;
+
 		domain_remove_one_dev_info(domain, pdev);
 
 		if (!(domain->flags & DOMAIN_FLAG_VIRTUAL_MACHINE) &&
 		    !(domain->flags & DOMAIN_FLAG_STATIC_IDENTITY) &&
 		    list_empty(&domain->devices))
 			domain_exit(domain);
+out:
+		remove_dev_from_drhd(pdev);
+		remove_dev_from_atsr(pdev);
+
+		break;
+	case BUS_NOTIFY_ADD_DEVICE:
+		restore_dev_to_drhd(pdev);
+		restore_dev_to_atsr(pdev);
+		break;
 	}
 
 	return 0;
