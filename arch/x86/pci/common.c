@@ -10,6 +10,7 @@
 #include <linux/init.h>
 #include <linux/dmi.h>
 #include <linux/slab.h>
+#include <linux/pci-acpi.h>
 
 #include <asm/acpi.h>
 #include <asm/segment.h>
@@ -659,6 +660,12 @@ struct pci_bus * __devinit pci_scan_bus_on_node(int busno,
 struct pci_bus * __devinit pci_scan_bus_with_sysdata(int busno)
 {
 	return pci_scan_bus_on_node(busno, &pci_root_ops, -1);
+}
+
+void arch_pci_root_rescan(void)
+{
+	acpi_pci_root_rescan();
+	pcibios_root_rescan();
 }
 
 /*
