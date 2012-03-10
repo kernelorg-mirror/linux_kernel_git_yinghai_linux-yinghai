@@ -79,18 +79,15 @@ struct acpiphp_bridge {
 	/* Ejectable PCI-to-PCI bridge (PCI bridge and PCI function) */
 	struct acpiphp_func *func;
 
-	int type;
 	int nr_slots;
 
 	u32 flags;
 
-	/* This bus (host bridge) or Secondary bus (PCI-to-PCI bridge) */
+	/* Secondary bus (PCI-to-PCI bridge) */
 	struct pci_bus *pci_bus;
 
 	/* PCI-to-PCI bridge device */
 	struct pci_dev *pci_dev;
-
-	spinlock_t res_lock;
 };
 
 
@@ -147,10 +144,6 @@ struct acpiphp_attention_info
 
 /* PCI bus bridge HID */
 #define ACPI_PCI_HOST_HID		"PNP0A03"
-
-/* PCI BRIDGE type */
-#define BRIDGE_TYPE_HOST		0
-#define BRIDGE_TYPE_P2P			1
 
 /* ACPI _STA method value (ignore bit 4; battery present) */
 #define ACPI_STA_PRESENT		(0x00000001)
