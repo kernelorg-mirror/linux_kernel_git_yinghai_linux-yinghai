@@ -1001,6 +1001,8 @@ static int __init acpi_bus_init(void)
 	 */
 	acpi_root_dir = proc_mkdir(ACPI_BUS_FILE_ROOT, NULL);
 
+	acpi_init_sci_emulate();
+
 	return 0;
 
 	/* Mimic structured exception handling */
