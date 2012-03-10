@@ -113,15 +113,15 @@ void pci_stop_and_remove_bus_device(struct pci_dev *dev)
 
 static void __pci_remove_bus_devices(struct pci_bus *bus)
 {
-	struct list_head *l, *n;
+	struct pci_dev *dev, *tmp;
 
-	list_for_each_safe(l, n, &bus->devices)
-		__pci_remove_bus_device(pci_dev_b(l));
+	list_for_each_entry_safe(dev, tmp, &bus->devices, bus_list)
+		__pci_remove_bus_device(dev);
 }
 
 static void pci_stop_bus_devices(struct pci_bus *bus)
 {
-	struct list_head *l, *n;
+	struct pci_dev *dev, *tmp;
 
 	/*
 	 * VFs could be removed by pci_stop_and_remove_bus_device() in the
@@ -131,10 +131,8 @@ static void pci_stop_bus_devices(struct pci_bus *bus)
 	 * We can iterate the list backwards to get prev valid PF instead
 	 *  of removed VF.
 	 */
-	list_for_each_prev_safe(l, n, &bus->devices) {
-		struct pci_dev *dev = pci_dev_b(l);
+	list_for_each_entry_safe_reverse(dev, tmp, &bus->devices, bus_list)
 		pci_stop_bus_device(dev);
-	}
 }
 
 /**
