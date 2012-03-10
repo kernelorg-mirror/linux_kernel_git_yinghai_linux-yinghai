@@ -30,6 +30,8 @@ extern struct pci_bus *pci_scan_bus_on_node(int busno, struct pci_ops *ops,
 					    int node);
 extern struct pci_bus *pci_scan_bus_with_sysdata(int busno);
 
+void pcibios_root_rescan(void);
+
 #ifdef CONFIG_PCI
 
 #ifdef CONFIG_PCI_DOMAINS

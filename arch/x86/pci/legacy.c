@@ -79,3 +79,28 @@ int __init pci_subsys_init(void)
 	return 0;
 }
 subsys_initcall(pci_subsys_init);
+
+void __ref pcibios_root_rescan(void)
+{
+	int busn;
+	struct pci_bus *bus;
+
+	if (pcibios_last_bus <= 0 || pcibios_last_bus > 0xff)
+		return;
+
+	for (busn = 0; busn <= pcibios_last_bus; busn++) {
+		bus = pci_find_bus(0, busn);
+
+		if (bus)
+			continue;
+
+		bus = __pcibios_scan_specific_bus(busn, false);
+
+		if (!bus)
+			continue;
+
+		pci_assign_unassigned_bus_resources(bus);
+
+		pci_bus_add_devices(bus);
+	}
+}
