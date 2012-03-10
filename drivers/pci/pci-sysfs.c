@@ -388,6 +388,35 @@ remove_store(struct device *dev, struct device_attribute *dummy,
 	return count;
 }
 
+static void bus_remove_callback(struct device *dev)
+{
+	struct pci_bus *bus = to_pci_bus(dev);
+
+	mutex_lock(&pci_remove_rescan_mutex);
+	pci_stop_and_remove_bus(bus);
+	mutex_unlock(&pci_remove_rescan_mutex);
+}
+static ssize_t
+dev_bus_remove_store(struct device *dev, struct device_attribute *attr,
+		 const char *buf, size_t count)
+{
+	int err;
+	unsigned long val;
+
+	if (kstrtoul(buf, 0, &val) < 0)
+		return -EINVAL;
+
+	if (!val)
+		return count;
+
+	err = device_schedule_callback(dev, bus_remove_callback);
+
+	if (err)
+		return err;
+
+	return count;
+}
+
 static void bus_rescan_callback(struct device *dev)
 {
 	struct pci_bus *bus = to_pci_bus(dev);
@@ -447,6 +476,7 @@ struct device_attribute pci_dev_attrs[] = {
 struct device_attribute pcibus_dev_attrs[] = {
 #ifdef CONFIG_HOTPLUG
 	__ATTR(rescan, (S_IWUSR|S_IWGRP), NULL, dev_bus_rescan_store),
+	__ATTR(remove, (S_IWUSR|S_IWGRP), NULL, dev_bus_remove_store),
 #endif
 	__ATTR(cpuaffinity, S_IRUGO, pci_bus_show_cpumaskaffinity, NULL),
 	__ATTR(cpulistaffinity, S_IRUGO, pci_bus_show_cpulistaffinity, NULL),
