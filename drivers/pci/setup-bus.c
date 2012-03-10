@@ -1496,17 +1496,11 @@ EXPORT_SYMBOL_GPL(pci_assign_unassigned_bridge_resources);
 
 void pci_assign_unassigned_bus_resources(struct pci_bus *bus)
 {
-	struct pci_dev *dev;
 	LIST_HEAD(add_list); /* list of resources that
 					want additional resources */
 
 	down_read(&pci_bus_sem);
-	list_for_each_entry(dev, &bus->devices, bus_list)
-		if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
-		    dev->hdr_type == PCI_HEADER_TYPE_CARDBUS)
-			if (dev->subordinate)
-				__pci_bus_size_bridges(dev->subordinate,
-						 &add_list, true);
+	__pci_bus_size_bridges(bus, &add_list, false);
 	up_read(&pci_bus_sem);
 	__pci_bus_assign_resources(bus, &add_list, NULL);
 	BUG_ON(!list_empty(&add_list));
