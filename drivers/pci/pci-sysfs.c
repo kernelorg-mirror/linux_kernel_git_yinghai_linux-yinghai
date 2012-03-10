@@ -320,6 +320,9 @@ dev_rescan_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 
 	if (val) {
+		printk(KERN_WARNING "rescan with pci device will be removed "
+			 "shortly, please use bridge rescan_bridge\n"
+			 "or bus/rescan instead\n");
 		mutex_lock(&pci_remove_rescan_mutex);
 		pci_rescan_bus(pdev->bus);
 		mutex_unlock(&pci_remove_rescan_mutex);

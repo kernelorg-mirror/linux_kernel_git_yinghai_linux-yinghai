@@ -299,6 +299,15 @@ Why:	In 2.6.27, the semantics of /sys/bus/pci/slots was redefined to
 	fakephp interface.
 Who:	Alex Chiang <achiang@hp.com>
 
+-----------------------------
+
+What:	/sys/bus/pci/devices/.../rescan
+When:	April 2013
+Why:	That rescan will rescan pci parent's bus. It is confusing.
+	Now we have bridge rescan_bridge and bus rescan, and they could
+	be used on exact device and bus that need to be rescaned.
+Who:	Yinghai Lu <yinghai@kernel.org>
+
 ---------------------------
 
 What:	CONFIG_RFKILL_INPUT
