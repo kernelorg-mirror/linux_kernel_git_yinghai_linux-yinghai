@@ -3768,6 +3768,9 @@ int __init intel_iommu_init(void)
 	/* VT-d is required for a TXT/tboot launch, so enforce that */
 	force_on = tboot_force_iommu();
 
+	if (no_iommu || dmar_disabled)
+		return -ENODEV;
+
 	if (dmar_table_init()) {
 		if (force_on)
 			panic("tboot: Failed to initialize DMAR table\n");
@@ -3779,9 +3782,6 @@ int __init intel_iommu_init(void)
 			panic("tboot: Failed to initialize DMAR device scope\n");
 		return 	-ENODEV;
 	}
-
-	if (no_iommu || dmar_disabled)
-		return -ENODEV;
 
 	if (iommu_init_mempool()) {
 		if (force_on)
