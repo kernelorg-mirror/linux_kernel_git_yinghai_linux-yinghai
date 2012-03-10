@@ -313,7 +313,7 @@ int __ref cpci_configure_slot(struct slot *slot)
 				continue;
 			}
 			child->subordinate = pci_do_scan_bus(child);
-			pci_bus_size_bridges(child);
+			pci_bus_size_bridges_with_self(child);
 		}
 		pci_dev_put(dev);
 	}

@@ -85,7 +85,7 @@ int __ref shpchp_configure_device(struct slot *p_slot)
 				continue;
 			}
 			child->subordinate = pci_do_scan_bus(child);
-			pci_bus_size_bridges(child);
+			pci_bus_size_bridges_with_self(child);
 		}
 		pci_configure_slot(dev);
 		pci_dev_put(dev);
