@@ -1444,6 +1444,8 @@ void pci_assign_unassigned_bridge_resources(struct pci_dev *bridge)
 	unsigned long type_mask = IORESOURCE_IO | IORESOURCE_MEM |
 				  IORESOURCE_PREFETCH;
 
+	pcibios_resource_survey_bus(parent);
+
 again:
 	__pci_bus_size_bridges(parent, &add_list, true);
 	__pci_bridge_assign_resources(bridge, &add_list, &fail_head);
@@ -1498,6 +1500,8 @@ void pci_assign_unassigned_bus_resources(struct pci_bus *bus)
 {
 	LIST_HEAD(add_list); /* list of resources that
 					want additional resources */
+
+	pcibios_resource_survey_bus(bus);
 
 	down_read(&pci_bus_sem);
 	__pci_bus_size_bridges(bus, &add_list, false);

@@ -325,6 +325,16 @@ static int __init pcibios_assign_resources(void)
 	return 0;
 }
 
+void pcibios_resource_survey_bus(struct pci_bus *bus)
+{
+	dev_printk(KERN_DEBUG, &bus->dev, "Allocating resources\n");
+
+	pcibios_allocate_bus_resources(bus);
+
+	pcibios_allocate_resources(bus, 0);
+	pcibios_allocate_resources(bus, 1);
+}
+
 void __init pcibios_resource_survey(void)
 {
 	struct pci_bus *bus;

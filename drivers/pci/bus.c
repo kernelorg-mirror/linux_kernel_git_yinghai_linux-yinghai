@@ -94,6 +94,8 @@ void pci_bus_remove_resources(struct pci_bus *bus)
 	pci_free_resource_list(&bus->resources);
 }
 
+void __weak pcibios_resource_survey_bus(struct pci_bus *bus) { }
+
 /**
  * pci_bus_alloc_resource - allocate a resource from a parent bus
  * @bus: PCI bus
