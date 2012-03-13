@@ -75,6 +75,111 @@ static int __init pcibus_class_init(void)
 }
 postcore_initcall(pcibus_class_init);
 
+struct resource *pci_dev_resource_n(struct pci_dev *dev, int n)
+{
+	struct pci_dev_addon_resource *addon_res;
+
+	if (n < PCI_NUM_RESOURCES)
+		return &dev->resource[n];
+
+	n -= PCI_NUM_RESOURCES;
+	list_for_each_entry(addon_res, &dev->addon_resources, list) {
+		if (n-- == 0)
+			return &addon_res->res;
+	}
+	return NULL;
+}
+
+int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res)
+{
+	int i;
+	struct resource *r;
+
+	for_each_pci_dev_all_resource(dev, r, i)
+		if (r == res)
+			return i;
+
+	return -1;
+}
+
+struct pci_dev_addon_resource *__add_pci_dev_addon_resource(
+		 struct pci_dev *dev, int addr, char *name)
+{
+	struct pci_dev_addon_resource *addon_res;
+
+	addon_res = kzalloc(sizeof(*addon_res), GFP_KERNEL);
+
+	if (!addon_res)
+		return NULL;
+
+	addon_res->reg_addr = addr;
+
+	if (name)
+		addon_res->res.name = name;
+	else
+		addon_res->res.name = pci_name(dev);
+
+	list_add_tail(&addon_res->list, &dev->addon_resources);
+
+	return addon_res;
+}
+
+struct pci_dev_addon_resource *add_pci_dev_addon_fixed_resource(
+		 struct pci_dev *dev, int start, int size, int flags,
+		 int addr, char *name)
+{
+	struct pci_dev_addon_resource *addon_res;
+	struct resource *res;
+
+	addon_res = __add_pci_dev_addon_resource(dev, addr, name);
+	if (addon_res)
+		return NULL;
+
+	res = &addon_res->res;
+	res->start = start;
+	res->end = start + size - 1;
+	res->flags = flags | IORESOURCE_PCI_FIXED;
+
+	dev_printk(KERN_DEBUG, &dev->dev,
+		   "addon fixed resource %s %pR added\n", res->name, res);
+
+	return addon_res;
+}
+
+struct pci_dev_addon_resource *add_pci_dev_addon_resource(struct pci_dev *dev,
+		 int addr, int size, struct resource_ops *ops, char *name)
+{
+	struct pci_dev_addon_resource *addon_res;
+	struct resource *res;
+
+	addon_res = __add_pci_dev_addon_resource(dev, addr, name);
+	if (!addon_res)
+		return NULL;
+
+	res = &addon_res->res;
+	if (ops) {
+		addon_res->ops = ops;
+		addon_res->size = size;
+		ops->read(dev, res, addr);
+	} else
+		__pci_read_base(dev, pci_bar_unknown, res, addr);
+
+	dev_printk(KERN_DEBUG, &dev->dev,
+		   "addon resource %s %pR added\n", res->name, res);
+
+	return addon_res;
+}
+
+static void pci_release_dev_addon_res(struct pci_dev *dev)
+{
+	struct pci_dev_addon_resource *addon_res, *tmp;
+
+	list_for_each_entry_safe(addon_res, tmp, &dev->addon_resources, list) {
+		list_del(&addon_res->list);
+		kfree(addon_res);
+	}
+}
+
 static u64 pci_size(u64 base, u64 maxbase, u64 mask)
 {
 	u64 size = mask & maxbase;	/* Find the significant bits */
@@ -1283,6 +1388,7 @@ static void pci_release_dev(struct device *dev)
 	pci_dev = to_pci_dev(dev);
 	pci_release_capabilities(pci_dev);
 	pci_release_of_node(pci_dev);
+	pci_release_dev_addon_res(pci_dev);
 	kfree(pci_dev);
 }
 
@@ -1362,10 +1468,12 @@ struct pci_dev *alloc_pci_dev(void)
 		return NULL;
 
 	INIT_LIST_HEAD(&dev->bus_list);
+	INIT_LIST_HEAD(&dev->addon_resources);
 
 	return dev;
 }
 EXPORT_SYMBOL(alloc_pci_dev);
+
 
 bool pci_bus_read_dev_vendor_id(struct pci_bus *bus, int devfn, u32 *l,
 				 int crs_timeout)

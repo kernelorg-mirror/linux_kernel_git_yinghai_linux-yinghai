@@ -33,7 +33,7 @@ void pci_update_resource(struct pci_dev *dev, int resno)
 	u32 new, check, mask;
 	int reg;
 	enum pci_bar_type type;
-	struct resource *res = dev->resource + resno;
+	struct resource *res = pci_dev_resource_n(dev, resno);
 
 	/*
 	 * Ignore resources for unimplemented BARs and unused resource slots
@@ -50,6 +50,21 @@ void pci_update_resource(struct pci_dev *dev, int resno)
 	if (res->flags & IORESOURCE_PCI_FIXED)
 		return;
 
+	if (resno >= PCI_NUM_RESOURCES) {
+		struct pci_dev_addon_resource *addon_res;
+
+		addon_res = to_pci_dev_addon_resource(res);
+		reg = addon_res->reg_addr;
+		if (addon_res->ops) {
+			addon_res->ops->write(dev, res, reg);
+			return;
+		}
+	} else
+		reg = pci_resource_bar(dev, resno, &type);
+
+	if (!reg)
+		return;
+
 	pcibios_resource_to_bus(dev, &region, res);
 
 	new = region.start | (res->flags & PCI_REGION_FLAG_MASK);
@@ -58,9 +73,6 @@ void pci_update_resource(struct pci_dev *dev, int resno)
 	else
 		mask = (u32)PCI_BASE_ADDRESS_MEM_MASK;
 
-	reg = pci_resource_bar(dev, resno, &type);
-	if (!reg)
-		return;
 	if (type != pci_bar_unknown) {
 		if (!(res->flags & IORESOURCE_ROM_ENABLE))
 			return;
@@ -257,7 +269,7 @@ int pci_reassign_resource(struct pci_dev *dev, int resno, resource_size_t addsiz
 	if (!ret) {
 		res->flags &= ~IORESOURCE_STARTALIGN;
 		dev_info(&dev->dev, "BAR %d: reassigned %pR\n", resno, res);
-		if (resno < PCI_BRIDGE_RESOURCES)
+		if (!resno_is_for_bridge(resno))
 			pci_update_resource(dev, resno);
 	}
 	return ret;
@@ -292,7 +304,7 @@ int pci_assign_resource(struct pci_dev *dev, int resno)
 	if (!ret) {
 		res->flags &= ~IORESOURCE_STARTALIGN;
 		dev_info(&dev->dev, "BAR %d: assigned %pR\n", resno, res);
-		if (resno < PCI_BRIDGE_RESOURCES)
+		if (!resno_is_for_bridge(resno))
 			pci_update_resource(dev, resno);
 	}
 	return ret;

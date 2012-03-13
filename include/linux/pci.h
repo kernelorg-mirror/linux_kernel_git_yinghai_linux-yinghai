@@ -299,6 +299,7 @@ struct pci_dev {
 	 */
 	unsigned int	irq;
 	struct resource resource[DEVICE_COUNT_RESOURCE]; /* I/O and memory regions + expansion ROMs */
+	struct list_head addon_resources; /* addon I/O and memory resource */
 
 	/* These fields are used by common fixups */
 	unsigned int	transparent:1;	/* Transparent PCI bridge */
@@ -346,6 +347,76 @@ struct pci_dev {
 	struct pci_ats	*ats;	/* Address Translation Service */
 #endif
 };
+
+struct resource_ops {
+	int (*read)(struct pci_dev *dev, struct resource *res, int addr);
+	int (*write)(struct pci_dev *dev, struct resource *res, int addr);
+};
+
+struct pci_dev_addon_resource {
+	struct list_head list;
+	int reg_addr;
+	int size;
+	struct resource res;
+	struct resource_ops *ops;
+};
+#define	to_pci_dev_addon_resource(n) container_of(n, struct pci_dev_addon_resource, res)
+
+struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
+int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res);
+struct pci_dev_addon_resource *add_pci_dev_addon_fixed_resource(
+		 struct pci_dev *dev, int start, int size, int flags,
+		 int addr, char *name);
+struct pci_dev_addon_resource *add_pci_dev_addon_resource(struct pci_dev *dev,
+		 int addr, int size, struct resource_ops *ops, char *name);
+
+#define resno_is_for_bridge(n) ((n)>=PCI_BRIDGE_RESOURCES && (n)<=PCI_BRIDGE_RESOURCE_END)
+
+/* all (include bridge) resources */
+#define for_each_pci_dev_all_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i++)
+/* exclude bridge resources */
+#define for_each_pci_dev_nobridge_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != (PCI_BRIDGE_RESOURCES - 1)) ? (i+1) : PCI_NUM_RESOURCES)
+/* exclude bridge and IOV resources */
+#define for_each_pci_dev_base_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != PCI_ROM_RESOURCE) ? (i+1) : PCI_NUM_RESOURCES)
+/* exclude ROM and bridge and IOV resources */
+#define for_each_pci_dev_base_norom_resource(dev, res, i)		\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != (PCI_ROM_RESOURCE-1)) ? (i+1) : PCI_NUM_RESOURCES)
+/* exclude IOV resources */
+#define for_each_pci_dev_noiov_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != PCI_ROM_RESOURCE) ? (i+1) : PCI_BRIDGE_RESOURCES)
+/* only std resources */
+#define for_each_pci_dev_std_resource(dev, res, i)			\
+	for (i = PCI_STD_RESOURCES;					\
+	   (res = pci_dev_resource_n(dev, i)) && i < (PCI_STD_RESOURCE_END+1); \
+	     i++)
+/* only IOV resources */
+#define for_each_pci_dev_iov_resource(dev, res, i)			\
+	for (i = PCI_IOV_RESOURCES;					\
+	   (res = pci_dev_resource_n(dev, i)) && i < (PCI_IOV_RESOURCE_END+1); \
+	     i++)
+/* only bridge resources */
+#define for_each_pci_dev_bridge_resource(dev, res, i)			\
+	for (i = PCI_BRIDGE_RESOURCES;					\
+	(res = pci_dev_resource_n(dev, i)) && i < (PCI_BRIDGE_RESOURCE_END+1); \
+	     i++)
+/* only addon resources */
+#define for_each_pci_dev_addon_resource(dev, res, i)			\
+	for (i = PCI_NUM_RESOURCES;					\
+	     (res = pci_dev_resource_n(dev, i));			\
+	     i++)
 
 static inline struct pci_dev *pci_physfn(struct pci_dev *dev)
 {
@@ -1348,9 +1419,9 @@ static inline int pci_domain_nr(struct pci_bus *bus)
 
 /* these helpers provide future and backwards compatibility
  * for accessing popular PCI BAR info */
-#define pci_resource_start(dev, bar)	((dev)->resource[(bar)].start)
-#define pci_resource_end(dev, bar)	((dev)->resource[(bar)].end)
-#define pci_resource_flags(dev, bar)	((dev)->resource[(bar)].flags)
+#define pci_resource_start(dev, bar)	(pci_dev_resource_n(dev, (bar))->start)
+#define pci_resource_end(dev, bar)	(pci_dev_resource_n(dev, (bar))->end)
+#define pci_resource_flags(dev, bar)	(pci_dev_resource_n(dev, (bar))->flags)
 #define pci_resource_len(dev,bar) \
 	((pci_resource_start((dev), (bar)) == 0 &&	\
 	  pci_resource_end((dev), (bar)) ==		\
