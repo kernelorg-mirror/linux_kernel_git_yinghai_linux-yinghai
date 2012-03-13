@@ -899,6 +899,7 @@ static inline void dbg_ctrl(struct controller *ctrl)
 	int i;
 	u16 reg16;
 	struct pci_dev *pdev = ctrl->pcie->port;
+	struct resource *res;
 
 	if (!pciehp_debug)
 		return;
@@ -914,11 +915,11 @@ static inline void dbg_ctrl(struct controller *ctrl)
 		  pdev->subsystem_vendor);
 	ctrl_info(ctrl, "  PCIe Cap offset      : 0x%02x\n",
 		  pci_pcie_cap(pdev));
-	for (i = 0; i < DEVICE_COUNT_RESOURCE; i++) {
+	for_each_pci_dev_all_resource(pdev, res, i) {
 		if (!pci_resource_len(pdev, i))
 			continue;
 		ctrl_info(ctrl, "  PCI resource [%d]     : %pR\n",
-			  i, &pdev->resource[i]);
+			  i, res);
 	}
 	ctrl_info(ctrl, "Slot Capabilities      : 0x%08x\n", ctrl->slot_cap);
 	ctrl_info(ctrl, "  Physical Slot Number : %d\n", PSN(ctrl));
