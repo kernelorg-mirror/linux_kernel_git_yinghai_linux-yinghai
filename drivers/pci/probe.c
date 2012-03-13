@@ -57,6 +57,7 @@ static void release_pcibus_dev(struct device *dev)
 
 	if (pci_bus->bridge)
 		put_device(pci_bus->bridge);
+	dev_printk(KERN_DEBUG, dev, "freeing pci_bus info\n");
 	pci_bus_remove_resources(pci_bus);
 	pci_release_bus_of_node(pci_bus);
 	kfree(pci_bus);
@@ -1278,6 +1279,7 @@ static void pci_release_dev(struct device *dev)
 {
 	struct pci_dev *pci_dev;
 
+	dev_printk(KERN_DEBUG, dev, "freeing pci_dev info\n");
 	pci_dev = to_pci_dev(dev);
 	pci_release_capabilities(pci_dev);
 	pci_release_of_node(pci_dev);
@@ -1342,6 +1344,7 @@ static void pci_release_bus_bridge_dev(struct device *dev)
 {
 	struct pci_host_bridge *bridge = to_pci_host_bridge(dev);
 
+	dev_printk(KERN_DEBUG, dev, "freeing pci_host_bridge info\n");
 	if (bridge->release_fn)
 		bridge->release_fn(bridge);
 
