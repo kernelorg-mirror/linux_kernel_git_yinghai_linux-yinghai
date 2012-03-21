@@ -138,7 +138,7 @@ void acpi_penalize_isa_irq(int irq, int active);
 void acpi_pci_irq_disable (struct pci_dev *dev);
 
 struct acpi_pci_driver {
-	struct acpi_pci_driver *next;
+	struct list_head node;
 	int (*add)(struct acpi_pci_root *root);
 	void (*remove)(struct acpi_pci_root *root);
 };
