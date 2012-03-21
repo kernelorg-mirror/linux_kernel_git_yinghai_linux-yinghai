@@ -633,6 +633,11 @@ end:
 static int acpi_pci_root_start(struct acpi_device *device)
 {
 	struct acpi_pci_root *root = acpi_driver_data(device);
+	struct acpi_pci_driver *driver;
+
+	list_for_each_entry(driver, &acpi_pci_drivers, node)
+		if (driver->add)
+			driver->add(root);
 
 	pci_bus_add_devices(root->bus);
 	return 0;
@@ -643,6 +648,7 @@ static int acpi_pci_root_remove(struct acpi_device *device, int type)
 	acpi_status status;
 	acpi_handle handle;
 	struct acpi_pci_root *root = acpi_driver_data(device);
+	struct acpi_pci_driver *driver;
 
 	/* that root bus could be removed already */
 	if (!pci_find_bus(root->segment, root->secondary.start)) {
@@ -651,7 +657,12 @@ static int acpi_pci_root_remove(struct acpi_device *device, int type)
 		goto out;
 	}
 
+	/* stop normal pci drivers before we stop ioapic and dmar etc */
 	pci_stop_root_bus(root->bus);
+
+	list_for_each_entry_reverse(driver, &acpi_pci_drivers, node)
+		if (driver->remove)
+			driver->remove(root);
 
 	device_set_run_wake(root->bus->bridge, false);
 	pci_acpi_remove_bus_pm_notifier(device);
