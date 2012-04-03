@@ -627,6 +627,21 @@ static struct pci_bus *pci_alloc_child_bus(struct pci_bus *parent,
 	return child;
 }
 
+static void pci_bus_replace_busn_res(struct pci_bus *b,
+					 struct resource *busn_res)
+{
+	struct resource *res = &b->busn_res;
+
+	/* busn_res must be registered already*/
+	if (!busn_res->parent)
+		return;
+
+	resource_replace(busn_res, res);
+
+	dev_printk(KERN_DEBUG, &b->dev, "busn_res: %pR is updated under %pR\n",
+			res, res->parent);
+}
+
 struct pci_bus *__ref pci_add_new_bus(struct pci_bus *parent, struct pci_dev *dev, int busnr)
 {
 	struct pci_bus *child;
