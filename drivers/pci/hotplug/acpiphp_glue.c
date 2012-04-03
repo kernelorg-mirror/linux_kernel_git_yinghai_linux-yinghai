@@ -392,13 +392,6 @@ static void add_p2p_bridge(acpi_handle *handle)
 		goto err;
 	}
 
-	/*
-	 * Grab a ref to the subordinate PCI bus in case the bus is
-	 * removed via PCI core logical hotplug. The ref pins the bus
-	 * (which we access during module unload).
-	 */
-	get_device(&bridge->pci_bus->dev);
-
 	init_bridge_misc(bridge);
 	return;
  err:
@@ -523,7 +516,6 @@ static void cleanup_bridge(struct acpiphp_bridge *bridge)
 		slot = next;
 	}
 
-	put_device(&bridge->pci_bus->dev);
 	pci_dev_put(bridge->pci_dev);
 	list_del(&bridge->list);
 	kfree(bridge);
