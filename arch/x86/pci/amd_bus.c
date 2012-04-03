@@ -30,7 +30,7 @@ static struct pci_hostbridge_probe pci_probes[] __initdata = {
 	{ 0, 0x18, PCI_VENDOR_ID_AMD, 0x1300 },
 };
 
-#define RANGE_NUM 16
+#define RANGE_NUM 128
 
 static struct pci_root_info __init *find_pci_root_info(int node, int link)
 {
@@ -64,7 +64,7 @@ static int __init early_fill_mp_bus_info(void)
 	u32 reg;
 	u64 start;
 	u64 end;
-	struct range range[RANGE_NUM];
+	struct range *range;
 	u64 val;
 	u32 address;
 	bool found;
@@ -125,7 +125,10 @@ static int __init early_fill_mp_bus_info(void)
 	reg = read_pci_config(bus, slot, 0, 0x64);
 	def_link = (reg >> 8) & 0x03;
 
-	memset(range, 0, sizeof(range));
+	range = kcalloc(RANGE_NUM, sizeof(struct range), GFP_KERNEL);
+	if (!range)
+		return -ENOMEM;
+
 	add_range(range, RANGE_NUM, 0, 0, 0xffff + 1);
 	/* io port resource */
 	for (i = 0; i < 4; i++) {
@@ -290,6 +293,8 @@ static int __init early_fill_mp_bus_info(void)
 				   IORESOURCE_MEM, 1);
 		}
 	}
+
+	kfree(range);
 
 	print_all_pci_root_info("ht link", true);
 
