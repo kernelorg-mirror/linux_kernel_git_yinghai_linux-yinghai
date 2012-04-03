@@ -201,13 +201,15 @@ EXPORT_SYMBOL(pcibios_align_resource);
  *	    as well.
  */
 
-static void __init pcibios_allocate_bridge_resources(struct pci_dev *dev)
+static void pcibios_allocate_bridge_resources(struct pci_dev *dev)
 {
 	int idx;
 	struct resource *r;
 
 	for (idx = PCI_BRIDGE_RESOURCES; idx < PCI_NUM_RESOURCES; idx++) {
 		r = &dev->resource[idx];
+		if (r->parent)	/* Already allocated */
+			continue;
 		if (!r->flags)
 			continue;
 		if (!r->start || pci_claim_resource(dev, idx) < 0) {
@@ -223,7 +225,7 @@ static void __init pcibios_allocate_bridge_resources(struct pci_dev *dev)
 	}
 }
 
-static void __init pcibios_allocate_bus_resources(struct pci_bus *bus)
+static void pcibios_allocate_bus_resources(struct pci_bus *bus)
 {
 	struct pci_bus *child;
 
@@ -239,7 +241,7 @@ struct pci_check_idx_range {
 	int end;
 };
 
-static void __init pcibios_allocate_dev_resources(struct pci_dev *dev, int pass)
+static void pcibios_allocate_dev_resources(struct pci_dev *dev, int pass)
 {
 	int idx, disabled, i;
 	u16 command;
@@ -292,7 +294,7 @@ static void __init pcibios_allocate_dev_resources(struct pci_dev *dev, int pass)
 	}
 }
 
-static void __init pcibios_allocate_resources(struct pci_bus *bus, int pass)
+static void pcibios_allocate_resources(struct pci_bus *bus, int pass)
 {
 	struct pci_dev *dev;
 	struct pci_bus *child;
@@ -306,7 +308,7 @@ static void __init pcibios_allocate_resources(struct pci_bus *bus, int pass)
 	}
 }
 
-static void __init pcibios_allocate_dev_rom_resource(struct pci_dev *dev)
+static void pcibios_allocate_dev_rom_resource(struct pci_dev *dev)
 {
 	struct resource *r;
 
@@ -324,7 +326,7 @@ static void __init pcibios_allocate_dev_rom_resource(struct pci_dev *dev)
 		r->start = 0;
 	}
 }
-static void __init __pcibios_allocate_rom_resources(struct pci_bus *bus)
+static void __pcibios_allocate_rom_resources(struct pci_bus *bus)
 {
 	struct pci_dev *dev;
 	struct pci_bus *child;
@@ -337,7 +339,7 @@ static void __init __pcibios_allocate_rom_resources(struct pci_bus *bus)
 			__pcibios_allocate_rom_resources(child);
 	}
 }
-static void __init pcibios_allocate_rom_resources(struct pci_bus *bus)
+static void pcibios_allocate_rom_resources(struct pci_bus *bus)
 {
 	if (pci_probe & PCI_ASSIGN_ROMS)
 		return;
@@ -356,6 +358,18 @@ static int __init pcibios_assign_resources(void)
 	pcibios_fw_addr_list_del();
 
 	return 0;
+}
+
+void pcibios_resource_survey_bus(struct pci_bus *bus)
+{
+	dev_printk(KERN_DEBUG, &bus->dev, "Allocating resources\n");
+
+	pcibios_allocate_bus_resources(bus);
+
+	pcibios_allocate_resources(bus, 0);
+	pcibios_allocate_resources(bus, 1);
+
+	pcibios_allocate_rom_resources(bus);
 }
 
 void __init pcibios_resource_survey(void)
