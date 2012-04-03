@@ -808,7 +808,7 @@ int pciehp_get_cur_lnk_width(struct slot *slot,
 
 int pcie_enable_notification(struct controller *ctrl)
 {
-	u16 cmd, mask;
+	u16 cmd = 0, mask;
 
 	/*
 	 * TBD: Power fault detected software notification support.
@@ -820,7 +820,8 @@ int pcie_enable_notification(struct controller *ctrl)
 	 * when it is cleared in the interrupt service routine, and
 	 * next power fault detected interrupt was notified again.
 	 */
-	cmd = PCI_EXP_SLTCTL_PDCE;
+	if (HP_SUPR_RM(ctrl))
+		cmd |= PCI_EXP_SLTCTL_PDCE;
 	if (ATTN_BUTTN(ctrl))
 		cmd |= PCI_EXP_SLTCTL_ABPE;
 	if (MRL_SENS(ctrl))
