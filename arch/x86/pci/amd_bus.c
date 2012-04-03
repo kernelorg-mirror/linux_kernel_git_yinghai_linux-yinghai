@@ -116,7 +116,6 @@ static int __init early_fill_mp_bus_info(void)
 		link = (reg >> 8) & 0x03;
 
 		info = alloc_pci_root_info(min_bus, max_bus, node, link);
-		sprintf(info->name, "PCI Bus #%02x", min_bus);
 	}
 
 	/* get the default node and link for left over res */
