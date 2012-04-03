@@ -1111,6 +1111,21 @@ reduce_needed_size:
 	return ret;
 }
 
+/* replace old with new in the resource tree */
+void resource_replace(struct resource *old, struct resource *new)
+{
+	struct resource *parent;
+
+	write_lock(&resource_lock);
+	parent = old->parent;
+	new->start = old->start;
+	new->end = old->end;
+	new->flags = old->flags;
+	__release_resource(old);
+	__request_resource(parent, new);
+	write_unlock(&resource_lock);
+}
+
 /*
  * Managed region resource
  */
