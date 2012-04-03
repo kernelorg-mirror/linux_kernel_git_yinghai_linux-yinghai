@@ -691,6 +691,31 @@ static void __devinit pci_bus_shrink_top(struct pci_bus *parent,
 	pci_bus_update_top(parent, -size, parent_res);
 }
 
+static int __devinit pci_bridge_probe_busn_res(struct pci_bus *bus,
+			 struct pci_dev *dev, struct resource *busn_res,
+			 resource_size_t needed_size, struct resource **p)
+{
+	int ret;
+	int old_size = resource_size(&bus->busn_res);
+
+	ret = probe_resource(&bus->busn_res, &dev->dev, busn_res, needed_size,
+			p, 1, 0xff, "busn");
+
+	if (ret)
+		return ret;
+
+	busn_res->flags = IORESOURCE_BUS;
+
+	if (*p) {
+		/* extend parent bus top*/
+		int new_size = resource_size(&bus->busn_res);
+
+		pci_bus_extend_top(bus, new_size - old_size, *p);
+	}
+
+	return ret;
+}
+
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
