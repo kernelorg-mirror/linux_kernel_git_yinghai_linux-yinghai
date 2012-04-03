@@ -77,6 +77,23 @@ struct pci_root_info __init *alloc_pci_root_info(int bus_min, int bus_max,
 	return info;
 }
 
+void print_pci_root_info(struct pci_root_info *info, char *name, bool nodelink)
+{
+	struct pci_root_res *root_res;
+	int busnum = info->bus_min;
+
+	if (!nodelink)
+		printk(KERN_DEBUG "%s: [%02x, %02x]\n", name,
+				info->bus_min, info->bus_max);
+	else
+		printk(KERN_DEBUG "%s: [%02x, %02x] on node %x link %x\n", name,
+			info->bus_min, info->bus_max, info->node, info->link);
+
+	list_for_each_entry(root_res, &info->resources, list)
+		printk(KERN_DEBUG "%s: %02x %pR\n", name, busnum,
+				 &root_res->res);
+}
+
 void __devinit update_res(struct pci_root_info *info, resource_size_t start,
 			  resource_size_t end, unsigned long flags, int merge)
 {
