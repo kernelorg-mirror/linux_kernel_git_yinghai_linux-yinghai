@@ -923,6 +923,23 @@ static void handle_hotplug_event_root(acpi_handle handle, u32 type,
 				_handle_hotplug_event_root);
 }
 
+static bool acpi_is_root_bridge_object(acpi_handle handle)
+{
+	struct acpi_device_info *info = NULL;
+	acpi_status status;
+	bool ret;
+
+	status = acpi_get_object_info(handle, &info);
+	if (ACPI_FAILURE(status))
+		return false;
+
+	ret = !acpi_match_object_info_ids(info, root_device_ids);
+
+	kfree(info);
+
+	return ret;
+}
+
 static acpi_status __init
 find_root_bridges(acpi_handle handle, u32 lvl, void *context, void **rv)
 {
@@ -931,7 +948,7 @@ find_root_bridges(acpi_handle handle, u32 lvl, void *context, void **rv)
 				      .pointer = objname };
 	int *count = (int *)context;
 
-	if (!acpi_is_root_bridge(handle))
+	if (!acpi_is_root_bridge_object(handle))
 		return AE_OK;
 
 	(*count)++;
