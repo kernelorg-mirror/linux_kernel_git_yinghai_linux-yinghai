@@ -72,75 +72,60 @@ static ssize_t broken_parity_status_store(struct device *dev,
 	return count;
 }
 
-static ssize_t local_cpus_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{		
-	const struct cpumask *mask;
+static ssize_t pci_show_cpuaffinity(struct device *dev,
+					int type, bool is_pci_dev,
+					struct device_attribute *attr,
+					char *buf)
+{
 	int len;
+	const struct cpumask *mask;
 
+	if (is_pci_dev) {
 #ifdef CONFIG_NUMA
-	mask = (dev_to_node(dev) == -1) ? cpu_online_mask :
-					  cpumask_of_node(dev_to_node(dev));
+		int node = dev_to_node(dev);
+
+		mask = (node == -1) ? cpu_online_mask : cpumask_of_node(node);
 #else
-	mask = cpumask_of_pcibus(to_pci_dev(dev)->bus);
+		mask = cpumask_of_pcibus(to_pci_dev(dev)->bus);
 #endif
-	len = cpumask_scnprintf(buf, PAGE_SIZE-2, mask);
+	} else
+		mask = cpumask_of_pcibus(to_pci_bus(dev));
+	len = type ?
+		cpulist_scnprintf(buf, PAGE_SIZE-2, mask) :
+		cpumask_scnprintf(buf, PAGE_SIZE-2, mask);
 	buf[len++] = '\n';
 	buf[len] = '\0';
 	return len;
+}
+
+static ssize_t local_cpus_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	return pci_show_cpuaffinity(dev, 0, true, attr, buf);
 }
 
 
 static ssize_t local_cpulist_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
-	const struct cpumask *mask;
-	int len;
-
-#ifdef CONFIG_NUMA
-	mask = (dev_to_node(dev) == -1) ? cpu_online_mask :
-					  cpumask_of_node(dev_to_node(dev));
-#else
-	mask = cpumask_of_pcibus(to_pci_dev(dev)->bus);
-#endif
-	len = cpulist_scnprintf(buf, PAGE_SIZE-2, mask);
-	buf[len++] = '\n';
-	buf[len] = '\0';
-	return len;
+	return pci_show_cpuaffinity(dev, 1, true, attr, buf);
 }
 
 /*
  * PCI Bus Class Devices
  */
-static ssize_t pci_bus_show_cpuaffinity(struct device *dev,
-					int type,
+static ssize_t pci_bus_show_cpumaskaffinity(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	int ret;
-	const struct cpumask *cpumask;
-
-	cpumask = cpumask_of_pcibus(to_pci_bus(dev));
-	ret = type ?
-		cpulist_scnprintf(buf, PAGE_SIZE-2, cpumask) :
-		cpumask_scnprintf(buf, PAGE_SIZE-2, cpumask);
-	buf[ret++] = '\n';
-	buf[ret] = '\0';
-	return ret;
+	return pci_show_cpuaffinity(dev, 0, false, attr, buf);
 }
 
-static inline ssize_t pci_bus_show_cpumaskaffinity(struct device *dev,
+static ssize_t pci_bus_show_cpulistaffinity(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	return pci_bus_show_cpuaffinity(dev, 0, attr, buf);
-}
-
-static inline ssize_t pci_bus_show_cpulistaffinity(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
-{
-	return pci_bus_show_cpuaffinity(dev, 1, attr, buf);
+	return pci_show_cpuaffinity(dev, 1, false, attr, buf);
 }
 
 /* show resources */
