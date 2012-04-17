@@ -3768,28 +3768,6 @@ ssize_t pci_get_resource_alignment_param(char *buf, size_t size)
 	return count;
 }
 
-static ssize_t pci_resource_alignment_show(struct bus_type *bus, char *buf)
-{
-	return pci_get_resource_alignment_param(buf, PAGE_SIZE);
-}
-
-static ssize_t pci_resource_alignment_store(struct bus_type *bus,
-					const char *buf, size_t count)
-{
-	return pci_set_resource_alignment_param(buf, count);
-}
-
-BUS_ATTR(resource_alignment, 0644, pci_resource_alignment_show,
-					pci_resource_alignment_store);
-
-static int __init pci_resource_alignment_sysfs_init(void)
-{
-	return bus_create_file(&pci_bus_type,
-					&bus_attr_resource_alignment);
-}
-
-late_initcall(pci_resource_alignment_sysfs_init);
-
 static void __devinit pci_no_domains(void)
 {
 #ifdef CONFIG_PCI_DOMAINS

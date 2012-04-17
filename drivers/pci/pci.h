@@ -164,12 +164,7 @@ static inline int pci_no_d1d2(struct pci_dev *dev)
 extern struct device_attribute pci_dev_attrs[];
 extern struct device_attribute pcibus_dev_attrs[];
 extern struct device_type pci_dev_type;
-#ifdef CONFIG_HOTPLUG
 extern struct bus_attribute pci_bus_attrs[];
-#else
-#define pci_bus_attrs	NULL
-#endif
-
 
 /**
  * pci_match_one_device - Tell if a PCI device structure has a matching
@@ -231,6 +226,8 @@ static inline int pci_ari_enabled(struct pci_bus *bus)
 }
 
 void pci_reassigndev_resource_alignment(struct pci_dev *dev);
+ssize_t pci_get_resource_alignment_param(char *buf, size_t size);
+ssize_t pci_set_resource_alignment_param(const char *buf, size_t count);
 extern void pci_disable_bridge_window(struct pci_dev *dev);
 
 /* Single Root I/O Virtualization */
