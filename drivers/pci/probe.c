@@ -1717,8 +1717,7 @@ err_out:
 int pci_bus_insert_busn_res(struct pci_bus *b, int bus, int bus_max)
 {
 	struct resource *res = &b->busn_res;
-	struct resource *parent_res;
-	int ret;
+	struct resource *parent_res, *conflict;
 
 	res->start = bus;
 	res->end = bus_max;
@@ -1731,14 +1730,20 @@ int pci_bus_insert_busn_res(struct pci_bus *b, int bus, int bus_max)
 		res->flags |= IORESOURCE_PCI_FIXED;
 	}
 
-	ret = insert_resource(parent_res, res);
+	conflict = insert_resource_conflict(parent_res, res);
 
-	dev_printk(KERN_DEBUG, &b->dev,
-			"busn_res: %pR %s inserted under %s %pR\n",
-			res, ret ? "can not be" : "is",
-			pci_is_root_bus(b) ? "domain":"", parent_res);
+	if (conflict)
+		dev_printk(KERN_DEBUG, &b->dev,
+			   "busn_res: can not insert %pR under %s%pR (conflicts with %s %pR)\n",
+			    res, pci_is_root_bus(b) ? "domain " : "",
+			    parent_res, conflict->name, conflict);
+	else
+		dev_printk(KERN_DEBUG, &b->dev,
+			   "busn_res: %pR is inserted under %s%pR\n",
+			   res, pci_is_root_bus(b) ? "domain " : "",
+			   parent_res);
 
-	return ret;
+	return conflict == NULL;
 }
 
 int pci_bus_update_busn_res_end(struct pci_bus *b, int bus_max)
