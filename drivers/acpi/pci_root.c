@@ -647,7 +647,8 @@ static int acpi_pci_root_start(struct acpi_device *device)
 			driver->add(device->handle);
 
 	/* need to after hot-added ioapic is registered */
-	pci_enable_bridges(root->bus);
+	if (root->hot_added)
+		pci_enable_bridges(root->bus);
 
 	pci_bus_add_devices(root->bus);
 	mutex_unlock(&acpi_pci_root_lock);

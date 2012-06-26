@@ -86,6 +86,7 @@ static void acpi_root_configure_bridge(acpi_handle handle)
 
 	pcibios_resource_survey_bus(root->bus);
 	pci_assign_unassigned_bus_resources(root->bus);
+	root->hot_added = true;
 }
 
 static void handle_root_bridge_insertion(acpi_handle handle)
