@@ -659,16 +659,19 @@ static int acpi_pci_root_remove(struct acpi_device *device, int type)
 
 	mutex_lock(&acpi_pci_root_lock);
 
-	list_for_each_entry(driver, &acpi_pci_drivers, node)
-		if (driver->remove)
-			driver->remove(root->device->handle);
-
 	/* that root bus could be removed already */
 	if (!pci_find_bus(root->segment, root->secondary.start)) {
 		dev_printk(KERN_DEBUG, &device->dev,
 		  "freeing acpi_pci_root, but pci root bus was removed before");
 		goto out;
 	}
+
+	/* stop normal pci drivers before we stop ioapic and dmar etc */
+	pci_stop_bus_devices(root->bus);
+
+	list_for_each_entry_reverse(driver, &acpi_pci_drivers, node)
+		if (driver->remove)
+			driver->remove(root->device->handle);
 
 	device_set_run_wake(root->bus->bridge, false);
 	pci_acpi_remove_bus_pm_notifier(device);

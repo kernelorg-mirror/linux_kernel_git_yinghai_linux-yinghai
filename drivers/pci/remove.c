@@ -118,7 +118,7 @@ static void __pci_remove_bus_devices(struct pci_bus *bus)
 		__pci_remove_bus_device(dev);
 }
 
-static void pci_stop_bus_devices(struct pci_bus *bus)
+void pci_stop_bus_devices(struct pci_bus *bus)
 {
 	struct pci_dev *dev, *tmp;
 
