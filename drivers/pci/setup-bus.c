@@ -982,8 +982,8 @@ handle_done:
 	;
 }
 
-void __ref __pci_bus_size_bridges(struct pci_bus *bus,
-			struct list_head *realloc_head)
+static void __ref __pci_bus_size_bridges(struct pci_bus *bus,
+			struct list_head *realloc_head, bool with_self)
 {
 	struct pci_dev *dev;
 	unsigned long mask, prefmask;
@@ -1001,13 +1001,13 @@ void __ref __pci_bus_size_bridges(struct pci_bus *bus,
 
 		case PCI_CLASS_BRIDGE_PCI:
 		default:
-			__pci_bus_size_bridges(b, realloc_head);
+			__pci_bus_size_bridges(b, realloc_head, true);
 			break;
 		}
 	}
 
-	/* The root bus? */
-	if (!bus->self)
+	/* Is root bus or not wanted? */
+	if (!bus->self || !with_self)
 		return;
 
 	switch (bus->self->class >> 8) {
@@ -1047,9 +1047,15 @@ void __ref __pci_bus_size_bridges(struct pci_bus *bus,
 	}
 }
 
+void __ref pci_bus_size_bridges_with_self(struct pci_bus *bus)
+{
+	__pci_bus_size_bridges(bus, NULL, true);
+}
+EXPORT_SYMBOL(pci_bus_size_bridges_with_self);
+
 void __ref pci_bus_size_bridges(struct pci_bus *bus)
 {
-	__pci_bus_size_bridges(bus, NULL);
+	__pci_bus_size_bridges(bus, NULL, false);
 }
 EXPORT_SYMBOL(pci_bus_size_bridges);
 
@@ -1362,7 +1368,7 @@ again:
 	/* Depth first, calculate sizes and alignments of all
 	   subordinate buses. */
 	list_for_each_entry(bus, &pci_root_buses, node)
-		__pci_bus_size_bridges(bus, add_list);
+		__pci_bus_size_bridges(bus, add_list, false);
 
 	/* Depth last, allocate resources and update the hardware. */
 	list_for_each_entry(bus, &pci_root_buses, node)
@@ -1439,7 +1445,7 @@ void pci_assign_unassigned_bridge_resources(struct pci_dev *bridge)
 				  IORESOURCE_PREFETCH;
 
 again:
-	__pci_bus_size_bridges(parent, &add_list);
+	__pci_bus_size_bridges(parent, &add_list, true);
 	__pci_bridge_assign_resources(bridge, &add_list, &fail_head);
 	BUG_ON(!list_empty(&add_list));
 	tried_times++;
@@ -1500,7 +1506,7 @@ void pci_assign_unassigned_bus_resources(struct pci_bus *bus)
 		    dev->hdr_type == PCI_HEADER_TYPE_CARDBUS)
 			if (dev->subordinate)
 				__pci_bus_size_bridges(dev->subordinate,
-							 &add_list);
+						 &add_list, true);
 	up_read(&pci_bus_sem);
 	__pci_bus_assign_resources(bus, &add_list, NULL);
 	BUG_ON(!list_empty(&add_list));
