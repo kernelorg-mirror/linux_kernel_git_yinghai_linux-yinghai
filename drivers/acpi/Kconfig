@@ -272,6 +272,16 @@ config ACPI_BLACKLIST_YEAR
 	  Enter 0 to disable this mechanism and allow ACPI to
 	  run by default no matter what the year.  (default)
 
+config ACPI_SCI_EMULATE
+	bool "ACPI SCI Event Emulation Support"
+	depends on ACPI
+	default n
+	help
+	  This will enable your system to emulate sci hotplug event
+	  notification through proc file system. For example user needs to
+	  echo "XXX 0" > /proc/acpi/sci/notify (where, XXX is a target ACPI
+	  device object name present under \_SB scope).
+
 config ACPI_DEBUG
 	bool "Debug Statements"
 	default n

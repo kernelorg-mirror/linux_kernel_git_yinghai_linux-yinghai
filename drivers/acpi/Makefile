@@ -31,6 +31,7 @@ acpi-$(CONFIG_ACPI_SLEEP)	+= proc.o
 # ACPI Bus and Device Drivers
 #
 acpi-y				+= bus.o glue.o
+acpi-$(CONFIG_ACPI_SCI_EMULATE)	+= sci_emu.o
 acpi-y				+= scan.o
 acpi-y				+= processor_core.o
 acpi-y				+= ec.o

@@ -34,6 +34,12 @@ int acpi_debugfs_init(void);
 static inline void acpi_debugfs_init(void) { return; }
 #endif
 
+#ifdef CONFIG_ACPI_SCI_EMULATE
+int acpi_init_sci_emulate(void);
+#else
+static inline int acpi_init_sci_emulate(void) { return 0; }
+#endif
+
 /* --------------------------------------------------------------------------
                                   Power Resource
    -------------------------------------------------------------------------- */
