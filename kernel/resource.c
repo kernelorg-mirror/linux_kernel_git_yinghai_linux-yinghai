@@ -989,6 +989,155 @@ void __release_region(struct resource *parent, resource_size_t start,
 }
 EXPORT_SYMBOL(__release_region);
 
+static void __resource_extend_parents_top(struct resource *b_res,
+		 long size, struct resource *parent_res)
+{
+	struct resource *res = b_res;
+
+	if (!size)
+		return;
+
+	while (res && res != parent_res) {
+		res->end += size;
+		res = res->parent;
+	}
+}
+
+void resource_shrink_parents_top(struct resource *b_res,
+		 long size, struct resource *parent_res)
+{
+	write_lock(&resource_lock);
+	__resource_extend_parents_top(b_res, -size, parent_res);
+	write_unlock(&resource_lock);
+}
+
+static resource_size_t __find_res_top_free_size(struct resource *res,
+						 int skip_nr)
+{
+	resource_size_t n_size;
+	struct resource tmp_res;
+
+	/*
+	 *   find out free number below res->end that we can use.
+	 *	res->start to res->start + skip_nr - 1 can not be used.
+	 */
+	n_size = resource_size(res);
+	if (n_size <= skip_nr)
+		return 0;
+
+	n_size -= skip_nr;
+	memset(&tmp_res, 0, sizeof(struct resource));
+	while (n_size > 0) {
+		int ret;
+
+		ret = __allocate_resource(res, &tmp_res, n_size,
+			res->end - n_size + skip_nr, res->end,
+			1, NULL, NULL);
+		if (ret == 0) {
+			__release_resource(&tmp_res);
+			break;
+		}
+		n_size--;
+	}
+
+	return n_size;
+}
+
+/**
+ * probe_resource - Probe resource in parent resource.
+ * @b_res: parent resource descriptor
+ * @busn_res: return probed resource
+ * @needed_size: target size
+ * @p: pointer to farest parent that we extend the top
+ * @skip_nr: number in b_res start that we need to skip.
+ * @limit: local boundary
+ * @stop_flags: flags for stopping extend parent res
+ *
+ * will try to allocate resource in b_res, if can not find the range
+ *  will try to extend parent resources' top.
+ * if still can not make it, will reduce needed_size.
+ */
+int probe_resource(struct resource *b_res,
+			 struct resource *busn_res,
+			 resource_size_t needed_size, struct resource **p,
+			 int skip_nr, int limit, int stop_flags)
+{
+	int ret = -ENOMEM;
+	resource_size_t n_size;
+	struct resource *parent_res = NULL;
+	resource_size_t tmp = b_res->end + 1;
+
+again:
+	/*
+	 * We first try to allocate biggest range in b_res that
+	 *  we can use in b_res directly.
+	 *  we also need to skip skip_nr from start of b_res.
+	 */
+	n_size = resource_size(b_res);
+	if (n_size > skip_nr)
+		n_size -= skip_nr;
+	else
+		n_size = 0;
+	memset(busn_res, 0, sizeof(struct resource));
+	while (n_size >= needed_size) {
+		ret = allocate_resource(b_res, busn_res, n_size,
+				b_res->start + skip_nr, b_res->end,
+				1, NULL, NULL);
+		if (!ret)
+			return ret;
+		n_size--;
+	}
+
+	/* Try to extend the top of parent resources to meet needed_size */
+	write_lock(&resource_lock);
+
+	/* b_res could be root bus resource and can not be extended */
+	if (b_res->flags & stop_flags)
+		goto reduce_needed_size;
+
+	/* find out free range under top at first */
+	n_size = __find_res_top_free_size(b_res, skip_nr);
+	/* can not extend cross local boundary */
+	if ((limit - b_res->end) < (needed_size - n_size))
+		goto reduce_needed_size;
+
+	/* Probe extended range above top */
+	memset(busn_res, 0, sizeof(struct resource));
+	parent_res = b_res->parent;
+	while (parent_res && !(parent_res->flags & stop_flags)) {
+		ret = __allocate_resource(parent_res, busn_res,
+			 needed_size - n_size,
+			 tmp, tmp + needed_size - n_size - 1,
+			 1, NULL, NULL);
+		if (!ret) {
+			/* save parent_res, we need it as stopper later */
+			*p = parent_res;
+
+			/* prepare busn_res for return */
+			__release_resource(busn_res);
+			busn_res->start -= n_size;
+
+			/* extend parent resources top */
+			__resource_extend_parents_top(b_res,
+					 needed_size - n_size, parent_res);
+			__request_resource(b_res, busn_res);
+
+			write_unlock(&resource_lock);
+			return ret;
+		}
+		parent_res = parent_res->parent;
+	}
+
+reduce_needed_size:
+	write_unlock(&resource_lock);
+	/* ret must not be 0 here */
+	needed_size--;
+	if (needed_size)
+		goto again;
+
+	return ret;
+}
+
 /*
  * Managed region resource
  */
