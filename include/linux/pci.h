@@ -312,6 +312,7 @@ struct pci_dev {
 	 */
 	unsigned int	irq;
 	struct resource resource[DEVICE_COUNT_RESOURCE]; /* I/O and memory regions + expansion ROMs */
+	struct list_head addon_resources; /* addon I/O and memory resource */
 
 	/* These fields are used by common fixups */
 	unsigned int	transparent:1;	/* Transparent PCI bridge */
@@ -360,6 +361,21 @@ struct pci_dev {
 	struct pci_ats	*ats;	/* Address Translation Service */
 #endif
 };
+
+struct resource_ops {
+	int (*read)(struct pci_dev *dev, struct resource *res, int addr);
+	int (*write)(struct pci_dev *dev, struct resource *res, int addr);
+};
+
+struct pci_dev_addon_resource {
+	struct list_head list;
+	int reg_addr;
+	int size;
+	struct resource res;
+	struct resource_ops *ops;
+};
+#define	to_pci_dev_addon_resource(n)					\
+	container_of(n, struct pci_dev_addon_resource, res)
 
 struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
 int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res);

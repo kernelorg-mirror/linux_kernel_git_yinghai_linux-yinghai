@@ -113,6 +113,12 @@ struct resource *pci_dev_resource_n(struct pci_dev *dev, int n)
 	if (n < PCI_NUM_RESOURCES)
 		return &dev->resource[n];
 
+	n -= PCI_NUM_RESOURCES;
+	list_for_each_entry(addon_res, &dev->addon_resources, list) {
+		if (n-- == 0)
+			return &addon_res->res;
+	}
+
 	return NULL;
 }
 EXPORT_SYMBOL(pci_dev_resource_n);
@@ -127,6 +133,16 @@ int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res)
 			return i;
 
 	return -1;
+}
+
+static void pci_release_dev_addon_res(struct pci_dev *dev)
+{
+	struct pci_dev_addon_resource *addon_res, *tmp;
+
+	list_for_each_entry_safe(addon_res, tmp, &dev->addon_resources, list) {
+		list_del(&addon_res->list);
+		kfree(addon_res);
+	}
 }
 
 static u64 pci_size(u64 base, u64 maxbase, u64 mask)
@@ -1314,6 +1330,7 @@ static void pci_release_dev(struct device *dev)
 	pci_dev = to_pci_dev(dev);
 	pci_release_capabilities(pci_dev);
 	pci_release_of_node(pci_dev);
+	pci_release_dev_addon_res(pci_dev);
 	kfree(pci_dev);
 }
 
@@ -1393,6 +1410,7 @@ struct pci_dev *alloc_pci_dev(void)
 		return NULL;
 
 	INIT_LIST_HEAD(&dev->bus_list);
+	INIT_LIST_HEAD(&dev->addon_resources);
 
 	return dev;
 }
