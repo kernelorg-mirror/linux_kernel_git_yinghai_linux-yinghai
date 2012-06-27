@@ -6,15 +6,14 @@
 static void pci_free_resources(struct pci_dev *dev)
 {
 	int i;
+	struct resource *res;
 
  	msi_remove_pci_irq_vectors(dev);
 
 	pci_cleanup_rom(dev);
-	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
-		struct resource *res = dev->resource + i;
+	for_each_pci_dev_all_resource(dev, res, i)
 		if (res->parent)
 			release_resource(res);
-	}
 }
 
 static void pci_stop_dev(struct pci_dev *dev)
@@ -68,16 +67,16 @@ void pci_remove_bus(struct pci_bus *pci_bus)
 
 	down_write(&pci_bus_sem);
 	list_del(&pci_bus->node);
+	pci_bus_release_busn_res(pci_bus);
 	up_write(&pci_bus_sem);
-	if (!pci_bus->is_added)
-		return;
-
-	pci_remove_legacy_files(pci_bus);
-	device_unregister(&pci_bus->dev);
+	if (pci_bus->is_added || pci_is_root_bus(pci_bus)) {
+		pci_remove_legacy_files(pci_bus);
+		device_unregister(&pci_bus->dev);
+	}
 }
 EXPORT_SYMBOL(pci_remove_bus);
 
-static void __pci_remove_behind_bridge(struct pci_dev *dev);
+static void __pci_remove_bus_devices(struct pci_bus *bus);
 /**
  * pci_stop_and_remove_bus_device - remove a PCI device and any children
  * @dev: the device to remove
@@ -95,7 +94,7 @@ void __pci_remove_bus_device(struct pci_dev *dev)
 	if (dev->subordinate) {
 		struct pci_bus *b = dev->subordinate;
 
-		__pci_remove_behind_bridge(dev);
+		__pci_remove_bus_devices(b);
 		pci_remove_bus(b);
 		dev->subordinate = NULL;
 	}
@@ -110,22 +109,28 @@ void pci_stop_and_remove_bus_device(struct pci_dev *dev)
 	__pci_remove_bus_device(dev);
 }
 
-static void __pci_remove_behind_bridge(struct pci_dev *dev)
+static void __pci_remove_bus_devices(struct pci_bus *bus)
 {
-	struct list_head *l, *n;
+	struct pci_dev *dev, *tmp;
 
-	if (dev->subordinate)
-		list_for_each_safe(l, n, &dev->subordinate->devices)
-			__pci_remove_bus_device(pci_dev_b(l));
+	list_for_each_entry_safe(dev, tmp, &bus->devices, bus_list)
+		__pci_remove_bus_device(dev);
 }
 
-static void pci_stop_behind_bridge(struct pci_dev *dev)
+void pci_stop_bus_devices(struct pci_bus *bus)
 {
-	struct list_head *l, *n;
+	struct pci_dev *dev, *tmp;
 
-	if (dev->subordinate)
-		list_for_each_safe(l, n, &dev->subordinate->devices)
-			pci_stop_bus_device(pci_dev_b(l));
+	/*
+	 * VFs could be removed by pci_stop_and_remove_bus_device() in the
+	 *  pci_stop_bus_devices() code path for PF.
+	 *  aka, bus->devices get updated in the process.
+	 * but VFs are inserted after PFs when SRIOV is enabled for PF,
+	 * We can iterate the list backwards to get prev valid PF instead
+	 *  of removed VF.
+	 */
+	list_for_each_entry_safe_reverse(dev, tmp, &bus->devices, bus_list)
+		pci_stop_bus_device(dev);
 }
 
 /**
@@ -139,25 +144,11 @@ static void pci_stop_behind_bridge(struct pci_dev *dev)
  */
 void pci_stop_and_remove_behind_bridge(struct pci_dev *dev)
 {
-	pci_stop_behind_bridge(dev);
-	__pci_remove_behind_bridge(dev);
-}
+	struct pci_bus *bus = dev->subordinate;
 
-static void pci_stop_bus_devices(struct pci_bus *bus)
-{
-	struct list_head *l, *n;
-
-	/*
-	 * VFs could be removed by pci_stop_and_remove_bus_device() in the
-	 *  pci_stop_bus_devices() code path for PF.
-	 *  aka, bus->devices get updated in the process.
-	 * but VFs are inserted after PFs when SRIOV is enabled for PF,
-	 * We can iterate the list backwards to get prev valid PF instead
-	 *  of removed VF.
-	 */
-	list_for_each_prev_safe(l, n, &bus->devices) {
-		struct pci_dev *dev = pci_dev_b(l);
-		pci_stop_bus_device(dev);
+	if (bus) {
+		pci_stop_bus_devices(bus);
+		__pci_remove_bus_devices(bus);
 	}
 }
 
@@ -175,6 +166,41 @@ void pci_stop_bus_device(struct pci_dev *dev)
 		pci_stop_bus_devices(dev->subordinate);
 
 	pci_stop_dev(dev);
+}
+
+static void pci_stop_host_bridge(struct pci_host_bridge *bridge)
+{
+	device_unregister(&bridge->dev);
+}
+/*
+ * it will support pci root bus too, in that case we need
+ *  stop and remove host bridge
+ */
+void pci_stop_and_remove_bus(struct pci_bus *bus)
+{
+	struct pci_host_bridge *host_bridge = NULL;
+	struct pci_dev *pci_bridge = NULL;
+
+	pci_stop_bus_devices(bus);
+
+	if (pci_is_root_bus(bus)) {
+		host_bridge = to_pci_host_bridge(bus->bridge);
+		get_device(&host_bridge->dev);
+		pci_stop_host_bridge(host_bridge);
+	} else
+		pci_bridge = bus->self;
+
+	__pci_remove_bus_devices(bus);
+
+	pci_remove_bus(bus);
+
+	if (host_bridge) {
+		host_bridge->bus = NULL;
+		put_device(&host_bridge->dev);
+	}
+
+	if (pci_bridge)
+		pci_bridge->subordinate = NULL;
 }
 
 EXPORT_SYMBOL(pci_stop_and_remove_bus_device);

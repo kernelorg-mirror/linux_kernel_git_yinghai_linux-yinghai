@@ -163,9 +163,11 @@ extern void setup_ioapic_ids_from_mpc_nocheck(void);
 struct mp_ioapic_gsi{
 	u32 gsi_base;
 	u32 gsi_end;
+	u32 irq_base;
 };
 extern struct mp_ioapic_gsi  mp_gsi_routing[];
 extern u32 gsi_top;
+int ioapic_gsi_to_irq(u32 gsi);
 int mp_find_ioapic(u32 gsi);
 int mp_find_ioapic_pin(int ioapic, u32 gsi);
 void __init mp_register_ioapic(int id, u32 address, u32 gsi_base);
@@ -193,6 +195,8 @@ static inline void io_apic_modify(unsigned int apic, unsigned int reg, unsigned 
 {
 	x86_io_apic_ops.modify(apic, reg, value);
 }
+
+void irq_remap_modify_chips(void);
 #else  /* !CONFIG_X86_IO_APIC */
 
 #define io_apic_assign_pci_irqs 0

@@ -94,6 +94,14 @@ void pci_bus_remove_resources(struct pci_bus *bus)
 	pci_free_resource_list(&bus->resources);
 }
 
+static bool pci_alloc_high_enable = false;
+void __init pci_alloc_high_get_opt(char *str)
+{
+	if (!strncmp(str, "off", 3))
+		pci_alloc_high_enable = false;
+	else if (!strncmp(str, "on", 2))
+		pci_alloc_high_enable = true;
+}
 /**
  * pci_bus_alloc_resource - allocate a resource from a parent bus
  * @bus: PCI bus
@@ -110,26 +118,24 @@ void pci_bus_remove_resources(struct pci_bus *bus)
  * for a specific device resource.
  */
 int
-pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+pci_bus_alloc_resource_fit(struct pci_bus *bus, struct resource *res,
 		resource_size_t size, resource_size_t align,
 		resource_size_t min, unsigned int type_mask,
 		resource_size_t (*alignf)(void *,
 					  const struct resource *,
 					  resource_size_t,
 					  resource_size_t),
-		void *alignf_data)
+		void *alignf_data, bool fit)
 {
 	int i, ret = -ENOMEM;
 	struct resource *r;
-	resource_size_t max = -1;
 
 	type_mask |= IORESOURCE_IO | IORESOURCE_MEM;
 
-	/* don't allocate too high if the pref mem doesn't support 64bit*/
-	if (!(res->flags & IORESOURCE_MEM_64))
-		max = PCIBIOS_MAX_MEM_32;
-
 	pci_bus_for_each_resource(bus, r, i) {
+		resource_size_t start, end, middle;
+		struct pci_bus_region region;
+
 		if (!r)
 			continue;
 
@@ -143,15 +149,61 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 		    !(res->flags & IORESOURCE_PREFETCH))
 			continue;
 
+		start = 0;
+		end = MAX_RESOURCE;
+		if (!pci_alloc_high_enable)
+			goto again;
+		/*
+		 * don't allocate too high if the pref mem doesn't
+		 * support 64bit, also if this is a 64-bit mem
+		 * resource, try above 4GB first
+		 */
+		__pcibios_resource_to_bus(bus, &region, r);
+		if (region.start <= PCI_MAX_ADDR_32 &&
+		    region.end > PCI_MAX_ADDR_32) {
+			middle = pcibios_bus_addr_to_res(bus, res->flags,
+						      PCI_MAX_ADDR_32);
+			if (res->flags & IORESOURCE_MEM_64)
+				start = middle + 1;
+			else
+				end = middle;
+		} else if (region.start > PCI_MAX_ADDR_32 &&
+			   !(res->flags & IORESOURCE_MEM_64))
+				continue;
+
+again:
 		/* Ok, try it out.. */
-		ret = allocate_resource(r, res, size,
-					r->start ? : min,
-					max, align,
-					alignf, alignf_data);
+		ret = allocate_resource_fit(r, res, size,
+					max(start, r->start ? : min),
+					end, align,
+					alignf, alignf_data, fit);
 		if (ret == 0)
-			break;
+			return 0;
+
+		if (start != 0) {
+			start = 0;
+			goto again;
+		}
 	}
+
+
 	return ret;
+}
+
+void __weak pcibios_resource_survey_bus(struct pci_bus *bus) { }
+
+int
+pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+		resource_size_t size, resource_size_t align,
+		resource_size_t min, unsigned int type_mask,
+		resource_size_t (*alignf)(void *,
+					  const struct resource *,
+					  resource_size_t,
+					  resource_size_t),
+		void *alignf_data)
+{
+	return pci_bus_alloc_resource_fit(bus, res, size, align, min, type_mask,
+					alignf, alignf_data, false);
 }
 
 /**
@@ -252,6 +304,45 @@ void pci_bus_add_devices(const struct pci_bus *bus)
 		retval = pci_bus_add_child(child);
 		if (retval)
 			dev_err(&dev->dev, "Error adding bus, continuing\n");
+	}
+}
+
+void pci_bus_add_single_device(struct pci_dev *dev)
+{
+	struct pci_bus *child;
+	int retval;
+
+	/* Skip already-added devices */
+	if (!dev->is_added) {
+		retval = pci_bus_add_device(dev);
+		if (retval)
+			dev_err(&dev->dev, "Error adding device, continuing\n");
+	}
+
+	BUG_ON(!dev->is_added);
+
+	child = dev->subordinate;
+	/*
+	 * If there is an unattached subordinate bus, attach
+	 * it and then scan for unattached PCI devices.
+	 */
+	if (child) {
+		if (list_empty(&child->node)) {
+			down_write(&pci_bus_sem);
+			list_add_tail(&child->node, &dev->bus->children);
+			up_write(&pci_bus_sem);
+		}
+		pci_bus_add_devices(child);
+
+		/*
+		 * register the bus with sysfs as the parent is now
+		 * properly registered.
+		 */
+		if (!child->is_added) {
+			retval = pci_bus_add_child(child);
+			if (retval)
+				dev_err(&dev->dev, "Error adding bus, continuing\n");
+		}
 	}
 }
 

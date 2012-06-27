@@ -4,18 +4,16 @@
 #include <linux/export.h>
 #include "pci.h"
 
-
-unsigned int __devinit pci_do_scan_bus(struct pci_bus *bus)
+int __ref pci_hp_add_bridge(struct pci_dev *dev)
 {
-	unsigned int max;
+	struct pci_bus *parent = dev->bus;
+	int pass, busnr = parent->busn_res.start;
 
-	max = pci_scan_child_bus(bus);
+	for (pass = 0; pass < 2; pass++)
+		busnr = pci_scan_bridge(parent, dev, busnr, pass);
+	if (!dev->subordinate)
+		return -1;
 
-	/*
-	 * Make the discovered devices available.
-	 */
-	pci_bus_add_devices(bus);
-
-	return max;
+	return 0;
 }
-EXPORT_SYMBOL(pci_do_scan_bus);
+EXPORT_SYMBOL_GPL(pci_hp_add_bridge);

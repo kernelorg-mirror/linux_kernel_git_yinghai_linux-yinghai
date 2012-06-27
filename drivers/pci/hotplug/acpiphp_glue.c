@@ -100,11 +100,11 @@ static int post_dock_fixups(struct notifier_block *nb, unsigned long val,
 			PCI_PRIMARY_BUS,
 			&buses);
 
-	if (((buses >> 8) & 0xff) != bus->secondary) {
+	if (((buses >> 8) & 0xff) != bus->busn_res.start) {
 		buses = (buses & 0xff000000)
 			| ((unsigned int)(bus->primary)     <<  0)
-			| ((unsigned int)(bus->secondary)   <<  8)
-			| ((unsigned int)(bus->subordinate) << 16);
+			| ((unsigned int)(bus->busn_res.start)   <<  8)
+			| ((unsigned int)(bus->busn_res.end) << 16);
 		pci_write_config_dword(bus->self, PCI_PRIMARY_BUS, buses);
 	}
 	return NOTIFY_OK;
@@ -132,6 +132,15 @@ register_slot(acpi_handle handle, u32 lvl, void *context, void **rv)
 	if (!acpi_pci_check_ejectable(pbus, handle) && !is_dock_device(handle))
 		return AE_OK;
 
+	status = acpi_evaluate_integer(handle, "_ADR", NULL, &adr);
+	if (ACPI_FAILURE(status)) {
+		warn("can't evaluate _ADR (%#x)\n", status);
+		return AE_OK;
+	}
+
+	device = (adr >> 16) & 0xffff;
+	function = adr & 0xffff;
+
 	pdev = pbus->self;
 	if (pdev && pci_is_pcie(pdev)) {
 		tmp = acpi_find_root_bridge_handle(pdev);
@@ -143,10 +152,6 @@ register_slot(acpi_handle handle, u32 lvl, void *context, void **rv)
 				return AE_OK;
 		}
 	}
-
-	acpi_evaluate_integer(handle, "_ADR", NULL, &adr);
-	device = (adr >> 16) & 0xffff;
-	function = adr & 0xffff;
 
 	newfunc = kzalloc(sizeof(struct acpiphp_func), GFP_KERNEL);
 	if (!newfunc)
@@ -391,8 +396,6 @@ static void add_host_bridge(acpi_handle *handle)
 
 	bridge->pci_bus = root->bus;
 
-	spin_lock_init(&bridge->res_lock);
-
 	init_bridge_misc(bridge);
 }
 
@@ -425,7 +428,6 @@ static void add_p2p_bridge(acpi_handle *handle)
 	 * (which we access during module unload).
 	 */
 	get_device(&bridge->pci_bus->dev);
-	spin_lock_init(&bridge->res_lock);
 
 	init_bridge_misc(bridge);
 	return;
@@ -519,10 +521,13 @@ static void cleanup_bridge(struct acpiphp_bridge *bridge)
 	acpi_status status;
 	acpi_handle handle = bridge->handle;
 
-	status = acpi_remove_notify_handler(handle, ACPI_SYSTEM_NOTIFY,
+	if (bridge->type != BRIDGE_TYPE_HOST) {
+		status = acpi_remove_notify_handler(handle,
+					    ACPI_SYSTEM_NOTIFY,
 					    handle_hotplug_event_bridge);
-	if (ACPI_FAILURE(status))
-		err("failed to remove notify handler\n");
+		if (ACPI_FAILURE(status))
+			err("failed to remove notify handler\n");
+	}
 
 	if ((bridge->type != BRIDGE_TYPE_HOST) &&
 	    ((bridge->flags & BRIDGE_HAS_EJ0) && bridge->func)) {
@@ -605,9 +610,6 @@ static void remove_bridge(acpi_handle handle)
 	bridge = acpiphp_handle_to_bridge(handle);
 	if (bridge)
 		cleanup_bridge(bridge);
-	else
-		acpi_remove_notify_handler(handle, ACPI_SYSTEM_NOTIFY,
-					   handle_hotplug_event_bridge);
 }
 
 static int power_on_slot(struct acpiphp_slot *slot)
@@ -692,7 +694,7 @@ static unsigned char acpiphp_max_busnr(struct pci_bus *bus)
 	 * bus->subordinate value because it could have
 	 * padding in it.
 	 */
-	max = bus->secondary;
+	max = bus->busn_res.start;
 
 	list_for_each(tmp, &bus->children) {
 		n = pci_bus_max_busnr(pci_bus_b(tmp));
@@ -781,6 +783,29 @@ static void acpiphp_set_acpi_region(struct acpiphp_slot *slot)
 	}
 }
 
+static void check_hotplug_bridge(struct acpiphp_slot *slot, struct pci_dev *dev)
+{
+	struct acpiphp_func *func;
+
+	if (!dev->subordinate)
+		return;
+
+	/* quirk, or pcie could set it already */
+	if (dev->is_hotplug_bridge)
+		return;
+
+	if (PCI_SLOT(dev->devfn) != slot->device)
+		return;
+
+	list_for_each_entry(func, &slot->funcs, sibling) {
+		if (PCI_FUNC(dev->devfn) == func->function) {
+			/* check if this bridge has ejectable slots */
+			if ((detect_ejectable_slots(func->handle) > 0))
+				dev->is_hotplug_bridge = 1;
+			break;
+		}
+	}
+}
 /**
  * enable_device - enable, configure a slot
  * @slot: slot to be enabled
@@ -815,8 +840,11 @@ static int __ref enable_device(struct acpiphp_slot *slot)
 			if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
 			    dev->hdr_type == PCI_HEADER_TYPE_CARDBUS) {
 				max = pci_scan_bridge(bus, dev, max, pass);
-				if (pass && dev->subordinate)
-					pci_bus_size_bridges(dev->subordinate);
+				if (pass && dev->subordinate) {
+					check_hotplug_bridge(slot, dev);
+					pci_bus_size_bridges_with_self(
+							dev->subordinate);
+				}
 			}
 		}
 	}
@@ -878,6 +906,24 @@ static void disable_bridges(struct pci_bus *bus)
 	}
 }
 
+/* return first device in slot, acquiring a reference on it */
+static struct pci_dev *dev_in_slot(struct acpiphp_slot *slot)
+{
+	struct pci_bus *bus = slot->bridge->pci_bus;
+	struct pci_dev *dev;
+	struct pci_dev *ret = NULL;
+
+	down_read(&pci_bus_sem);
+	list_for_each_entry(dev, &bus->devices, bus_list)
+		if (PCI_SLOT(dev->devfn) == slot->device) {
+			ret = pci_dev_get(dev);
+			break;
+		}
+	up_read(&pci_bus_sem);
+
+	return ret;
+}
+
 /**
  * disable_device - disable a slot
  * @slot: ACPI PHP slot
@@ -893,6 +939,7 @@ static int disable_device(struct acpiphp_slot *slot)
 	pdev = pci_get_slot(bus, PCI_DEVFN(slot->device, 0));
 	if (!pdev)
 		goto err_exit;
+	pci_dev_put(pdev);
 
 	list_for_each_entry(func, &slot->funcs, sibling) {
 		if (func->bridge) {
@@ -901,18 +948,22 @@ static int disable_device(struct acpiphp_slot *slot)
 						(u32)1, NULL, NULL);
 			func->bridge = NULL;
 		}
+	}
 
-		pdev = pci_get_slot(slot->bridge->pci_bus,
-				    PCI_DEVFN(slot->device, func->function));
-		if (pdev) {
-			pci_stop_bus_device(pdev);
-			if (pdev->subordinate) {
-				disable_bridges(pdev->subordinate);
-				pci_disable_device(pdev);
-			}
-			__pci_remove_bus_device(pdev);
-			pci_dev_put(pdev);
+	/*
+	 * enable_device() enumerates all functions in this device via
+	 * pci_scan_slot(), whether they have associated ACPI hotplug
+	 * methods (_EJ0, etc.) or not.  Therefore, we remove all functions
+	 * here.
+	 */
+	while ((pdev = dev_in_slot(slot))) {
+		pci_stop_bus_device(pdev);
+		if (pdev->subordinate) {
+			disable_bridges(pdev->subordinate);
+			pci_disable_device(pdev);
 		}
+		__pci_remove_bus_device(pdev);
+		pci_dev_put(pdev);
 	}
 
 	list_for_each_entry(func, &slot->funcs, sibling) {
@@ -1059,10 +1110,10 @@ static void acpiphp_sanitize_bus(struct pci_bus *bus)
 	struct pci_dev *dev;
 	int i;
 	unsigned long type_mask = IORESOURCE_IO | IORESOURCE_MEM;
+	struct resource *res;
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
-		for (i=0; i<PCI_BRIDGE_RESOURCES; i++) {
-			struct resource *res = &dev->resource[i];
+		for_each_pci_dev_nobridge_resource(dev, res, i) {
 			if ((res->flags & type_mask) && !res->start &&
 					res->end) {
 				/* Could not assign a required resources
@@ -1158,34 +1209,6 @@ check_sub_bridges(acpi_handle handle, u32 lvl, void *context, void **rv)
 	return AE_OK ;
 }
 
-struct acpiphp_hp_work {
-	struct work_struct work;
-	acpi_handle handle;
-	u32 type;
-	void *context;
-};
-
-static void alloc_acpiphp_hp_work(acpi_handle handle, u32 type,
-				  void *context,
-				  void (*func)(struct work_struct *work))
-{
-	struct acpiphp_hp_work *hp_work;
-	int ret;
-
-	hp_work = kmalloc(sizeof(*hp_work), GFP_KERNEL);
-	if (!hp_work)
-		return;
-
-	hp_work->handle = handle;
-	hp_work->type = type;
-	hp_work->context = context;
-
-	INIT_WORK(&hp_work->work, func);
-	ret = queue_work(kacpi_hotplug_wq, &hp_work->work);
-	if (!ret)
-		kfree(hp_work);
-}
-
 static void _handle_hotplug_event_bridge(struct work_struct *work)
 {
 	struct acpiphp_bridge *bridge;
@@ -1194,11 +1217,11 @@ static void _handle_hotplug_event_bridge(struct work_struct *work)
 				      .pointer = objname };
 	struct acpi_device *device;
 	int num_sub_bridges = 0;
-	struct acpiphp_hp_work *hp_work;
+	struct acpi_hp_work *hp_work;
 	acpi_handle handle;
 	u32 type;
 
-	hp_work = container_of(work, struct acpiphp_hp_work, work);
+	hp_work = container_of(work, struct acpi_hp_work, work);
 	handle = hp_work->handle;
 	type = hp_work->type;
 
@@ -1301,8 +1324,7 @@ static void handle_hotplug_event_bridge(acpi_handle handle, u32 type,
 	 * For now just re-add this work to the kacpi_hotplug_wq so we
 	 * don't deadlock on hotplug actions.
 	 */
-	alloc_acpiphp_hp_work(handle, type, context,
-			      _handle_hotplug_event_bridge);
+	alloc_acpi_hp_work(handle, type, context, _handle_hotplug_event_bridge);
 }
 
 static void _handle_hotplug_event_func(struct work_struct *work)
@@ -1311,12 +1333,12 @@ static void _handle_hotplug_event_func(struct work_struct *work)
 	char objname[64];
 	struct acpi_buffer buffer = { .length = sizeof(objname),
 				      .pointer = objname };
-	struct acpiphp_hp_work *hp_work;
+	struct acpi_hp_work *hp_work;
 	acpi_handle handle;
 	u32 type;
 	void *context;
 
-	hp_work = container_of(work, struct acpiphp_hp_work, work);
+	hp_work = container_of(work, struct acpi_hp_work, work);
 	handle = hp_work->handle;
 	type = hp_work->type;
 	context = hp_work->context;
@@ -1377,23 +1399,7 @@ static void handle_hotplug_event_func(acpi_handle handle, u32 type,
 	 * For now just re-add this work to the kacpi_hotplug_wq so we
 	 * don't deadlock on hotplug actions.
 	 */
-	alloc_acpiphp_hp_work(handle, type, context,
-			      _handle_hotplug_event_func);
-}
-
-static acpi_status
-find_root_bridges(acpi_handle handle, u32 lvl, void *context, void **rv)
-{
-	int *count = (int *)context;
-
-	if (!acpi_is_root_bridge(handle))
-		return AE_OK;
-
-	(*count)++;
-	acpi_install_notify_handler(handle, ACPI_SYSTEM_NOTIFY,
-				    handle_hotplug_event_bridge, NULL);
-
-	return AE_OK ;
+	alloc_acpi_hp_work(handle, type, context, _handle_hotplug_event_func);
 }
 
 static struct acpi_pci_driver acpi_pci_hp_driver = {
@@ -1406,15 +1412,7 @@ static struct acpi_pci_driver acpi_pci_hp_driver = {
  */
 int __init acpiphp_glue_init(void)
 {
-	int num = 0;
-
-	acpi_walk_namespace(ACPI_TYPE_DEVICE, ACPI_ROOT_OBJECT,
-			ACPI_UINT32_MAX, find_root_bridges, NULL, &num, NULL);
-
-	if (num <= 0)
-		return -1;
-	else
-		acpi_pci_register_driver(&acpi_pci_hp_driver);
+	acpi_pci_register_driver(&acpi_pci_hp_driver);
 
 	return 0;
 }
@@ -1429,28 +1427,6 @@ void  acpiphp_glue_exit(void)
 {
 	acpi_pci_unregister_driver(&acpi_pci_hp_driver);
 }
-
-
-/**
- * acpiphp_get_num_slots - count number of slots in a system
- */
-int __init acpiphp_get_num_slots(void)
-{
-	struct acpiphp_bridge *bridge;
-	int num_slots = 0;
-
-	list_for_each_entry(bridge, &bridge_list, list) {
-		dbg("Bus %04x:%02x has %d slot%s\n",
-				pci_domain_nr(bridge->pci_bus),
-				bridge->pci_bus->number, bridge->nr_slots,
-				bridge->nr_slots == 1 ? "" : "s");
-		num_slots += bridge->nr_slots;
-	}
-
-	dbg("Total %d slots\n", num_slots);
-	return num_slots;
-}
-
 
 #if 0
 /**
