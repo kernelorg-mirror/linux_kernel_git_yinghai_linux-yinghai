@@ -102,3 +102,17 @@ void pcibios_bus_to_resource(struct pci_dev *dev, struct resource *res,
 	__pcibios_bus_to_resource(dev->bus, res, region);
 }
 EXPORT_SYMBOL(pcibios_bus_to_resource);
+
+resource_size_t pcibios_bus_addr_to_res(struct pci_bus *bus, int flags,
+					resource_size_t addr)
+{
+	struct pci_bus_region region;
+	struct resource r;
+
+	r.flags = flags;
+	region.start = addr;
+	region.end = addr;
+	__pcibios_bus_to_resource(bus, &r, &region);
+
+	return r.end;
+}
