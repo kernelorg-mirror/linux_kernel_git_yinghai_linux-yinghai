@@ -99,6 +99,11 @@ EXPORT_SYMBOL_GPL(nr_irqs);
 static DEFINE_MUTEX(sparse_irq_lock);
 static DECLARE_BITMAP(allocated_irqs, IRQ_BITMAP_BITS);
 
+static bool __irq_is_reserved(int irq)
+{
+	return !!test_bit(irq, allocated_irqs);
+}
+
 #ifdef CONFIG_SPARSE_IRQ
 
 static RADIX_TREE(irq_desc_tree, GFP_KERNEL);
@@ -399,6 +404,27 @@ __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 	return alloc_descs(start, cnt, node, owner);
 }
 EXPORT_SYMBOL_GPL(__irq_alloc_descs);
+
+/**
+ * irq_realloc_desc - allocate irq descriptor for irq that is already reserved
+ * @irq:	Allocate for specific irq number if irq >= 0
+ * @node:	Preferred node on which the irq descriptor should be allocated
+ * @owner:	Owning module (can be NULL)
+ *
+ * Returns the irq number or error code
+ */
+int __ref
+__irq_realloc_desc(int irq, int node, struct module *owner)
+{
+	if (!__irq_is_reserved(irq))
+		return -EINVAL;
+
+	if (irq_to_desc(irq))
+		free_desc(irq);
+
+	return alloc_descs(irq, 1, node, owner);
+}
+EXPORT_SYMBOL_GPL(__irq_realloc_desc);
 
 /**
  * irq_reserve_irqs - mark irqs allocated
