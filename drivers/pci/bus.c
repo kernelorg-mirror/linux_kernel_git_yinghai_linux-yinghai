@@ -118,14 +118,14 @@ void __init pci_alloc_high_get_opt(char *str)
  * for a specific device resource.
  */
 int
-pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+pci_bus_alloc_resource_fit(struct pci_bus *bus, struct resource *res,
 		resource_size_t size, resource_size_t align,
 		resource_size_t min, unsigned int type_mask,
 		resource_size_t (*alignf)(void *,
 					  const struct resource *,
 					  resource_size_t,
 					  resource_size_t),
-		void *alignf_data)
+		void *alignf_data, bool fit)
 {
 	int i, ret = -ENOMEM;
 	struct resource *r;
@@ -173,10 +173,10 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 
 again:
 		/* Ok, try it out.. */
-		ret = allocate_resource(r, res, size,
+		ret = allocate_resource_fit(r, res, size,
 					max(start, r->start ? : min),
 					end, align,
-					alignf, alignf_data);
+					alignf, alignf_data, fit);
 		if (ret == 0)
 			return 0;
 
@@ -191,6 +191,20 @@ again:
 }
 
 void __weak pcibios_resource_survey_bus(struct pci_bus *bus) { }
+
+int
+pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+		resource_size_t size, resource_size_t align,
+		resource_size_t min, unsigned int type_mask,
+		resource_size_t (*alignf)(void *,
+					  const struct resource *,
+					  resource_size_t,
+					  resource_size_t),
+		void *alignf_data)
+{
+	return pci_bus_alloc_resource_fit(bus, res, size, align, min, type_mask,
+					alignf, alignf_data, false);
+}
 
 /**
  * pci_bus_add_device - add a single device
