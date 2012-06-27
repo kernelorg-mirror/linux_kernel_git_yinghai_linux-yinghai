@@ -122,6 +122,11 @@ static inline bool is_pci_iov_resource_idx(int i)
 	return false;
 }
 
+static inline bool is_pci_rom_resource_idx(int i)
+{
+	return i == PCI_ROM_RESOURCE;
+}
+
 typedef int __bitwise pci_power_t;
 
 #define PCI_D0		((pci_power_t __force) 0)
