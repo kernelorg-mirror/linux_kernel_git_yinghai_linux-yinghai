@@ -114,6 +114,14 @@ enum {
 	DEVICE_COUNT_RESOURCE = PCI_NUM_RESOURCES,
 };
 
+static inline bool is_pci_iov_resource_idx(int i)
+{
+#ifdef CONFIG_PCI_IOV
+	return i >= PCI_IOV_RESOURCES && i <= PCI_IOV_RESOURCE_END;
+#endif
+	return false;
+}
+
 typedef int __bitwise pci_power_t;
 
 #define PCI_D0		((pci_power_t __force) 0)
