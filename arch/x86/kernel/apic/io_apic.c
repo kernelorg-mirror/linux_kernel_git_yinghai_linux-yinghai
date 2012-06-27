@@ -2531,7 +2531,10 @@ static void ir_ack_apic_level(struct irq_data *data)
 
 static void ir_print_prefix(struct irq_data *data, struct seq_file *p)
 {
-	seq_printf(p, " IR-%s", data->chip->name);
+	seq_printf(p, " IR-%s%s", data->chip->name,
+			data->msi_desc ?
+			 (data->msi_desc->msi_attrib.is_msix ? "-X" : "")
+			 : "");
 }
 
 static void irq_remap_modify_chip_defaults(struct irq_chip *chip)
@@ -3097,6 +3100,12 @@ msi_set_affinity(struct irq_data *data, const struct cpumask *mask, bool force)
 }
 #endif /* CONFIG_SMP */
 
+static void msi_irq_print_chip(struct irq_data *data, struct seq_file *p)
+{
+	seq_printf(p, " %s%s", data->chip->name,
+			data->msi_desc->msi_attrib.is_msix ? "-X" : "");
+}
+
 /*
  * IRQ Chip for MSI PCI/PCI-X/PCI-Express Devices,
  * which implement the MSI or MSI-X Capability Structure.
@@ -3110,6 +3119,7 @@ static struct irq_chip msi_chip = {
 	.irq_set_affinity	= msi_set_affinity,
 #endif
 	.irq_retrigger		= ioapic_retrigger_irq,
+	.irq_print_chip		= msi_irq_print_chip,
 };
 
 static int setup_msi_irq(struct pci_dev *dev, struct msi_desc *msidesc, int irq)
