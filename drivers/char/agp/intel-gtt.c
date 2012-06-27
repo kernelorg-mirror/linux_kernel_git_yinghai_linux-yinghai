@@ -770,16 +770,22 @@ static void i830_write_entry(dma_addr_t addr, unsigned int entry,
 static bool intel_enable_gtt(void)
 {
 	u32 gma_addr;
+	u32 addr_hi = 0;
 	u8 __iomem *reg;
+	int pos;
 
 	if (INTEL_GTT_GEN <= 2)
-		pci_read_config_dword(intel_private.pcidev, I810_GMADDR,
-				      &gma_addr);
+		pos = I810_GMADDR;
 	else
-		pci_read_config_dword(intel_private.pcidev, I915_GMADDR,
-				      &gma_addr);
+		pos = I915_GMADDR;
+
+	pci_read_config_dword(intel_private.pcidev, pos, &gma_addr);
+
+	if (gma_addr & PCI_BASE_ADDRESS_MEM_TYPE_64)
+		pci_read_config_dword(intel_private.pcidev, pos + 4, &addr_hi);
 
 	intel_private.gma_bus_addr = (gma_addr & PCI_BASE_ADDRESS_MEM_MASK);
+	intel_private.gma_bus_addr |= (u64)addr_hi << 32;
 
 	if (INTEL_GTT_GEN >= 6)
 	    return true;
