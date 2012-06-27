@@ -117,6 +117,18 @@ struct resource *pci_dev_resource_n(struct pci_dev *dev, int n)
 }
 EXPORT_SYMBOL(pci_dev_resource_n);
 
+int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res)
+{
+	int i;
+	struct resource *r;
+
+	for_each_pci_dev_all_resource(dev, r, i)
+		if (r == res)
+			return i;
+
+	return -1;
+}
+
 static u64 pci_size(u64 base, u64 maxbase, u64 mask)
 {
 	u64 size = mask & maxbase;	/* Find the significant bits */
