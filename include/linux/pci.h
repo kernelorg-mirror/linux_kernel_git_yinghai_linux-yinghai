@@ -363,6 +363,61 @@ struct pci_dev {
 
 struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
 
+#define resno_is_for_bridge(n)						\
+	((n) >= PCI_BRIDGE_RESOURCES && (n) <= PCI_BRIDGE_RESOURCE_END)
+
+/* all (include bridge) resources */
+#define for_each_pci_dev_all_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i++)
+/* exclude bridge resources */
+#define for_each_pci_dev_nobridge_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != (PCI_BRIDGE_RESOURCES - 1)) ? (i+1) : PCI_NUM_RESOURCES)
+/* exclude bridge and IOV resources */
+#define for_each_pci_dev_base_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != PCI_ROM_RESOURCE) ? (i+1) : PCI_NUM_RESOURCES)
+/* exclude ROM and bridge and IOV resources */
+#define for_each_pci_dev_base_norom_resource(dev, res, i)		\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != (PCI_ROM_RESOURCE-1)) ? (i+1) : PCI_NUM_RESOURCES)
+/* exclude ROM and bridge resources */
+#define for_each_pci_dev_base_iov_norom_resource(dev, res, i)		\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != (PCI_ROM_RESOURCE-1) && i != (PCI_BRIDGE_RESOURCES-1)) ? (i+1) : \
+	           ((i == PCI_ROM_RESOURCE-1) ? (PCI_ROM_RESOURCE+1) : PCI_NUM_RESOURCES))
+/* exclude IOV resources */
+#define for_each_pci_dev_noiov_resource(dev, res, i)			\
+	for (i = 0;							\
+	     (res = pci_dev_resource_n(dev, i)) || i < PCI_NUM_RESOURCES; \
+	     i = (i != PCI_ROM_RESOURCE) ? (i+1) : PCI_BRIDGE_RESOURCES)
+/* only std resources */
+#define for_each_pci_dev_std_resource(dev, res, i)			\
+	for (i = PCI_STD_RESOURCES;					\
+	   (res = pci_dev_resource_n(dev, i)) && i < (PCI_STD_RESOURCE_END+1); \
+	     i++)
+/* only IOV resources */
+#define for_each_pci_dev_iov_resource(dev, res, i)			\
+	for (i = PCI_IOV_RESOURCES;					\
+	   (res = pci_dev_resource_n(dev, i)) && i < (PCI_IOV_RESOURCE_END+1); \
+	     i++)
+/* only bridge resources */
+#define for_each_pci_dev_bridge_resource(dev, res, i)			\
+	for (i = PCI_BRIDGE_RESOURCES;					\
+	(res = pci_dev_resource_n(dev, i)) && i < (PCI_BRIDGE_RESOURCE_END+1); \
+	     i++)
+/* only addon resources */
+#define for_each_pci_dev_addon_resource(dev, res, i)			\
+	for (i = PCI_NUM_RESOURCES;					\
+	     (res = pci_dev_resource_n(dev, i));			\
+	     i++)
+
 static inline struct pci_dev *pci_physfn(struct pci_dev *dev)
 {
 #ifdef CONFIG_PCI_IOV
