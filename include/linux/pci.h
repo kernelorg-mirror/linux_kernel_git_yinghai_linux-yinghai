@@ -379,6 +379,11 @@ struct pci_dev_addon_resource {
 
 struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
 int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res);
+struct pci_dev_addon_resource *add_pci_dev_addon_fixed_resource(
+		 struct pci_dev *dev, int start, int size, int flags,
+		 int addr, char *name);
+struct pci_dev_addon_resource *add_pci_dev_addon_resource(struct pci_dev *dev,
+		 int addr, int size, struct resource_ops *ops, char *name);
 
 #define resno_is_for_bridge(n)						\
 	((n) >= PCI_BRIDGE_RESOURCES && (n) <= PCI_BRIDGE_RESOURCE_END)
