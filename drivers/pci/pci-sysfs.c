@@ -289,10 +289,6 @@ static ssize_t bus_rescan_store(struct bus_type *bus, const char *buf,
 	return count;
 }
 
-struct bus_attribute pci_bus_attrs[] = {
-	__ATTR(rescan, (S_IWUSR|S_IWGRP), NULL, bus_rescan_store),
-	__ATTR_NULL
-};
 
 static ssize_t
 dev_rescan_store(struct device *dev, struct device_attribute *attr,
@@ -405,7 +401,28 @@ dev_bus_rescan_store(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+static ssize_t pci_resource_alignment_store(struct bus_type *bus,
+					const char *buf, size_t count)
+{
+	return pci_set_resource_alignment_param(buf, count);
+}
 #endif
+
+static ssize_t pci_resource_alignment_show(struct bus_type *bus, char *buf)
+{
+	return pci_get_resource_alignment_param(buf, PAGE_SIZE);
+}
+
+struct bus_attribute pci_bus_attrs[] = {
+#ifdef CONFIG_HOTPLUG
+	__ATTR(rescan, (S_IWUSR|S_IWGRP), NULL, bus_rescan_store),
+	__ATTR(resource_alignment, 0644, pci_resource_alignment_show,
+					pci_resource_alignment_store),
+#else
+	__ATTR(resource_alignment, 0444, pci_resource_alignment_show, NULL),
+#endif
+	__ATTR_NULL
+};
 
 #if defined(CONFIG_PM_RUNTIME) && defined(CONFIG_ACPI)
 static ssize_t d3cold_allowed_store(struct device *dev,
