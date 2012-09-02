@@ -631,6 +631,8 @@ int pciehp_power_off_slot(struct slot * slot)
 	slot_cmd = POWER_OFF;
 	cmd_mask = PCI_EXP_SLTCTL_PCC;
 	retval = pcie_write_cmd(ctrl, slot_cmd, cmd_mask);
+	/* need to enable link again for present bit report */
+	pciehp_link_enable(ctrl);
 	if (retval) {
 		ctrl_err(ctrl, "Write command failed!\n");
 		return retval;
