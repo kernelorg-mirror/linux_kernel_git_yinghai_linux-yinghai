@@ -154,6 +154,7 @@ void pci_stop_and_remove_bus(struct pci_bus *bus)
 
 	if (pci_is_root_bus(bus)) {
 		host_bridge = to_pci_host_bridge(bus->bridge);
+		get_device(&host_bridge->dev);
 		pci_stop_host_bridge(host_bridge);
 	} else
 		pci_bridge = bus->self;
@@ -162,8 +163,10 @@ void pci_stop_and_remove_bus(struct pci_bus *bus)
 
 	pci_remove_bus(bus);
 
-	if (host_bridge)
+	if (host_bridge) {
 		host_bridge->bus = NULL;
+		put_device(&host_bridge->dev);
+	}
 
 	if (pci_bridge)
 		pci_bridge->subordinate = NULL;
