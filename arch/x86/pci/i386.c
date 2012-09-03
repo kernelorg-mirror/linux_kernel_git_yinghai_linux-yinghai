@@ -206,7 +206,7 @@ static void pcibios_allocate_bridge_resources(struct pci_dev *dev)
 	int idx;
 	struct resource *r;
 
-	for (idx = PCI_BRIDGE_RESOURCES; idx < PCI_NUM_RESOURCES; idx++) {
+	for_each_pci_dev_bridge_resource(dev, r, idx) {
 		r = &dev->resource[idx];
 		if (r->parent)	/* Already allocated */
 			continue;
