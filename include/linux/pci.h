@@ -357,6 +357,8 @@ struct pci_dev {
 #endif
 };
 
+struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
+
 static inline struct pci_dev *pci_physfn(struct pci_dev *dev)
 {
 #ifdef CONFIG_PCI_IOV

@@ -105,6 +105,15 @@ static int __init pcibus_class_init(void)
 }
 postcore_initcall(pcibus_class_init);
 
+struct resource *pci_dev_resource_n(struct pci_dev *dev, int n)
+{
+	if (n >= 0 && n < PCI_NUM_RESOURCES)
+		return &dev->resource[n];
+
+	return NULL;
+}
+EXPORT_SYMBOL(pci_dev_resource_n);
+
 static u64 pci_size(u64 base, u64 maxbase, u64 mask)
 {
 	u64 size = mask & maxbase;	/* Find the significant bits */
