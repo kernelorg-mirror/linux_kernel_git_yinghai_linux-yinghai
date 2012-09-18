@@ -125,15 +125,13 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 {
 	int i, ret = -ENOMEM;
 	struct resource *r;
-	resource_size_t max = -1;
 
 	type_mask |= IORESOURCE_IO | IORESOURCE_MEM;
 
-	/* don't allocate too high if the pref mem doesn't support 64bit*/
-	if (!(res->flags & IORESOURCE_MEM_64))
-		max = PCIBIOS_MAX_MEM_32;
-
 	pci_bus_for_each_resource(bus, r, i) {
+		resource_size_t start, end, middle;
+		struct pci_bus_region region;
+
 		if (!r)
 			continue;
 
@@ -147,14 +145,42 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 		    !(res->flags & IORESOURCE_PREFETCH))
 			continue;
 
+		start = 0;
+		end = MAX_RESOURCE;
+		/*
+		 * don't allocate too high if the pref mem doesn't
+		 * support 64bit, also if this is a 64-bit mem
+		 * resource, try above 4GB first
+		 */
+		__pcibios_resource_to_bus(bus, &region, r);
+		if (region.start <= PCI_MAX_ADDR_32 &&
+		    region.end > PCI_MAX_ADDR_32) {
+			middle = pcibios_bus_addr_to_res(bus, res->flags,
+						      PCI_MAX_ADDR_32);
+			if (res->flags & IORESOURCE_MEM_64)
+				start = middle + 1;
+			else
+				end = middle;
+		} else if (region.start > PCI_MAX_ADDR_32 &&
+			   !(res->flags & IORESOURCE_MEM_64))
+				continue;
+
+again:
 		/* Ok, try it out.. */
 		ret = allocate_resource(r, res, size,
-					r->start ? : min,
-					max, align,
+					max(start, r->start ? : min),
+					end, align,
 					alignf, alignf_data);
 		if (ret == 0)
-			break;
+			return 0;
+
+		if (start != 0) {
+			start = 0;
+			goto again;
+		}
 	}
+
+
 	return ret;
 }
 
