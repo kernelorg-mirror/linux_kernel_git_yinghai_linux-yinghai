@@ -330,6 +330,7 @@ struct pci_dev {
 	 */
 	unsigned int	irq;
 	struct resource resource[DEVICE_COUNT_RESOURCE]; /* I/O and memory regions + expansion ROMs */
+	struct list_head addon_resources; /* addon I/O and memory resource */
 
 	/* These fields are used by common fixups */
 	unsigned int	transparent:1;	/* Transparent PCI bridge */
@@ -380,6 +381,21 @@ struct pci_dev {
 #endif
 };
 
+struct resource_ops {
+	int (*read)(struct pci_dev *dev, struct resource *res, int addr);
+	int (*write)(struct pci_dev *dev, struct resource *res, int addr);
+};
+
+struct pci_dev_addon_resource {
+	struct list_head list;
+	int reg_addr;
+	int size;
+	struct resource res;
+	struct resource_ops *ops;
+};
+#define	to_pci_dev_addon_resource(n)					\
+	container_of(n, struct pci_dev_addon_resource, res)
+
 struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
 int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res);
 
@@ -388,8 +404,10 @@ int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res);
 #define PCI_IOV_RES		(1<<2)
 #define PCI_BRIDGE_RES		(1<<3)
 #define PCI_RES_BLOCK_NUM	4
+/* addon does not need use bitmap ...*/
+#define PCI_ADDON_RES		(1<<4)
 
-#define PCI_ALL_RES		(PCI_STD_RES | PCI_ROM_RES | PCI_BRIDGE_RES | PCI_IOV_RES)
+#define PCI_ALL_RES		(PCI_STD_RES | PCI_ROM_RES | PCI_BRIDGE_RES | PCI_IOV_RES | PCI_ADDON_RES)
 #define PCI_NOSTD_RES		(PCI_ALL_RES & ~PCI_STD_RES)
 #define PCI_NOIOV_RES		(PCI_ALL_RES & ~PCI_IOV_RES)
 #define PCI_NOROM_RES		(PCI_ALL_RES & ~PCI_ROM_RES)
