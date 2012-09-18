@@ -650,6 +650,8 @@ static int acpi_pci_root_start(struct acpi_device *device)
 
 static int acpi_pci_root_remove(struct acpi_device *device, int type)
 {
+	acpi_status status;
+	acpi_handle handle;
 	struct acpi_pci_root *root = acpi_driver_data(device);
 
 	/* that root bus could be removed already */
@@ -663,6 +665,10 @@ static int acpi_pci_root_remove(struct acpi_device *device, int type)
 
 	device_set_run_wake(root->bus->bridge, false);
 	pci_acpi_remove_bus_pm_notifier(device);
+
+	status = acpi_get_handle(device->handle, METHOD_NAME__PRT, &handle);
+	if (ACPI_SUCCESS(status))
+		acpi_pci_irq_del_prt(root->bus);
 
 	dev_printk(KERN_DEBUG, &device->dev,
 		"freeing acpi_pci_root, will remove pci root bus at first");
