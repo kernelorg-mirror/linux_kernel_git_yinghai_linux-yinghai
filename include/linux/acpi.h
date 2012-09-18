@@ -283,6 +283,16 @@ struct acpi_osc_context {
 
 acpi_status acpi_run_osc(acpi_handle handle, struct acpi_osc_context *context);
 
+struct acpi_dsm_context {
+	char *uuid_str; /* uuid string */
+	int rev;
+	int func_idx;	/* function index */
+	int func_argc;
+	union acpi_object *func_argv;
+	struct acpi_buffer ret; /* free by caller if success */
+};
+acpi_status acpi_run_dsm(acpi_handle handle, struct acpi_dsm_context *context);
+
 /* platform-wide _OSC bits */
 #define OSC_SB_PAD_SUPPORT		1
 #define OSC_SB_PPC_OST_SUPPORT		2
