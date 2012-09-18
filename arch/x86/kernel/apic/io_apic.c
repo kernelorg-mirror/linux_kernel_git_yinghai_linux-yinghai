@@ -2570,10 +2570,18 @@ static void ir_ack_apic_level(struct irq_data *data)
 
 static void ir_print_prefix(struct irq_data *data, struct seq_file *p)
 {
+	struct pci_dev *dev = NULL;
+
 	seq_printf(p, " IR-%s%s", data->chip->name,
 			data->msi_desc ?
 			 (data->msi_desc->msi_attrib.is_msix ? "-X" : "")
 			 : "");
+
+	if (data->msi_desc)
+		dev = data->msi_desc->dev;
+
+	if (dev)
+		seq_printf(p, "-edge@%s", dev_name(&dev->dev));
 }
 
 static void irq_remap_modify_chip_defaults(struct irq_chip *chip)
@@ -3138,8 +3146,11 @@ msi_set_affinity(struct irq_data *data, const struct cpumask *mask, bool force)
 
 static void msi_irq_print_chip(struct irq_data *data, struct seq_file *p)
 {
-	seq_printf(p, " %s%s", data->chip->name,
-			data->msi_desc->msi_attrib.is_msix ? "-X" : "");
+	struct pci_dev *dev = data->msi_desc->dev;
+
+	seq_printf(p, " %s%s-edge@%s", data->chip->name,
+			data->msi_desc->msi_attrib.is_msix ? "-X" : "",
+			dev_name(&dev->dev));
 }
 
 /*
@@ -3172,7 +3183,7 @@ static int setup_msi_irq(struct pci_dev *dev, struct msi_desc *msidesc, int irq)
 	if (irq_remapped(irq_get_chip_data(irq)))
 		irq_set_status_flags(irq, IRQ_MOVE_PCNTXT);
 
-	irq_set_chip_and_handler_name(irq, chip, handle_edge_irq, "edge");
+	irq_set_chip_and_handler(irq, chip, handle_edge_irq);
 
 	dev_printk(KERN_DEBUG, &dev->dev, "irq %d for MSI%s\n", irq,
 			 msidesc->msi_attrib.is_msix ? "-X" : "");
