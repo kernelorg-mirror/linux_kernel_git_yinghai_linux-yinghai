@@ -769,11 +769,22 @@ out:
 	return err;
 }
 
+static DECLARE_BITMAP(iommu_allocated, 1024);
+
+static int iommu_unique_seq_id(void)
+{
+	int id;
+
+	id = find_first_zero_bit(iommu_allocated, 1024);
+	__set_bit(id, iommu_allocated);
+
+	return id;
+}
+
 int alloc_iommu(struct dmar_drhd_unit *drhd)
 {
 	struct intel_iommu *iommu;
 	u32 ver;
-	static int iommu_allocated = 0;
 	int agaw = 0;
 	int msagaw = 0;
 	int err;
@@ -787,7 +798,7 @@ int alloc_iommu(struct dmar_drhd_unit *drhd)
 	if (!iommu)
 		return -ENOMEM;
 
-	iommu->seq_id = iommu_allocated++;
+	iommu->seq_id = iommu_unique_seq_id();
 	sprintf (iommu->name, "dmar%d", iommu->seq_id);
 
 	err = map_iommu(iommu, drhd->reg_base_addr);
@@ -830,6 +841,7 @@ int alloc_iommu(struct dmar_drhd_unit *drhd)
  err_unmap:
 	unmap_iommu(iommu);
  error:
+	__clear_bit(iommu->seq_id, iommu_allocated);
 	kfree(iommu);
 	return err;
 }
@@ -843,6 +855,8 @@ void free_iommu(struct intel_iommu *iommu)
 
 	if (iommu->reg)
 		unmap_iommu(iommu);
+
+	__clear_bit(iommu->seq_id, iommu_allocated);
 
 	kfree(iommu);
 }
