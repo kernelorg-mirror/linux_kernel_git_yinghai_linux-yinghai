@@ -440,8 +440,9 @@ static void
 pci_restore_bars(struct pci_dev *dev)
 {
 	int i;
+	struct resource *res;
 
-	for (i = 0; i < PCI_BRIDGE_RESOURCES; i++)
+	for_each_pci_resource(dev, res, i, PCI_NOBRIDGE_RES)
 		pci_update_resource(dev, i);
 }
 
@@ -1161,6 +1162,7 @@ static int __pci_enable_device_flags(struct pci_dev *dev,
 {
 	int err;
 	int i, bars = 0;
+	struct resource *res;
 
 	/*
 	 * Power state could be unknown at this point, either due to a fresh
@@ -1178,12 +1180,11 @@ static int __pci_enable_device_flags(struct pci_dev *dev,
 		return 0;		/* already enabled */
 
 	/* only skip sriov related */
-	for (i = 0; i <= PCI_ROM_RESOURCE; i++)
-		if (dev->resource[i].flags & flags)
+	for_each_pci_resource(dev, res, i, PCI_NOIOV_RES) {
+		/* TODO: check i with bits of bars */
+		if (res->flags & flags)
 			bars |= (1 << i);
-	for (i = PCI_BRIDGE_RESOURCES; i < DEVICE_COUNT_RESOURCE; i++)
-		if (dev->resource[i].flags & flags)
-			bars |= (1 << i);
+	}
 
 	err = do_pci_enable_device(dev, bars);
 	if (err < 0)
@@ -2517,7 +2518,7 @@ static int __pci_request_region(struct pci_dev *pdev, int bar, const char *res_n
 
 err_out:
 	dev_warn(&pdev->dev, "BAR %d: can't reserve %pR\n", bar,
-		 &pdev->resource[bar]);
+		 pci_dev_resource_n(pdev, bar));
 	return -EBUSY;
 }
 
@@ -3572,6 +3573,13 @@ int pci_resource_bar(struct pci_dev *dev, int resno, enum pci_bar_type *type)
 		reg = pci_iov_resource_bar(dev, resno, type);
 		if (reg)
 			return reg;
+	} else if (resno >= PCI_NUM_RESOURCES) {
+		struct resource *res = pci_dev_resource_n(dev, resno);
+
+		if (res) {
+			*type = pci_bar_unknown;
+			return to_pci_dev_addon_resource(res)->reg_addr;
+		}
 	}
 
 	dev_err(&dev->dev, "BAR %d: invalid resource\n", resno);
@@ -3752,8 +3760,7 @@ void pci_reassigndev_resource_alignment(struct pci_dev *dev)
 	pci_write_config_word(dev, PCI_COMMAND, command);
 
 	align = pci_specified_resource_alignment(dev);
-	for (i = 0; i < PCI_BRIDGE_RESOURCES; i++) {
-		r = &dev->resource[i];
+	for_each_pci_resource(dev, r, i, PCI_NOBRIDGE_RES) {
 		if (!(r->flags & IORESOURCE_MEM))
 			continue;
 		size = resource_size(r);
@@ -3772,8 +3779,7 @@ void pci_reassigndev_resource_alignment(struct pci_dev *dev)
 	 */
 	if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE &&
 	    (dev->class >> 8) == PCI_CLASS_BRIDGE_PCI) {
-		for (i = PCI_BRIDGE_RESOURCES; i < PCI_NUM_RESOURCES; i++) {
-			r = &dev->resource[i];
+		for_each_pci_resource(dev, r, i, PCI_BRIDGE_RES) {
 			if (!(r->flags & IORESOURCE_MEM))
 				continue;
 			r->end = resource_size(r) - 1;
@@ -3865,6 +3871,10 @@ static int __init pci_setup(char *str)
 				pci_realloc_get_opt(str + 8);
 			} else if (!strncmp(str, "realloc", 7)) {
 				pci_realloc_get_opt("on");
+			} else if (!strncmp(str, "alloc_high=", 11)) {
+				pci_alloc_high_get_opt(str + 11);
+			} else if (!strncmp(str, "alloc_high", 10)) {
+				pci_alloc_high_get_opt("on");
 			} else if (!strcmp(str, "nodomains")) {
 				pci_no_domains();
 			} else if (!strncmp(str, "noari", 5)) {

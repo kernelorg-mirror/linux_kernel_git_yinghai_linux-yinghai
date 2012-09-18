@@ -105,6 +105,173 @@ static int __init pcibus_class_init(void)
 }
 postcore_initcall(pcibus_class_init);
 
+struct resource *pci_dev_resource_n(struct pci_dev *dev, int n)
+{
+	struct pci_dev_addon_resource *addon_res;
+
+	if (n < 0)
+		return NULL;
+
+	if (n < PCI_NUM_RESOURCES)
+		return &dev->resource[n];
+
+	n -= PCI_NUM_RESOURCES;
+	list_for_each_entry(addon_res, &dev->addon_resources, list) {
+		if (n-- == 0)
+			return &addon_res->res;
+	}
+
+	return NULL;
+}
+EXPORT_SYMBOL(pci_dev_resource_n);
+
+int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res)
+{
+	struct pci_dev_addon_resource *addon_res;
+	int n;
+
+	if (res >= dev->resource &&
+	    res <= dev->resource + (PCI_NUM_RESOURCES - 1))
+		return res - dev->resource;
+
+	n = PCI_NUM_RESOURCES;
+	list_for_each_entry(addon_res, &dev->addon_resources, list) {
+		if (res == &addon_res->res)
+			return n;
+		n++;
+	}
+
+	return -1;
+}
+
+struct pci_dev_addon_resource *__add_pci_dev_addon_resource(
+		 struct pci_dev *dev, int addr, char *name)
+{
+	struct pci_dev_addon_resource *addon_res;
+
+	addon_res = kzalloc(sizeof(*addon_res), GFP_KERNEL);
+
+	if (!addon_res)
+		return NULL;
+
+	addon_res->reg_addr = addr;
+
+	if (name)
+		addon_res->res.name = name;
+	else
+		addon_res->res.name = pci_name(dev);
+
+	list_add_tail(&addon_res->list, &dev->addon_resources);
+
+	return addon_res;
+}
+
+struct pci_dev_addon_resource *add_pci_dev_addon_fixed_resource(
+		 struct pci_dev *dev, int start, int size, int flags,
+		 int addr, char *name)
+{
+	struct pci_dev_addon_resource *addon_res;
+	struct resource *res;
+
+	addon_res = __add_pci_dev_addon_resource(dev, addr, name);
+	if (addon_res)
+		return NULL;
+
+	res = &addon_res->res;
+	res->start = start;
+	res->end = start + size - 1;
+	res->flags = flags | IORESOURCE_PCI_FIXED;
+
+	dev_printk(KERN_DEBUG, &dev->dev,
+		   "addon fixed resource %s %pR added\n", res->name, res);
+
+	return addon_res;
+}
+
+struct pci_dev_addon_resource *add_pci_dev_addon_resource(struct pci_dev *dev,
+		 int addr, int size, struct resource_ops *ops, char *name)
+{
+	struct pci_dev_addon_resource *addon_res;
+	struct resource *res;
+
+	addon_res = __add_pci_dev_addon_resource(dev, addr, name);
+	if (!addon_res)
+		return NULL;
+
+	res = &addon_res->res;
+	if (ops) {
+		addon_res->ops = ops;
+		addon_res->size = size;
+		ops->read(dev, res, addr);
+	} else
+		__pci_read_base(dev, pci_bar_unknown, res, addr);
+
+	dev_printk(KERN_DEBUG, &dev->dev,
+		   "addon resource %s %pR added\n", res->name, res);
+
+	return addon_res;
+}
+
+static void pci_release_dev_addon_res(struct pci_dev *dev)
+{
+	struct pci_dev_addon_resource *addon_res, *tmp;
+
+	list_for_each_entry_safe(addon_res, tmp, &dev->addon_resources, list) {
+		list_del(&addon_res->list);
+		kfree(addon_res);
+	}
+}
+
+static void __init_res_idx_mask(unsigned long *mask, int flag)
+{
+	bitmap_zero(mask, PCI_NUM_RESOURCES);
+	if (flag & PCI_STD_RES)
+		bitmap_set(mask, PCI_STD_RESOURCES,
+			PCI_STD_RESOURCE_END - PCI_STD_RESOURCES + 1);
+	if (flag & PCI_ROM_RES)
+		bitmap_set(mask, PCI_ROM_RESOURCE, 1);
+#ifdef CONFIG_PCI_IOV
+	if (flag & PCI_IOV_RES)
+		bitmap_set(mask, PCI_IOV_RESOURCES,
+			PCI_IOV_RESOURCE_END - PCI_IOV_RESOURCES + 1);
+#endif
+	if (flag & PCI_BRIDGE_RES)
+		bitmap_set(mask, PCI_BRIDGE_RESOURCES,
+			PCI_BRIDGE_RESOURCE_END - PCI_BRIDGE_RESOURCES + 1);
+}
+
+static DECLARE_BITMAP(res_idx_mask[1 << PCI_RES_BLOCK_NUM], PCI_NUM_RESOURCES);
+static int __init pci_res_idx_mask_init(void)
+{
+	int i;
+
+	for (i = 0; i < (1 << PCI_RES_BLOCK_NUM); i++)
+		__init_res_idx_mask(res_idx_mask[i], i);
+
+	return 0;
+}
+postcore_initcall(pci_res_idx_mask_init);
+
+static inline unsigned long *get_res_idx_mask(int flag)
+{
+	return res_idx_mask[flag & ((1 << PCI_RES_BLOCK_NUM) - 1)];
+}
+
+int pci_next_resource_idx(int i, int flag)
+{
+	i++;
+	if (i < PCI_NUM_RESOURCES)
+		i = find_next_bit(get_res_idx_mask(flag), PCI_NUM_RESOURCES, i);
+
+	if (i < PCI_NUM_RESOURCES)
+		return i;
+
+	if (flag & PCI_ADDON_RES)
+		return i;
+
+	return -1;
+}
+
 static u64 pci_size(u64 base, u64 maxbase, u64 mask)
 {
 	u64 size = mask & maxbase;	/* Find the significant bits */
@@ -288,9 +455,11 @@ out:
 static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 {
 	unsigned int pos, reg;
+	struct resource *res;
 
-	for (pos = 0; pos < howmany; pos++) {
-		struct resource *res = &dev->resource[pos];
+	for_each_pci_resource(dev, res, pos, PCI_STD_RES) {
+		if (pos >= howmany)
+			break;
 		reg = PCI_BASE_ADDRESS_0 + (pos << 2);
 		pos += __pci_read_base(dev, pci_bar_unknown, res, reg);
 	}
@@ -644,9 +813,8 @@ static struct pci_bus *pci_alloc_child_bus(struct pci_bus *parent,
 	 * Set up the primary, secondary and subordinate
 	 * bus numbers.
 	 */
-	child->number = child->busn_res.start = busnr;
+	child->number = busnr;
 	child->primary = parent->busn_res.start;
-	child->busn_res.end = 0xff;
 
 	if (!bridge)
 		return child;
@@ -666,6 +834,21 @@ static struct pci_bus *pci_alloc_child_bus(struct pci_bus *parent,
 	return child;
 }
 
+static void pci_bus_replace_busn_res(struct pci_bus *b,
+					 struct resource *busn_res)
+{
+	struct resource *res = &b->busn_res;
+
+	/* busn_res must be registered already*/
+	if (!busn_res->parent)
+		return;
+
+	replace_resource(busn_res, res);
+
+	dev_printk(KERN_DEBUG, &b->dev, "busn_res: %pR is updated under %pR\n",
+			res, res->parent);
+}
+
 struct pci_bus *__ref pci_add_new_bus(struct pci_bus *parent, struct pci_dev *dev, int busnr)
 {
 	struct pci_bus *child;
@@ -679,22 +862,136 @@ struct pci_bus *__ref pci_add_new_bus(struct pci_bus *parent, struct pci_dev *de
 	return child;
 }
 
-static void pci_fixup_parent_subordinate_busnr(struct pci_bus *child, int max)
+static void __devinit pci_bus_extend_top(struct pci_bus *parent,
+		 long size, struct resource *parent_res)
 {
-	struct pci_bus *parent = child->parent;
+	struct resource *res;
 
-	/* Attempts to fix that up are really dangerous unless
-	   we're going to re-assign all bus numbers. */
-	if (!pcibios_assign_all_busses())
+	if (!size)
 		return;
 
-	while (parent->parent && parent->busn_res.end < max) {
-		parent->busn_res.end = max;
-		pci_write_config_byte(parent->self, PCI_SUBORDINATE_BUS, max);
+	while (parent) {
+		res = &parent->busn_res;
+		if (res == parent_res)
+			break;
+		pci_write_config_byte(parent->self, PCI_SUBORDINATE_BUS,
+					 parent->busn_res.end);
+		dev_printk(KERN_DEBUG, &parent->dev,
+				"busn_res: %s %02lx to %pR\n",
+				(size > 0) ? "extended" : "shrunk",
+				abs(size), res);
 		parent = parent->parent;
 	}
 }
 
+static void __devinit pci_bus_shrink_top(struct pci_bus *parent,
+		 long size, struct resource *parent_res)
+{
+	pci_bus_extend_top(parent, -size, parent_res);
+}
+
+static int __devinit pci_bridge_probe_busn_res(struct pci_bus *bus,
+			 struct pci_dev *dev, struct resource *busn_res,
+			 resource_size_t needed_size, struct resource **p)
+{
+	int ret = -ENOMEM;
+	int old_size = resource_size(&bus->busn_res);
+	int skip_nr = 1;
+	int stop_flags = IORESOURCE_PCI_FIXED;
+	int i;
+
+	for (i = needed_size; i > 0; i--) {
+		ret = probe_resource(&bus->busn_res, busn_res, i,
+			p, skip_nr, stop_flags);
+
+		if (!ret)
+			break;
+	}
+
+	if (!i)
+		return ret;
+
+	busn_res->flags = IORESOURCE_BUS;
+
+	if (*p) {
+		/* extend parent bus top*/
+		int new_size = resource_size(&bus->busn_res);
+
+		pci_bus_extend_top(bus, new_size - old_size, *p);
+	}
+
+	return ret;
+}
+
+static int __devinit pci_bridge_check_busn_broken_with_unscaned(
+				struct pci_bus *bus,
+				struct pci_dev *dev,
+				int secondary, int subordinate)
+{
+	u32 buses2;
+	int broken = 0;
+	struct pci_dev *dev2;
+	int secondary2, subordinate2;
+	int common_start, common_end;
+
+	/* need to check with not scaned sibling bridges */
+	list_for_each_entry(dev2, &bus->devices, bus_list) {
+		if (dev2->hdr_type != PCI_HEADER_TYPE_BRIDGE &&
+		    dev2->hdr_type != PCI_HEADER_TYPE_CARDBUS)
+			continue;
+		if (dev2->subordinate)
+			continue;
+		if (dev2 == dev)
+			continue;
+
+		pci_read_config_dword(dev2, PCI_PRIMARY_BUS, &buses2);
+		secondary2 = (buses2 >> 8) & 0xFF;
+		subordinate2 = (buses2 >> 16) & 0xFF;
+
+		/* overlapping between them ? */
+		common_start = max(secondary, secondary2);
+		common_end = min(subordinate, subordinate2);
+		if (common_start <= common_end) {
+			/*
+			 * Temporarily disable forwarding of the
+			 * configuration cycles on this sibling bridge
+			 */
+			pci_write_config_dword(dev2, PCI_PRIMARY_BUS,
+					       buses2 & ~0xffffff);
+			broken = 1;
+		}
+	}
+
+	return broken;
+}
+
+static int __devinit pci_bridge_check_busn_broken(struct pci_bus *bus,
+				struct pci_dev *dev,
+				int secondary, int subordinate)
+{
+	int ret;
+	struct resource busn_res;
+
+	memset(&busn_res, 0, sizeof(struct resource));
+	dev_printk(KERN_DEBUG, &dev->dev,
+		 "check if busn %02x-%02x is in busn_res: %pR\n",
+		 secondary, subordinate, &bus->busn_res);
+	ret = allocate_resource(&bus->busn_res, &busn_res,
+			 (subordinate - secondary + 1),
+			 secondary, subordinate,
+			 1, NULL, NULL);
+	if (ret)
+		return 1;
+
+	release_resource(&busn_res);
+
+	return pci_bridge_check_busn_broken_with_unscaned(bus, dev,
+					secondary, subordinate);
+}
+
+static unsigned int __devinit __pci_scan_child_bus(struct pci_bus *bus,
+						 int pass);
+#define HOTPLUG_BRIDGE_RESERVE_BUSNR 8
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
@@ -709,10 +1006,11 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 {
 	struct pci_bus *child;
 	int is_cardbus = (dev->hdr_type == PCI_HEADER_TYPE_CARDBUS);
-	u32 buses, i, j = 0;
+	u32 buses;
 	u16 bctl;
 	u8 primary, secondary, subordinate;
 	int broken = 0;
+	struct resource *parent_res = NULL;
 
 	pci_read_config_dword(dev, PCI_PRIMARY_BUS, &buses);
 	primary = buses & 0xFF;
@@ -729,10 +1027,16 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 
 	/* Check if setup is sensible at all */
 	if (!pass &&
-	    (primary != bus->number || secondary <= bus->number)) {
-		dev_dbg(&dev->dev, "bus configuration invalid, reconfiguring\n");
+	    (primary != bus->number || secondary <= bus->number))
 		broken = 1;
-	}
+
+	/* more strict checking */
+	if (!pass && !broken && !dev->subordinate)
+		broken = pci_bridge_check_busn_broken(bus, dev,
+						   secondary, subordinate);
+
+	if (broken)
+		dev_dbg(&dev->dev, "bus configuration invalid, reconfiguring\n");
 
 	/* Disable MasterAbortMode during probing to avoid reporting
 	   of bus errors (in some architectures) */ 
@@ -744,11 +1048,10 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 	    !is_cardbus && !broken) {
 		unsigned int cmax;
 		/*
-		 * Bus already configured by firmware, process it in the first
-		 * pass and just note the configuration.
+		 * Bus already configured by firmware, still process it in two
+		 * passes in extreme case like two adjaced bridges have children
+		 * bridges that are not setup properly.
 		 */
-		if (pass)
-			goto out;
 
 		/*
 		 * If we already got to this bus through a different bridge,
@@ -767,7 +1070,7 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 			child->bridge_ctl = bctl;
 		}
 
-		cmax = pci_scan_child_bus(child);
+		cmax = __pci_scan_child_bus(child, pass);
 		if (cmax > max)
 			max = cmax;
 		if (child->busn_res.end > max)
@@ -777,6 +1080,11 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 		 * We need to assign a number to this bus which we always
 		 * do in the second pass.
 		 */
+		long shrink_size;
+		struct resource busn_res;
+		int ret = -ENOMEM;
+		int old_max = max;
+
 		if (!pass) {
 			if (pcibios_assign_all_busses() || broken)
 				/* Temporarily disable forwarding of the
@@ -793,20 +1101,41 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 		/* Clear errors */
 		pci_write_config_word(dev, PCI_STATUS, 0xffff);
 
-		/* Prevent assigning a bus number that already exists.
-		 * This can happen when a bridge is hot-plugged, so in
-		 * this case we only re-scan this bus. */
-		child = pci_find_bus(pci_domain_nr(bus), max+1);
-		if (!child) {
-			child = pci_add_new_bus(bus, dev, ++max);
-			if (!child)
-				goto out;
-			pci_bus_insert_busn_res(child, max, 0xff);
+		if (dev->subordinate) {
+			/* We get here only for cardbus */
+			child = dev->subordinate;
+			if  (!is_cardbus)
+				dev_warn(&dev->dev,
+				 "rescan scaned bridge as broken one again ?");
+
+			goto out;
 		}
+		/*
+		 * For CardBus bridges, we leave 4 bus numbers
+		 * as cards with a PCI-to-PCI bridge can be
+		 * inserted later.
+		 * other just allocate 8 bus to avoid we fall into
+		 *  small hole in the middle.
+		 */
+		ret = pci_bridge_probe_busn_res(bus, dev, &busn_res,
+				is_cardbus ? (CARDBUS_RESERVE_BUSNR + 1) : 8,
+				&parent_res);
+
+		if (ret != 0)
+			goto out;
+
+		child = pci_add_new_bus(bus, dev, busn_res.start);
+		if (!child)
+			goto out;
+
+		pci_bus_replace_busn_res(child, &busn_res);
+
 		buses = (buses & 0xff000000)
 		      | ((unsigned int)(child->primary)     <<  0)
 		      | ((unsigned int)(child->busn_res.start)   <<  8)
 		      | ((unsigned int)(child->busn_res.end) << 16);
+
+		max = child->busn_res.end;
 
 		/*
 		 * yenta.c forces a secondary latency timer of 176.
@@ -824,57 +1153,29 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 
 		if (!is_cardbus) {
 			child->bridge_ctl = bctl;
-			/*
-			 * Adjust subordinate busnr in parent buses.
-			 * We do this before scanning for children because
-			 * some devices may not be detected if the bios
-			 * was lazy.
-			 */
-			pci_fixup_parent_subordinate_busnr(child, max);
-			/* Now we can scan all subordinate buses... */
 			max = pci_scan_child_bus(child);
-			/*
-			 * now fix it up again since we have found
-			 * the real value of max.
-			 */
-			pci_fixup_parent_subordinate_busnr(child, max);
-		} else {
-			/*
-			 * For CardBus bridges, we leave 4 bus numbers
-			 * as cards with a PCI-to-PCI bridge can be
-			 * inserted later.
-			 */
-			for (i=0; i<CARDBUS_RESERVE_BUSNR; i++) {
-				struct pci_bus *parent = bus;
-				if (pci_find_bus(pci_domain_nr(bus),
-							max+i+1))
-					break;
-				while (parent->parent) {
-					if ((!pcibios_assign_all_busses()) &&
-					    (parent->busn_res.end > max) &&
-					    (parent->busn_res.end <= max+i)) {
-						j = 1;
-					}
-					parent = parent->parent;
-				}
-				if (j) {
-					/*
-					 * Often, there are two cardbus bridges
-					 * -- try to leave one valid bus number
-					 * for each one.
-					 */
-					i /= 2;
-					break;
-				}
-			}
-			max += i;
-			pci_fixup_parent_subordinate_busnr(child, max);
 		}
 		/*
 		 * Set the subordinate bus number to its real value.
 		 */
-		pci_bus_update_busn_res_end(child, max);
+		if (dev->is_hotplug_bridge && child->busn_res.end > max &&
+		   (max - child->busn_res.start) < HOTPLUG_BRIDGE_RESERVE_BUSNR)
+			max = min_t(int, child->busn_res.start +
+					 HOTPLUG_BRIDGE_RESERVE_BUSNR,
+				    child->busn_res.end);
+		shrink_size = (int)child->busn_res.end - max;
 		pci_write_config_byte(dev, PCI_SUBORDINATE_BUS, max);
+		pci_bus_update_busn_res_end(child, max);
+
+		/* shrink some back, if we extend top before */
+		if (!is_cardbus && (shrink_size > 0) && parent_res) {
+			resource_shrink_parents_top(&bus->busn_res, shrink_size,
+						 parent_res);
+			pci_bus_shrink_top(bus, shrink_size, parent_res);
+		}
+
+		if (old_max > max)
+			max = old_max;
 	}
 
 	sprintf(child->name,
@@ -1115,6 +1416,7 @@ static void pci_release_dev(struct device *dev)
 	pci_dev = to_pci_dev(dev);
 	pci_release_capabilities(pci_dev);
 	pci_release_of_node(pci_dev);
+	pci_release_dev_addon_res(pci_dev);
 	kfree(pci_dev);
 }
 
@@ -1192,6 +1494,7 @@ struct pci_dev *alloc_pci_dev(void)
 		return NULL;
 
 	INIT_LIST_HEAD(&dev->bus_list);
+	INIT_LIST_HEAD(&dev->addon_resources);
 
 	return dev;
 }
@@ -1585,12 +1888,13 @@ void pcie_bus_configure_settings(struct pci_bus *bus, u8 mpss)
 }
 EXPORT_SYMBOL_GPL(pcie_bus_configure_settings);
 
-unsigned int __devinit pci_scan_child_bus(struct pci_bus *bus)
+static unsigned int __devinit __pci_scan_child_bus(struct pci_bus *bus,
+						 int pass)
 {
-	unsigned int devfn, pass, max = bus->busn_res.start;
+	unsigned int devfn, max = bus->busn_res.start;
 	struct pci_dev *dev;
 
-	dev_dbg(&bus->dev, "scanning bus\n");
+	dev_dbg(&bus->dev, "scanning bus pass %d\n", pass);
 
 	/* Go find them, Rover! */
 	for (devfn = 0; devfn < 0x100; devfn += 8)
@@ -1604,18 +1908,16 @@ unsigned int __devinit pci_scan_child_bus(struct pci_bus *bus)
 	 * all PCI-to-PCI bridges on this bus.
 	 */
 	if (!bus->is_added) {
-		dev_dbg(&bus->dev, "fixups for bus\n");
+		dev_dbg(&bus->dev, "fixups for bus pass %d\n", pass);
 		pcibios_fixup_bus(bus);
 		if (pci_is_root_bus(bus))
 			bus->is_added = 1;
 	}
 
-	for (pass=0; pass < 2; pass++)
-		list_for_each_entry(dev, &bus->devices, bus_list) {
-			if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
-			    dev->hdr_type == PCI_HEADER_TYPE_CARDBUS)
-				max = pci_scan_bridge(bus, dev, max, pass);
-		}
+	list_for_each_entry(dev, &bus->devices, bus_list)
+		if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
+		    dev->hdr_type == PCI_HEADER_TYPE_CARDBUS)
+			max = pci_scan_bridge(bus, dev, max, pass);
 
 	/*
 	 * We've scanned the bus and so we know all about what's on
@@ -1624,7 +1926,24 @@ unsigned int __devinit pci_scan_child_bus(struct pci_bus *bus)
 	 *
 	 * Return how far we've got finding sub-buses.
 	 */
-	dev_dbg(&bus->dev, "bus scan returning with max=%02x\n", max);
+	dev_dbg(&bus->dev, "bus scan returning with max=%02x pass %d\n",
+			max, pass);
+
+	return max;
+}
+
+unsigned int __devinit pci_scan_child_bus(struct pci_bus *bus)
+{
+	int pass;
+	unsigned int max = 0, tmp;
+
+	for (pass = 0; pass < 2;  pass++) {
+		tmp = __pci_scan_child_bus(bus, pass);
+
+		if (tmp > max)
+			max = tmp;
+	}
+
 	return max;
 }
 

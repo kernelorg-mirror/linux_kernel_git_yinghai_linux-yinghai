@@ -136,8 +136,7 @@ static void __devinit pcibios_fixup_device_resources(struct pci_dev *dev)
 		* resource so the kernel doesn't attmept to assign
 		* it later on in pci_assign_unassigned_resources
 		*/
-		for (bar = 0; bar <= PCI_STD_RESOURCE_END; bar++) {
-			bar_r = &dev->resource[bar];
+		for_each_pci_resource(dev, bar_r, bar, PCI_NOIOV_RES & ~PCI_BRIDGE_RES & ~PCI_ROM_RES) {
 			if (bar_r->start == 0 && bar_r->end != 0) {
 				bar_r->flags = 0;
 				bar_r->end = 0;
@@ -572,6 +571,9 @@ char * __init pcibios_setup(char *str)
 		return NULL;
 	} else if (!strcmp(str, "assign-busses")) {
 		pci_probe |= PCI_ASSIGN_ALL_BUSSES;
+		return NULL;
+	} else if (!strcmp(str, "pref_bar")) {
+		pci_probe |= PCI_ASSIGN_PREF_BARS;
 		return NULL;
 	} else if (!strcmp(str, "use_crs")) {
 		pci_probe |= PCI_USE__CRS;
