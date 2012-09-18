@@ -10,10 +10,11 @@ obj-$(CONFIG_SYSFS) += slot.o
 
 obj-$(CONFIG_PCI_QUIRKS) += quirks.o
 
+# pre-installed hotplug ioapic need to be enabled at first
+obj-$(CONFIG_PCI_IOAPIC) += ioapic.o
+
 # Build PCI Express stuff if needed
 obj-$(CONFIG_PCIEPORTBUS) += pcie/
-
-obj-$(CONFIG_PCI_IOAPIC) += ioapic.o
 
 obj-$(CONFIG_HOTPLUG) += hotplug.o
 
