@@ -90,7 +90,7 @@ int acpi_pci_register_driver(struct acpi_pci_driver *driver)
 		return 0;
 
 	list_for_each_entry(root, &acpi_pci_roots, node) {
-		driver->add(root->device->handle);
+		driver->add(root);
 		n++;
 	}
 
@@ -116,7 +116,7 @@ void acpi_pci_unregister_driver(struct acpi_pci_driver *driver)
 		return;
 
 	list_for_each_entry(root, &acpi_pci_roots, node)
-		driver->remove(root->device->handle);
+		driver->remove(root);
 }
 
 EXPORT_SYMBOL(acpi_pci_unregister_driver);
