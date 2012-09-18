@@ -27,7 +27,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/types.h>
-#include <linux/spinlock.h>
+#include <linux/mutex.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
 #include <linux/pci.h>
@@ -71,9 +71,11 @@ static struct acpi_driver acpi_pci_root_driver = {
 		},
 };
 
+/* Lock to protect both acpi_pci_roots and acpi_pci_drivers lists */
+static DEFINE_MUTEX(acpi_pci_root_lock);
 static LIST_HEAD(acpi_pci_roots);
+static LIST_HEAD(acpi_pci_drivers);
 
-static struct acpi_pci_driver *sub_driver;
 static DEFINE_MUTEX(osc_lock);
 
 int acpi_pci_register_driver(struct acpi_pci_driver *driver)
@@ -81,57 +83,46 @@ int acpi_pci_register_driver(struct acpi_pci_driver *driver)
 	int n = 0;
 	struct acpi_pci_root *root;
 
-	struct acpi_pci_driver **pptr = &sub_driver;
-	while (*pptr)
-		pptr = &(*pptr)->next;
-	*pptr = driver;
-
-	if (!driver->add)
-		return 0;
-
-	list_for_each_entry(root, &acpi_pci_roots, node) {
-		driver->add(root->device->handle);
-		n++;
-	}
+	mutex_lock(&acpi_pci_root_lock);
+	list_add_tail(&driver->node, &acpi_pci_drivers);
+	if (driver->add)
+		list_for_each_entry(root, &acpi_pci_roots, node) {
+			driver->add(root);
+			n++;
+		}
+	mutex_unlock(&acpi_pci_root_lock);
 
 	return n;
 }
-
 EXPORT_SYMBOL(acpi_pci_register_driver);
 
 void acpi_pci_unregister_driver(struct acpi_pci_driver *driver)
 {
 	struct acpi_pci_root *root;
 
-	struct acpi_pci_driver **pptr = &sub_driver;
-	while (*pptr) {
-		if (*pptr == driver)
-			break;
-		pptr = &(*pptr)->next;
-	}
-	BUG_ON(!*pptr);
-	*pptr = (*pptr)->next;
-
-	if (!driver->remove)
-		return;
-
-	list_for_each_entry(root, &acpi_pci_roots, node)
-		driver->remove(root->device->handle);
+	mutex_lock(&acpi_pci_root_lock);
+	list_del(&driver->node);
+	if (driver->remove)
+		list_for_each_entry(root, &acpi_pci_roots, node)
+			driver->remove(root);
+	mutex_unlock(&acpi_pci_root_lock);
 }
-
 EXPORT_SYMBOL(acpi_pci_unregister_driver);
 
 acpi_handle acpi_get_pci_rootbridge_handle(unsigned int seg, unsigned int bus)
 {
 	struct acpi_pci_root *root;
-	
+	struct acpi_handle *handle = NULL;
+
 	list_for_each_entry(root, &acpi_pci_roots, node)
 		if ((root->segment == (u16) seg) &&
-		    (root->secondary.start == (u16) bus))
-			return root->device->handle;
-	return NULL;		
-}
+		    (root->secondary.start == (u16) bus)) {
+			handle = root->device->handle;
+			break;
+		}
 
+	return handle;
+}
 EXPORT_SYMBOL_GPL(acpi_get_pci_rootbridge_handle);
 
 /**
@@ -469,7 +460,7 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	if (ACPI_FAILURE(status) && status != AE_NOT_FOUND) {
 		printk(KERN_ERR PREFIX "can't evaluate _SEG\n");
 		result = -ENODEV;
-		goto end;
+		goto out_free;
 	}
 
 	/* Check _CRS first, then _BBN.  If no _BBN, default to zero. */
@@ -494,7 +485,7 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 		else {
 			printk(KERN_ERR PREFIX "can't evaluate _BBN\n");
 			result = -ENODEV;
-			goto end;
+			goto out_free;
 		}
 	}
 
@@ -518,7 +509,7 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	 * TBD: Need PCI interface for enumeration/configuration of roots.
 	 */
 
-	/* TBD: Locking */
+	mutex_lock(&acpi_pci_root_lock);
 	list_add_tail(&root->node, &acpi_pci_roots);
 
 	printk(KERN_INFO PREFIX "%s [%s] (domain %04x %pR)\n",
@@ -538,7 +529,7 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 			    "Bus %04x:%02x not present in PCI namespace\n",
 			    root->segment, (unsigned int)root->secondary.start);
 		result = -ENODEV;
-		goto end;
+		goto out_del_root;
 	}
 
 	/*
@@ -548,7 +539,7 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	 */
 	result = acpi_pci_bind_root(device);
 	if (result)
-		goto end;
+		goto out_del_root;
 
 	/*
 	 * PCI Routing Table
@@ -631,11 +622,14 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	if (device->wakeup.flags.run_wake)
 		device_set_run_wake(root->bus->bridge, true);
 
+	mutex_unlock(&acpi_pci_root_lock);
+
 	return 0;
 
-end:
-	if (!list_empty(&root->node))
-		list_del(&root->node);
+out_del_root:
+	list_del(&root->node);
+	mutex_unlock(&acpi_pci_root_lock);
+out_free:
 	kfree(root);
 	return result;
 }
@@ -643,19 +637,62 @@ end:
 static int acpi_pci_root_start(struct acpi_device *device)
 {
 	struct acpi_pci_root *root = acpi_driver_data(device);
+	struct acpi_pci_driver *driver;
+
+	mutex_lock(&acpi_pci_root_lock);
+	list_for_each_entry(driver, &acpi_pci_drivers, node)
+		if (driver->add)
+			driver->add(root);
+
+	/* need to after hot-added ioapic is registered */
+	if (root->hot_added)
+		pci_enable_bridges(root->bus);
 
 	pci_bus_add_devices(root->bus);
+	mutex_unlock(&acpi_pci_root_lock);
+
 	return 0;
 }
 
 static int acpi_pci_root_remove(struct acpi_device *device, int type)
 {
+	acpi_status status;
+	acpi_handle handle;
 	struct acpi_pci_root *root = acpi_driver_data(device);
+	struct acpi_pci_driver *driver;
+
+	mutex_lock(&acpi_pci_root_lock);
+
+	/* that root bus could be removed already */
+	if (!pci_find_bus(root->segment, root->secondary.start)) {
+		dev_printk(KERN_DEBUG, &device->dev,
+		  "freeing acpi_pci_root, but pci root bus was removed before");
+		goto out;
+	}
+
+	/* stop normal pci drivers before we stop ioapic and dmar etc */
+	pci_stop_root_bus(root->bus);
+
+	list_for_each_entry_reverse(driver, &acpi_pci_drivers, node)
+		if (driver->remove)
+			driver->remove(root);
 
 	device_set_run_wake(root->bus->bridge, false);
 	pci_acpi_remove_bus_pm_notifier(device);
 
+	status = acpi_get_handle(device->handle, METHOD_NAME__PRT, &handle);
+	if (ACPI_SUCCESS(status))
+		acpi_pci_irq_del_prt(root->bus);
+
+	dev_printk(KERN_DEBUG, &device->dev,
+		"freeing acpi_pci_root, will remove pci root bus at first");
+	pci_remove_root_bus(root->bus);
+
+out:
+	list_del(&root->node);
+	mutex_unlock(&acpi_pci_root_lock);
 	kfree(root);
+
 	return 0;
 }
 
