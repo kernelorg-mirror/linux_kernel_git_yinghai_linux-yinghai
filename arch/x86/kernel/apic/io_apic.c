@@ -318,6 +318,37 @@ static void free_irq_at(unsigned int at, struct irq_cfg *cfg)
 }
 
 
+static struct irq_cfg *realloc_irq_and_cfg_at(unsigned int at, int node)
+{
+	struct irq_desc *desc = irq_to_desc(at);
+	struct irq_cfg *cfg;
+	int res;
+
+	if (desc) {
+		if (irq_desc_get_irq_data(desc)->node == node)
+			return alloc_irq_and_cfg_at(at, node);
+
+		cfg = irq_desc_get_chip_data(desc);
+		if (cfg) {
+			/* shared irq */
+			if (!list_empty(&cfg->irq_2_pin))
+				return cfg;
+			free_irq_cfg(at, cfg);
+		}
+	}
+
+	res = irq_realloc_desc_at(at, node);
+	if (res >= 0) {
+		cfg = alloc_irq_cfg(at, node);
+		if (cfg) {
+			irq_set_chip_data(at, cfg);
+			return cfg;
+		}
+	}
+
+	return alloc_irq_and_cfg_at(at, node);
+}
+
 struct io_apic {
 	unsigned int index;
 	unsigned int unused[3];
@@ -3443,7 +3474,7 @@ int arch_setup_ht_irq(unsigned int irq, struct pci_dev *dev)
 static int
 io_apic_setup_irq_pin(unsigned int irq, int node, struct io_apic_irq_attr *attr)
 {
-	struct irq_cfg *cfg = alloc_irq_and_cfg_at(irq, node);
+	struct irq_cfg *cfg = realloc_irq_and_cfg_at(irq, node);
 	int ret;
 
 	if (!cfg)

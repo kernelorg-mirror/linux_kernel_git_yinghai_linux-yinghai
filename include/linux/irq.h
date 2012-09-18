@@ -588,6 +588,11 @@ void irq_free_descs(unsigned int irq, unsigned int cnt);
 int irq_reserve_irqs(unsigned int from, unsigned int cnt);
 int __irq_reserve_irqs(int irq, unsigned int from, unsigned int cnt);
 
+int __irq_realloc_desc(int at, int node, struct module *owner);
+/* use macros to avoid needing export.h for THIS_MODULE */
+#define irq_realloc_desc_at(at, node)	\
+	__irq_realloc_desc(at, node, THIS_MODULE)
+
 static inline void irq_free_desc(unsigned int irq)
 {
 	irq_free_descs(irq, 1);
