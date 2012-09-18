@@ -102,9 +102,9 @@ static void alloc_acpi_root_hp_work(acpi_handle handle, u32 type,
 }
 
 /* Program resources in newly inserted bridge */
-static void acpi_root_configure_bridge(acpi_handle handle)
+static void acpi_root_configure_bridge(struct acpi_device *device)
 {
-	struct acpi_pci_root *root = acpi_pci_find_root(handle);
+	struct acpi_pci_root *root = acpi_driver_data(device);
 
 	pcibios_resource_survey_bus(root->bus);
 	pci_assign_unassigned_bus_resources(root->bus);
@@ -138,7 +138,7 @@ static void handle_root_bridge_insertion(acpi_handle handle)
 		printk(KERN_ERR "cannot add bridge to acpi list\n");
 		return;
 	}
-	acpi_root_configure_bridge(handle);
+	acpi_root_configure_bridge(device);
 	if (acpi_bus_start(device))
 		printk(KERN_ERR "cannot start bridge\n");
 }
