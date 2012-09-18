@@ -88,6 +88,17 @@ exit_free:
 	return -ENODEV;
 }
 
+static void pci_disable_device_mem(struct pci_dev *dev)
+{
+	u16 pci_command;
+
+	pci_read_config_word(dev, PCI_COMMAND, &pci_command);
+	if (pci_command & PCI_COMMAND_MEMORY) {
+		pci_command &= ~PCI_COMMAND_MEMORY;
+		pci_write_config_word(dev, PCI_COMMAND, pci_command);
+	}
+}
+
 static void __devexit ioapic_remove(struct pci_dev *dev)
 {
 	struct ioapic *ioapic = pci_get_drvdata(dev);
@@ -95,6 +106,8 @@ static void __devexit ioapic_remove(struct pci_dev *dev)
 	acpi_unregister_ioapic(ioapic->handle, ioapic->gsi_base);
 	pci_release_region(dev, 0);
 	pci_disable_device(dev);
+	/* need to disable it, otherwise remove/rescan will not work */
+	pci_disable_device_mem(dev);
 	kfree(ioapic);
 }
 
