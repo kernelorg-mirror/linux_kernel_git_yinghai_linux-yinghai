@@ -303,18 +303,10 @@ static void assign_requested_resources_sorted(struct list_head *head,
 		idx = pci_dev_resource_idx(dev_res->dev, res);
 		if (resource_size(res) &&
 		    pci_assign_resource_fit(dev_res->dev, idx, fit)) {
-			if (fail_head) {
-				/*
-				 * if the failed res is for ROM BAR, and it will
-				 * be enabled later, don't add it to the list
-				 */
-				if (!((idx == PCI_ROM_RESOURCE) &&
-				      (!(res->flags & IORESOURCE_ROM_ENABLE))))
-					add_to_list(fail_head,
-						    dev_res->dev, res,
-						    0 /* dont care */,
-						    0 /* dont care */);
-			}
+			if (fail_head)
+				add_to_list(fail_head, dev_res->dev, res,
+					    0 /* dont care */,
+					    0 /* dont care */);
 			reset_resource(res);
 		}
 	}
@@ -903,8 +895,9 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 				continue;
 			r_size = resource_size(r);
 
-			/* put SRIOV requested res to the optional list */
-			if (realloc_head && is_pci_iov_resource_idx(i)) {
+			/* put SRIOV/ROM requested res to the optional list */
+			if (realloc_head && (is_pci_iov_resource_idx(i) ||
+					     is_pci_rom_resource_idx(i))) {
 				r->end = r->start - 1;
 				add_to_list(realloc_head, dev, r, r_size, 0/* dont' care */);
 				children_add_size += r_size;
