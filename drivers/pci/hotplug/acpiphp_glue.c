@@ -842,7 +842,8 @@ static int __ref enable_device(struct acpiphp_slot *slot)
 				max = pci_scan_bridge(bus, dev, max, pass);
 				if (pass && dev->subordinate) {
 					check_hotplug_bridge(slot, dev);
-					pci_bus_size_bridges(dev->subordinate);
+					pci_bus_size_bridges_with_self(
+							dev->subordinate);
 				}
 			}
 		}
