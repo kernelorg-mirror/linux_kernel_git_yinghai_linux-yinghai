@@ -210,7 +210,8 @@ static int pci_revert_fw_address(struct resource *res, struct pci_dev *dev,
 }
 
 static int __pci_assign_resource(struct pci_bus *bus, struct pci_dev *dev,
-		int resno, resource_size_t size, resource_size_t align)
+		int resno, resource_size_t size, resource_size_t align,
+		bool fit)
 {
 	struct resource *res = pci_dev_resource_n(dev, resno);
 	resource_size_t min;
@@ -219,9 +220,9 @@ static int __pci_assign_resource(struct pci_bus *bus, struct pci_dev *dev,
 	min = (res->flags & IORESOURCE_IO) ? PCIBIOS_MIN_IO : PCIBIOS_MIN_MEM;
 
 	/* First, try exact prefetching match.. */
-	ret = pci_bus_alloc_resource(bus, res, size, align, min,
+	ret = pci_bus_alloc_resource_fit(bus, res, size, align, min,
 				     IORESOURCE_PREFETCH,
-				     pcibios_align_resource, dev);
+				     pcibios_align_resource, dev, fit);
 
 	if (ret < 0 && (res->flags & IORESOURCE_PREFETCH)) {
 		/*
@@ -230,14 +231,15 @@ static int __pci_assign_resource(struct pci_bus *bus, struct pci_dev *dev,
 		 * But a prefetching area can handle a non-prefetching
 		 * window (it will just not perform as well).
 		 */
-		ret = pci_bus_alloc_resource(bus, res, size, align, min, 0,
-					     pcibios_align_resource, dev);
+		ret = pci_bus_alloc_resource_fit(bus, res, size, align, min, 0,
+					     pcibios_align_resource, dev, fit);
 	}
 	return ret;
 }
 
 static int _pci_assign_resource(struct pci_dev *dev, int resno,
-				resource_size_t size, resource_size_t min_align)
+				resource_size_t size, resource_size_t min_align,
+				bool fit)
 {
 	struct resource *res = pci_dev_resource_n(dev, resno);
 	struct pci_bus *bus;
@@ -245,7 +247,8 @@ static int _pci_assign_resource(struct pci_dev *dev, int resno,
 	char *type;
 
 	bus = dev->bus;
-	while ((ret = __pci_assign_resource(bus, dev, resno, size, min_align))) {
+	while ((ret = __pci_assign_resource(bus, dev, resno, size,
+						min_align, fit))) {
 		if (!bus->parent || !bus->self->transparent)
 			break;
 		bus = bus->parent;
@@ -269,7 +272,7 @@ static int _pci_assign_resource(struct pci_dev *dev, int resno,
 	return ret;
 }
 
-int pci_assign_resource(struct pci_dev *dev, int resno)
+int pci_assign_resource_fit(struct pci_dev *dev, int resno, bool fit)
 {
 	struct resource *res = pci_dev_resource_n(dev, resno);
 	resource_size_t align, size;
@@ -285,7 +288,7 @@ int pci_assign_resource(struct pci_dev *dev, int resno)
 
 	bus = dev->bus;
 	size = resource_size(res);
-	ret = _pci_assign_resource(dev, resno, size, align);
+	ret = _pci_assign_resource(dev, resno, size, align, fit);
 
 	/*
 	 * If we failed to assign anything, let's try the address
@@ -319,7 +322,7 @@ int pci_reassign_resource(struct pci_dev *dev, int resno, resource_size_t addsiz
 
 	/* already aligned with min_align */
 	new_size = resource_size(res) + addsize;
-	ret = _pci_assign_resource(dev, resno, new_size, min_align);
+	ret = _pci_assign_resource(dev, resno, new_size, min_align, false);
 	if (!ret) {
 		res->flags &= ~IORESOURCE_STARTALIGN;
 		dev_info(&dev->dev, "BAR %d: reassigned %pR\n", resno, res);
@@ -327,6 +330,11 @@ int pci_reassign_resource(struct pci_dev *dev, int resno, resource_size_t addsiz
 			pci_update_resource(dev, resno);
 	}
 	return ret;
+}
+
+int pci_assign_resource(struct pci_dev *dev, int resno)
+{
+	return pci_assign_resource_fit(dev, resno, false);
 }
 
 int pci_enable_resources(struct pci_dev *dev, int mask)
