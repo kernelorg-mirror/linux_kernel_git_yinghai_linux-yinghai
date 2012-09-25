@@ -188,21 +188,6 @@ static acpi_status try_get_root_bridge_busnr(acpi_handle handle,
 	return AE_OK;
 }
 
-static void acpi_pci_bridge_scan(struct acpi_device *device)
-{
-	int status;
-	struct acpi_device *child = NULL;
-
-	if (device->flags.bus_address)
-		if (device->parent && device->parent->ops.bind) {
-			status = device->parent->ops.bind(device);
-			if (!status) {
-				list_for_each_entry(child, &device->children, node)
-					acpi_pci_bridge_scan(child);
-			}
-		}
-}
-
 static u8 pci_osc_uuid_str[] = "33DB4D5B-1FF7-401C-9657-7441C03DD766";
 
 static acpi_status acpi_pci_run_osc(acpi_handle handle,
@@ -452,7 +437,6 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	int result;
 	struct acpi_pci_root *root;
 	acpi_handle handle;
-	struct acpi_device *child;
 	u32 flags, base_flags;
 
 	root = kzalloc(sizeof(struct acpi_pci_root), GFP_KERNEL);
@@ -518,6 +502,15 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	list_add_tail(&root->node, &acpi_pci_roots);
 	mutex_unlock(&acpi_pci_root_lock);
 
+	/*
+	 * Attach ACPI-PCI Context
+	 * -----------------------
+	 * Thus binding the ACPI and PCI devices.
+	 */
+	result = acpi_pci_bind_root(device);
+	if (result)
+		goto end;
+
 	printk(KERN_INFO PREFIX "%s [%s] (domain %04x %pR)\n",
 	       acpi_device_name(device), acpi_device_bid(device),
 	       root->segment, &root->secondary);
@@ -539,15 +532,6 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	}
 
 	/*
-	 * Attach ACPI-PCI Context
-	 * -----------------------
-	 * Thus binding the ACPI and PCI devices.
-	 */
-	result = acpi_pci_bind_root(device);
-	if (result)
-		goto out_del_root;
-
-	/*
 	 * PCI Routing Table
 	 * -----------------
 	 * Evaluate and parse _PRT, if exists.
@@ -555,12 +539,6 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	status = acpi_get_handle(device->handle, METHOD_NAME__PRT, &handle);
 	if (ACPI_SUCCESS(status))
 		result = acpi_pci_irq_add_prt(device->handle, root->bus);
-
-	/*
-	 * Scan and bind all _ADR-Based Devices
-	 */
-	list_for_each_entry(child, &device->children, node)
-		acpi_pci_bridge_scan(child);
 
 	/* Indicate support for various _OSC capabilities. */
 	if (pci_ext_cfg_avail(root->bus->self))

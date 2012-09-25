@@ -35,43 +35,44 @@
 #define _COMPONENT		ACPI_PCI_COMPONENT
 ACPI_MODULE_NAME("pci_bind");
 
-static int acpi_pci_unbind(struct acpi_device *device)
+static int acpi_pci_bind_cb(struct acpi_device *acpi_dev);
+
+static int acpi_pci_unbind(struct acpi_device *acpi_dev, struct pci_dev *dev)
 {
-	struct pci_dev *dev;
-
-	dev = acpi_get_pci_dev(device->handle);
-	if (!dev)
-		goto out;
-
 	device_set_run_wake(&dev->dev, false);
-	pci_acpi_remove_pm_notifier(device);
+	pci_acpi_remove_pm_notifier(acpi_dev);
 
-	if (!dev->subordinate)
-		goto out;
+	if (dev->subordinate) {
+		acpi_pci_irq_del_prt(dev->subordinate);
+		acpi_dev->ops.bind = NULL;
+		acpi_dev->ops.unbind = NULL;
+	}
 
-	acpi_pci_irq_del_prt(dev->subordinate);
-
-	device->ops.bind = NULL;
-	device->ops.unbind = NULL;
-
-out:
-	pci_dev_put(dev);
 	return 0;
 }
 
-static int acpi_pci_bind(struct acpi_device *device)
+static int acpi_pci_unbind_cb(struct acpi_device *acpi_dev)
 {
-	acpi_status status;
-	acpi_handle handle;
-	struct pci_bus *bus;
+	int rc = 0;
 	struct pci_dev *dev;
 
-	dev = acpi_get_pci_dev(device->handle);
-	if (!dev)
-		return 0;
+	dev = acpi_get_pci_dev(acpi_dev->handle);
+	if (dev) {
+		rc = acpi_pci_unbind(acpi_dev, dev);
+		pci_dev_put(dev);
+	}
 
-	pci_acpi_add_pm_notifier(device, dev);
-	if (device->wakeup.flags.run_wake)
+	return rc;
+}
+
+static int acpi_pci_bind(struct acpi_device *acpi_dev, struct pci_dev *dev)
+{
+	acpi_status status;
+	acpi_handle tmp_hdl;
+	struct pci_bus *bus;
+
+	pci_acpi_add_pm_notifier(acpi_dev, dev);
+	if (acpi_dev->wakeup.flags.run_wake)
 		device_set_run_wake(&dev->dev, true);
 
 	/*
@@ -83,8 +84,8 @@ static int acpi_pci_bind(struct acpi_device *device)
 				  "Device %04x:%02x:%02x.%d is a PCI bridge\n",
 				  pci_domain_nr(dev->bus), dev->bus->number,
 				  PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn)));
-		device->ops.bind = acpi_pci_bind;
-		device->ops.unbind = acpi_pci_unbind;
+		acpi_dev->ops.bind = acpi_pci_bind_cb;
+		acpi_dev->ops.unbind = acpi_pci_unbind_cb;
 	}
 
 	/*
@@ -95,26 +96,53 @@ static int acpi_pci_bind(struct acpi_device *device)
 	 *
 	 * TBD: Can _PRTs exist within the scope of non-bridge PCI devices?
 	 */
-	status = acpi_get_handle(device->handle, METHOD_NAME__PRT, &handle);
-	if (ACPI_FAILURE(status))
-		goto out;
+	status = acpi_get_handle(acpi_dev->handle, METHOD_NAME__PRT, &tmp_hdl);
+	if (ACPI_SUCCESS(status)) {
+		if (dev->subordinate)
+			bus = dev->subordinate;
+		else
+			bus = dev->bus;
+		acpi_pci_irq_add_prt(acpi_dev->handle, bus);
+	}
 
-	if (dev->subordinate)
-		bus = dev->subordinate;
-	else
-		bus = dev->bus;
-
-	acpi_pci_irq_add_prt(device->handle, bus);
-
-out:
-	pci_dev_put(dev);
 	return 0;
 }
 
-int acpi_pci_bind_root(struct acpi_device *device)
+static int acpi_pci_bind_cb(struct acpi_device *acpi_dev)
 {
-	device->ops.bind = acpi_pci_bind;
-	device->ops.unbind = acpi_pci_unbind;
+	int rc = 0;
+	struct pci_dev *dev;
+
+	dev = acpi_get_pci_dev(acpi_dev->handle);
+	if (dev) {
+		rc = acpi_pci_bind(acpi_dev, dev);
+		pci_dev_put(dev);
+	}
+
+	return rc;
+}
+
+int acpi_pci_bind_root(struct acpi_device *acpi_dev)
+{
+	acpi_dev->ops.bind = acpi_pci_bind_cb;
+	acpi_dev->ops.unbind = acpi_pci_unbind_cb;
 
 	return 0;
+}
+
+void acpi_pci_bind_notify(struct acpi_device *acpi_dev, struct device *dev,
+			  bool bind)
+{
+	if (!dev_is_pci(dev))
+		return;
+
+	if (acpi_dev && acpi_dev->parent) {
+		if (bind) {
+			if (acpi_dev->parent->ops.bind)
+				acpi_pci_bind(acpi_dev, to_pci_dev(dev));
+		} else {
+			if (acpi_dev->parent->ops.unbind)
+				acpi_pci_unbind(acpi_dev, to_pci_dev(dev));
+		}
+	}
 }
