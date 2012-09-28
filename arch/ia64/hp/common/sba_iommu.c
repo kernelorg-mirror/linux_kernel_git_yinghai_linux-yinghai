@@ -2155,9 +2155,10 @@ sba_init(void)
 
 #ifdef CONFIG_PCI
 	{
-		struct pci_bus *b = NULL;
-		while ((b = pci_find_next_bus(b)) != NULL)
-			sba_connect_bus(b);
+		struct pci_host_bridge *host_bridge = NULL;
+
+		for_each_pci_host_bridge(host_bridge)
+			sba_connect_bus(host_bridge->bus);
 	}
 #endif
 
