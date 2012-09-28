@@ -1318,12 +1318,12 @@ static int __init pci_bus_get_depth(struct pci_bus *bus)
 static int __init pci_get_max_depth(void)
 {
 	int depth = 0;
-	struct pci_bus *bus;
+	struct pci_host_bridge *host_bridge = NULL;
 
-	list_for_each_entry(bus, &pci_root_buses, node) {
+	for_each_pci_host_bridge(host_bridge) {
 		int ret;
 
-		ret = pci_bus_get_depth(bus);
+		ret = pci_bus_get_depth(host_bridge->bus);
 		if (ret > depth)
 			depth = ret;
 	}
@@ -1393,6 +1393,7 @@ void __init
 pci_assign_unassigned_resources(void)
 {
 	struct pci_bus *bus;
+	struct pci_host_bridge *host_bridge = NULL;
 	LIST_HEAD(realloc_head); /* list of resources that
 					want additional resources */
 	struct list_head *add_list = NULL;
@@ -1423,12 +1424,13 @@ again:
 		add_list = &realloc_head;
 	/* Depth first, calculate sizes and alignments of all
 	   subordinate buses. */
-	list_for_each_entry(bus, &pci_root_buses, node)
-		__pci_bus_size_bridges(bus, add_list);
+	for_each_pci_host_bridge(host_bridge)
+		__pci_bus_size_bridges(host_bridge->bus, add_list);
 
 	/* Depth last, allocate resources and update the hardware. */
-	list_for_each_entry(bus, &pci_root_buses, node)
-		__pci_bus_assign_resources(bus, add_list, &fail_head);
+	for_each_pci_host_bridge(host_bridge)
+		__pci_bus_assign_resources(host_bridge->bus, add_list,
+						 &fail_head);
 	if (add_list)
 		BUG_ON(!list_empty(add_list));
 	tried_times++;
@@ -1480,12 +1482,12 @@ again:
 
 enable_and_dump:
 	/* Depth last, update the hardware. */
-	list_for_each_entry(bus, &pci_root_buses, node)
-		pci_enable_bridges(bus);
+	for_each_pci_host_bridge(host_bridge)
+		pci_enable_bridges(host_bridge->bus);
 
 	/* dump the resource on buses */
-	list_for_each_entry(bus, &pci_root_buses, node)
-		pci_bus_dump_resources(bus);
+	for_each_pci_host_bridge(host_bridge)
+		pci_bus_dump_resources(host_bridge->bus);
 }
 
 void pci_assign_unassigned_bridge_resources(struct pci_dev *bridge)
