@@ -178,6 +178,30 @@ struct pci_dev *pci_get_domain_bus_and_slot(int domain, unsigned int bus,
 }
 EXPORT_SYMBOL(pci_get_domain_bus_and_slot);
 
+static int match_pci_host_bridge(struct device *dev, void *data)
+{
+	return 1;
+}
+
+struct pci_host_bridge *pci_get_next_host_bridge(struct pci_host_bridge *from)
+{
+	struct device *dev;
+	struct device *dev_start = NULL;
+	struct pci_host_bridge *bridge = NULL;
+
+	WARN_ON(in_interrupt());
+	if (from)
+		dev_start = &from->dev;
+	dev = bus_find_device(&pci_host_bridge_bus_type, dev_start, NULL,
+			      match_pci_host_bridge);
+	if (dev)
+		bridge = to_pci_host_bridge(dev);
+	if (from)
+		put_device(&from->dev);
+	return bridge;
+}
+EXPORT_SYMBOL_GPL(pci_get_next_host_bridge);
+
 static int match_pci_dev_by_id(struct device *dev, void *data)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
