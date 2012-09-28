@@ -210,8 +210,8 @@ static int acpi_platform_notify(struct device *dev)
 	acpi_handle handle;
 	int ret = -EINVAL;
 
-	if (!dev->bus || !dev->parent) {
-		/* bridge devices genernally haven't bus or parent */
+	if (!dev->bus) {
+		/* bridge devices genernally haven't bus */
 		ret = acpi_find_bridge_device(dev, &handle);
 		goto end;
 	}

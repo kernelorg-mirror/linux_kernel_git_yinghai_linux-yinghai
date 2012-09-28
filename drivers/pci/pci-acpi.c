@@ -360,7 +360,8 @@ static int acpi_pci_find_device(struct device *dev, acpi_handle *handle)
 	return 0;
 }
 
-static int acpi_pci_find_root_bridge(struct device *dev, acpi_handle *handle)
+static int acpi_pci_host_bridge_find_device(struct device *dev,
+						acpi_handle *handle)
 {
 	int num;
 	unsigned int seg, bus;
@@ -378,10 +379,14 @@ static int acpi_pci_find_root_bridge(struct device *dev, acpi_handle *handle)
 	return 0;
 }
 
+static struct acpi_bus_type acpi_pci_host_bridge_bus = {
+	.bus = &pci_host_bridge_bus_type,
+	.find_device = acpi_pci_host_bridge_find_device,
+};
+
 static struct acpi_bus_type acpi_pci_bus = {
 	.bus = &pci_bus_type,
 	.find_device = acpi_pci_find_device,
-	.find_bridge = acpi_pci_find_root_bridge,
 };
 
 static int __init acpi_pci_init(void)
@@ -397,6 +402,10 @@ static int __init acpi_pci_init(void)
 		printk(KERN_INFO"ACPI FADT declares the system doesn't support PCIe ASPM, so disable it\n");
 		pcie_no_aspm();
 	}
+
+	ret = register_acpi_bus_type(&acpi_pci_host_bridge_bus);
+	if (ret)
+		return 0;
 
 	ret = register_acpi_bus_type(&acpi_pci_bus);
 	if (ret)
