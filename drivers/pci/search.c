@@ -79,41 +79,19 @@ static struct pci_bus *pci_do_find_bus(struct pci_bus *bus, unsigned char busnr)
  */
 struct pci_bus * pci_find_bus(int domain, int busnr)
 {
-	struct pci_bus *bus = NULL;
+	struct pci_host_bridge *host_bridge = NULL;
 	struct pci_bus *tmp_bus;
 
-	while ((bus = pci_find_next_bus(bus)) != NULL)  {
-		if (pci_domain_nr(bus) != domain)
+	for_each_pci_host_bridge(host_bridge) {
+		if (pci_domain_nr(host_bridge->bus) != domain)
 			continue;
-		tmp_bus = pci_do_find_bus(bus, busnr);
-		if (tmp_bus)
+		tmp_bus = pci_do_find_bus(host_bridge->bus, busnr);
+		if (tmp_bus) {
+			put_device(&host_bridge->dev);
 			return tmp_bus;
+		}
 	}
 	return NULL;
-}
-
-/**
- * pci_find_next_bus - begin or continue searching for a PCI bus
- * @from: Previous PCI bus found, or %NULL for new search.
- *
- * Iterates through the list of known PCI busses.  A new search is
- * initiated by passing %NULL as the @from argument.  Otherwise if
- * @from is not %NULL, searches continue from next device on the
- * global list.
- */
-struct pci_bus * 
-pci_find_next_bus(const struct pci_bus *from)
-{
-	struct list_head *n;
-	struct pci_bus *b = NULL;
-
-	WARN_ON(in_interrupt());
-	down_read(&pci_bus_sem);
-	n = from ? from->node.next : pci_root_buses.next;
-	if (n != &pci_root_buses)
-		b = pci_bus_b(n);
-	up_read(&pci_bus_sem);
-	return b;
 }
 
 /**
@@ -356,7 +334,6 @@ EXPORT_SYMBOL(pci_dev_present);
 
 /* For boot time work */
 EXPORT_SYMBOL(pci_find_bus);
-EXPORT_SYMBOL(pci_find_next_bus);
 /* For everyone */
 EXPORT_SYMBOL(pci_get_device);
 EXPORT_SYMBOL(pci_get_subsys);
