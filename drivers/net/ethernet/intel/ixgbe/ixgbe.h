@@ -558,6 +558,8 @@ struct ixgbe_adapter {
 	u32 interrupt_event;
 	u32 led_reg;
 
+	struct ixgbe_info *ixgbe_info;
+
 #ifdef CONFIG_IXGBE_PTP
 	struct ptp_clock *ptp_clock;
 	struct ptp_clock_info ptp_caps;
