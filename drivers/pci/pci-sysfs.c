@@ -458,6 +458,52 @@ boot_vga_show(struct device *dev, struct device_attribute *attr, char *buf)
 }
 struct device_attribute vga_attr = __ATTR_RO(boot_vga);
 
+static ssize_t
+max_vfs_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+
+	return sprintf(buf, "%u\n", pdev->max_vfs);
+}
+
+static void max_vfs_callback(struct device *dev)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+
+	mutex_lock(&pci_remove_rescan_mutex);
+	if (pdev->is_added && dev->driver) {
+		struct pci_driver *pdrv;
+
+		pdrv = to_pci_driver(dev->driver);
+		if (pdrv->set_max_vfs)
+			pdrv->set_max_vfs(pdev);
+
+	}
+	mutex_unlock(&pci_remove_rescan_mutex);
+}
+static ssize_t
+max_vfs_store(struct device *dev, struct device_attribute *attr,
+		 const char *buf, size_t count)
+{
+	unsigned long val;
+	int err;
+	struct pci_dev *pdev = to_pci_dev(dev);
+
+	if (kstrtoul(buf, 0, &val) < 0)
+		return -EINVAL;
+
+	pdev->max_vfs = val;
+
+	err = device_schedule_callback(dev, max_vfs_callback);
+
+	if (err)
+		return err;
+
+	return count;
+}
+struct device_attribute max_vfs_attr =
+	__ATTR(max_vfs, 0644, max_vfs_show, max_vfs_store);
+
 static void
 pci_config_pm_runtime_get(struct pci_dev *pdev)
 {
@@ -1405,6 +1451,7 @@ late_initcall(pci_sysfs_init);
 
 static struct attribute *pci_dev_dev_attrs[] = {
 	&vga_attr.attr,
+	&max_vfs_attr.attr,
 	NULL,
 };
 
@@ -1416,6 +1463,10 @@ static umode_t pci_dev_attrs_are_visible(struct kobject *kobj,
 
 	if (a == &vga_attr.attr)
 		if ((pdev->class >> 8) != PCI_CLASS_DISPLAY_VGA)
+			return 0;
+
+	if (a == &max_vfs_attr.attr)
+		if (!pdev->is_physfn)
 			return 0;
 
 	return a->mode;
