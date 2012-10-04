@@ -304,6 +304,7 @@ struct acpi_device {
 	struct device dev;
 	struct acpi_bus_ops bus_ops;	/* workaround for different code path for hotplug */
 	enum acpi_bus_removal_type removal_type;	/* indicate for different removal type */
+	bool drivers_autoprobe;
 };
 
 static inline void *acpi_driver_data(struct acpi_device *d)
