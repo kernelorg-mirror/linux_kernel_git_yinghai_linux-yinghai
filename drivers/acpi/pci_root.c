@@ -47,7 +47,6 @@ ACPI_MODULE_NAME("pci_root");
 #define ACPI_PCI_ROOT_DEVICE_NAME	"PCI Root Bridge"
 static int acpi_pci_root_add(struct acpi_device *device);
 static int acpi_pci_root_remove(struct acpi_device *device, int type);
-static int acpi_pci_root_start(struct acpi_device *device);
 
 #define ACPI_PCIE_REQ_SUPPORT (OSC_EXT_PCI_CONFIG_SUPPORT \
 				| OSC_ACTIVE_STATE_PWR_SUPPORT \
@@ -67,7 +66,6 @@ static struct acpi_driver acpi_pci_root_driver = {
 	.ops = {
 		.add = acpi_pci_root_add,
 		.remove = acpi_pci_root_remove,
-		.start = acpi_pci_root_start,
 		},
 };
 
@@ -451,6 +449,7 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	acpi_status status;
 	int result;
 	struct acpi_pci_root *root;
+	struct acpi_pci_driver *driver;
 	acpi_handle handle;
 	struct acpi_device *child;
 	u32 flags, base_flags;
@@ -628,22 +627,6 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	if (device->wakeup.flags.run_wake)
 		device_set_run_wake(root->bus->bridge, true);
 
-	return 0;
-
-out_del_root:
-	mutex_lock(&acpi_pci_root_lock);
-	list_del(&root->node);
-	mutex_unlock(&acpi_pci_root_lock);
-end:
-	kfree(root);
-	return result;
-}
-
-static int acpi_pci_root_start(struct acpi_device *device)
-{
-	struct acpi_pci_root *root = acpi_driver_data(device);
-	struct acpi_pci_driver *driver;
-
 	mutex_lock(&acpi_pci_root_lock);
 	list_for_each_entry(driver, &acpi_pci_drivers, node)
 		if (driver->add)
@@ -653,6 +636,14 @@ static int acpi_pci_root_start(struct acpi_device *device)
 	pci_bus_add_devices(root->bus);
 
 	return 0;
+
+out_del_root:
+	mutex_lock(&acpi_pci_root_lock);
+	list_del(&root->node);
+	mutex_unlock(&acpi_pci_root_lock);
+end:
+	kfree(root);
+	return result;
 }
 
 static int acpi_pci_root_remove(struct acpi_device *device, int type)
