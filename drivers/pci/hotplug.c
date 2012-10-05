@@ -35,3 +35,28 @@ int pci_uevent(struct device *dev, struct kobj_uevent_env *env)
 		return -ENOMEM;
 	return 0;
 }
+
+static int pci_hp_notifier(struct notifier_block *nb,
+				 unsigned long event, void *data)
+{
+	struct device *dev = data;
+
+	switch (event) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		to_pci_dev(dev)->drivers_autoprobe = false;
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block pci_hp_nb = {
+	.notifier_call = &pci_hp_notifier,
+};
+
+static int __init pci_hp_init(void)
+{
+	return bus_register_notifier(&pci_bus_type, &pci_hp_nb);
+}
+
+fs_initcall(pci_hp_init);
