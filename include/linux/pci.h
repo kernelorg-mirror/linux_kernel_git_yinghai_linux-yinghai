@@ -394,6 +394,8 @@ struct pci_host_bridge {
 };
 
 #define	to_pci_host_bridge(n) container_of(n, struct pci_host_bridge, dev)
+#define for_each_pci_host_bridge(d) while ((d = pci_get_next_host_bridge(d)) != NULL)
+
 void pci_set_host_bridge_release(struct pci_host_bridge *bridge,
 		     void (*release_fn)(struct pci_host_bridge *),
 		     void *release_data);
@@ -668,11 +670,9 @@ enum pcie_bus_config_types {
 
 extern enum pcie_bus_config_types pcie_bus_config;
 
+extern struct bus_type pci_host_bridge_bus_type;
 extern struct bus_type pci_bus_type;
 
-/* Do NOT directly access these two variables, unless you are arch specific pci
- * code, or pci core code. */
-extern struct list_head pci_root_buses;	/* list of all known PCI buses */
 /* Some device drivers need know if pci is initiated */
 extern int no_pci_devices(void);
 
@@ -757,8 +757,8 @@ int pci_find_ext_capability(struct pci_dev *dev, int cap);
 int pci_find_next_ext_capability(struct pci_dev *dev, int pos, int cap);
 int pci_find_ht_capability(struct pci_dev *dev, int ht_cap);
 int pci_find_next_ht_capability(struct pci_dev *dev, int pos, int ht_cap);
-struct pci_bus *pci_find_next_bus(const struct pci_bus *from);
 
+struct pci_host_bridge *pci_get_next_host_bridge(struct pci_host_bridge *from);
 struct pci_dev *pci_get_device(unsigned int vendor, unsigned int device,
 				struct pci_dev *from);
 struct pci_dev *pci_get_subsys(unsigned int vendor, unsigned int device,
@@ -1399,9 +1399,6 @@ static inline int pci_block_cfg_access_in_atomic(struct pci_dev *dev)
 static inline void pci_unblock_cfg_access(struct pci_dev *dev)
 { }
 
-static inline struct pci_bus *pci_find_next_bus(const struct pci_bus *from)
-{ return NULL; }
-
 static inline struct pci_dev *pci_get_slot(struct pci_bus *bus,
 						unsigned int devfn)
 { return NULL; }
@@ -1415,6 +1412,12 @@ static inline int pci_domain_nr(struct pci_bus *bus)
 
 static inline struct pci_dev *pci_dev_get(struct pci_dev *dev)
 { return NULL; }
+
+static inline struct pci_host_bridge *pci_get_next_host_bridge(
+			struct pci_host_bridge *host_bridge)
+{
+	return NULL;
+}
 
 #define dev_is_pci(d) (false)
 #define dev_is_pf(d) (false)
