@@ -121,7 +121,6 @@ acpi_handle acpi_get_child(acpi_handle parent, u64 address)
 			    1, do_acpi_find_child, NULL, &find, NULL);
 	return find.handle;
 }
-
 EXPORT_SYMBOL(acpi_get_child);
 
 /* Link ACPI devices with physical devices */
@@ -142,7 +141,6 @@ struct device *acpi_get_physical_device(acpi_handle handle)
 		return get_device(dev);
 	return NULL;
 }
-
 EXPORT_SYMBOL(acpi_get_physical_device);
 
 static int acpi_bind_one(struct device *dev, acpi_handle handle)
@@ -163,7 +161,12 @@ static int acpi_bind_one(struct device *dev, acpi_handle handle)
 	dev->archdata.acpi_handle = handle;
 
 	status = acpi_bus_get_device(handle, &acpi_dev);
-	if (!ACPI_FAILURE(status)) {
+	if (ACPI_FAILURE(status))
+		acpi_dev = NULL;
+
+	acpi_pci_bind_notify(acpi_dev, dev, true);
+
+	if (acpi_dev) {
 		int ret;
 
 		ret = sysfs_create_link(&dev->kobj, &acpi_dev->dev.kobj,
@@ -191,7 +194,10 @@ static int acpi_unbind_one(struct device *dev)
 					&acpi_dev)) {
 			sysfs_remove_link(&dev->kobj, "firmware_node");
 			sysfs_remove_link(&acpi_dev->dev.kobj, "physical_node");
-		}
+		} else
+			acpi_dev = NULL;
+
+		acpi_pci_bind_notify(acpi_dev, dev, false);
 
 		acpi_detach_data(dev->archdata.acpi_handle,
 				 acpi_glue_data_handler);

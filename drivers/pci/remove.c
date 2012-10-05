@@ -22,7 +22,7 @@ static void pci_stop_dev(struct pci_dev *dev)
 	if (dev->is_added) {
 		pci_proc_detach_device(dev);
 		pci_remove_sysfs_dev_files(dev);
-		device_unregister(&dev->dev);
+		device_del(&dev->dev);
 		dev->is_added = 0;
 	}
 
@@ -37,7 +37,7 @@ static void pci_destroy_dev(struct pci_dev *dev)
 	up_write(&pci_bus_sem);
 
 	pci_free_resources(dev);
-	pci_dev_put(dev);
+	put_device(&dev->dev);
 }
 
 void pci_remove_bus(struct pci_bus *bus)
@@ -48,11 +48,11 @@ void pci_remove_bus(struct pci_bus *bus)
 	list_del(&bus->node);
 	pci_bus_release_busn_res(bus);
 	up_write(&pci_bus_sem);
-	if (!bus->is_added)
-		return;
-
-	pci_remove_legacy_files(bus);
-	device_unregister(&bus->dev);
+	if (bus->is_added) {
+		pci_remove_legacy_files(bus);
+		device_del(&bus->dev);
+	}
+	put_device(&bus->dev);
 }
 EXPORT_SYMBOL(pci_remove_bus);
 
