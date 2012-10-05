@@ -333,7 +333,12 @@ static void acpi_device_release(struct device *dev)
 static int acpi_bus_match(struct device *dev, struct device_driver *drv)
 {
 	struct acpi_device *acpi_dev = to_acpi_device(dev);
-	struct acpi_driver *acpi_drv = to_acpi_driver(drv);
+	struct acpi_driver *acpi_drv;
+
+	if (!acpi_dev->drivers_autoprobe)
+		return 0;
+
+	acpi_drv = to_acpi_driver(drv);
 
 	return !acpi_match_device_ids(acpi_dev, acpi_drv->ids);
 }
@@ -1259,6 +1264,7 @@ static int acpi_add_single_object(struct acpi_device **child,
 	device->parent = acpi_bus_get_parent(handle);
 	device->bus_ops = *ops; /* workround for not call .start */
 	STRUCT_TO_INT(device->status) = sta;
+	device->drivers_autoprobe = true;
 
 	acpi_device_get_busid(device);
 
