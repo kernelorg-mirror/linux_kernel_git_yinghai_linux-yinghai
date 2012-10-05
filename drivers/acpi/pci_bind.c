@@ -35,33 +35,59 @@
 #define _COMPONENT		ACPI_PCI_COMPONENT
 ACPI_MODULE_NAME("pci_bind");
 
-static int acpi_pci_unbind(struct acpi_device *acpi_dev, struct pci_dev *dev)
+static int acpi_pci_unbind(struct acpi_device *acpi_dev, struct device *dev)
 {
+	struct pci_dev *pdev = NULL;
+	struct pci_bus *bus = NULL;
+
+	if (dev_is_pci(dev)) {
+		pdev = to_pci_dev(dev);
+		if (pdev->subordinate)
+			bus = pdev->subordinate;
+	} else
+			bus = to_pci_host_bridge(dev)->bus;
+
 	if (acpi_dev) {
-		device_set_run_wake(&dev->dev, false);
-		pci_acpi_remove_pm_notifier(acpi_dev);
+		device_set_run_wake(dev, false);
+		if (pdev)
+			pci_acpi_remove_pm_notifier(acpi_dev);
+		else
+			pci_acpi_remove_bus_pm_notifier(acpi_dev);
 	}
 
-	if (dev->subordinate)
-		acpi_pci_irq_del_prt(dev->subordinate);
+	if (bus)
+		acpi_pci_irq_del_prt(bus);
 
 	return 0;
 }
 
-static int acpi_pci_bind(struct acpi_device *acpi_dev, struct pci_dev *dev)
+static int acpi_pci_bind(struct acpi_device *acpi_dev, struct device *dev)
 {
 	acpi_status status;
-	struct pci_bus *bus;
+	struct pci_dev *pdev = NULL;
+	struct pci_bus *bus = NULL;
 	acpi_handle tmp_hdl;
 	acpi_handle handle;
 
+	if (dev_is_pci(dev)) {
+		pdev = to_pci_dev(dev);
+		if (pdev->subordinate)
+			bus = pdev->subordinate;
+		else
+			bus = pdev->bus;
+	} else
+			bus = to_pci_host_bridge(dev)->bus;
+
 	if (acpi_dev) {
-		pci_acpi_add_pm_notifier(acpi_dev, dev);
+		if (pdev)
+			pci_acpi_add_pm_notifier(acpi_dev, pdev);
+		else
+			pci_acpi_add_bus_pm_notifier(acpi_dev, bus);
 		if (acpi_dev->wakeup.flags.run_wake)
-			device_set_run_wake(&dev->dev, true);
+			device_set_run_wake(dev, true);
 		handle = acpi_dev->handle;
 	} else
-		handle = DEVICE_ACPI_HANDLE(&dev->dev);
+		handle = DEVICE_ACPI_HANDLE(dev);
 
 	/*
 	 * Evaluate and parse _PRT, if exists.  This code allows parsing of
@@ -72,13 +98,8 @@ static int acpi_pci_bind(struct acpi_device *acpi_dev, struct pci_dev *dev)
 	 * TBD: Can _PRTs exist within the scope of non-bridge PCI devices?
 	 */
 	status = acpi_get_handle(handle, METHOD_NAME__PRT, &tmp_hdl);
-	if (ACPI_SUCCESS(status)) {
-		if (dev->subordinate)
-			bus = dev->subordinate;
-		else
-			bus = dev->bus;
+	if (ACPI_SUCCESS(status))
 		acpi_pci_irq_add_prt(handle, bus);
-	}
 
 	return 0;
 }
@@ -86,10 +107,10 @@ static int acpi_pci_bind(struct acpi_device *acpi_dev, struct pci_dev *dev)
 void acpi_pci_bind_notify(struct acpi_device *acpi_dev, struct device *dev,
 			  bool bind)
 {
-	if (dev_is_pci(dev)) {
+	if (dev_is_pci(dev) || dev_is_pci_host_bridge(dev)) {
 		if (bind)
-			acpi_pci_bind(acpi_dev, to_pci_dev(dev));
+			acpi_pci_bind(acpi_dev, dev);
 		else
-			acpi_pci_unbind(acpi_dev, to_pci_dev(dev));
+			acpi_pci_unbind(acpi_dev, dev);
 	}
 }

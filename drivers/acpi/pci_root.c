@@ -436,7 +436,6 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 	acpi_status status;
 	int result;
 	struct acpi_pci_root *root;
-	acpi_handle handle;
 	u32 flags, base_flags;
 
 	root = kzalloc(sizeof(struct acpi_pci_root), GFP_KERNEL);
@@ -522,15 +521,6 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 		goto out_del_root;
 	}
 
-	/*
-	 * PCI Routing Table
-	 * -----------------
-	 * Evaluate and parse _PRT, if exists.
-	 */
-	status = acpi_get_handle(device->handle, METHOD_NAME__PRT, &handle);
-	if (ACPI_SUCCESS(status))
-		result = acpi_pci_irq_add_prt(device->handle, root->bus);
-
 	/* Indicate support for various _OSC capabilities. */
 	if (pci_ext_cfg_avail(root->bus->self))
 		flags |= OSC_EXT_PCI_CONFIG_SUPPORT;
@@ -593,10 +583,6 @@ static int __devinit acpi_pci_root_add(struct acpi_device *device)
 			 "(_OSC support mask: 0x%02x)\n", flags);
 	}
 
-	pci_acpi_add_bus_pm_notifier(device, root->bus);
-	if (device->wakeup.flags.run_wake)
-		device_set_run_wake(root->bus->bridge, true);
-
 	return 0;
 
 out_del_root:
@@ -635,8 +621,6 @@ static int acpi_pci_root_start(struct acpi_device *device)
 
 static int acpi_pci_root_remove(struct acpi_device *device, int type)
 {
-	acpi_status status;
-	acpi_handle handle;
 	struct acpi_pci_root *root = acpi_driver_data(device);
 	struct acpi_pci_driver *driver;
 
@@ -647,13 +631,6 @@ static int acpi_pci_root_remove(struct acpi_device *device, int type)
 		if (driver->remove)
 			driver->remove(root);
 	mutex_unlock(&acpi_pci_root_lock);
-
-	device_set_run_wake(root->bus->bridge, false);
-	pci_acpi_remove_bus_pm_notifier(device);
-
-	status = acpi_get_handle(device->handle, METHOD_NAME__PRT, &handle);
-	if (ACPI_SUCCESS(status))
-		acpi_pci_irq_del_prt(root->bus);
 
 	pci_remove_root_bus(root->bus);
 
