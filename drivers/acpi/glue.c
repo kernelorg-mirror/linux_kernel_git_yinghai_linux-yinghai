@@ -164,8 +164,6 @@ static int acpi_bind_one(struct device *dev, acpi_handle handle)
 	if (ACPI_FAILURE(status))
 		acpi_dev = NULL;
 
-	acpi_pci_bind_notify(acpi_dev, dev, true);
-
 	if (acpi_dev) {
 		int ret;
 
@@ -196,8 +194,6 @@ static int acpi_unbind_one(struct device *dev)
 			sysfs_remove_link(&acpi_dev->dev.kobj, "physical_node");
 		} else
 			acpi_dev = NULL;
-
-		acpi_pci_bind_notify(acpi_dev, dev, false);
 
 		acpi_detach_data(dev->archdata.acpi_handle,
 				 acpi_glue_data_handler);

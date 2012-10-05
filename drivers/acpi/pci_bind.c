@@ -35,7 +35,7 @@
 #define _COMPONENT		ACPI_PCI_COMPONENT
 ACPI_MODULE_NAME("pci_bind");
 
-static int acpi_pci_unbind(struct acpi_device *acpi_dev, struct device *dev)
+int acpi_pci_unbind(struct acpi_device *acpi_dev, struct device *dev)
 {
 	struct pci_dev *pdev = NULL;
 	struct pci_bus *bus = NULL;
@@ -61,7 +61,7 @@ static int acpi_pci_unbind(struct acpi_device *acpi_dev, struct device *dev)
 	return 0;
 }
 
-static int acpi_pci_bind(struct acpi_device *acpi_dev, struct device *dev)
+int acpi_pci_bind(struct acpi_device *acpi_dev, struct device *dev)
 {
 	acpi_status status;
 	struct pci_dev *pdev = NULL;
@@ -104,13 +104,41 @@ static int acpi_pci_bind(struct acpi_device *acpi_dev, struct device *dev)
 	return 0;
 }
 
-void acpi_pci_bind_notify(struct acpi_device *acpi_dev, struct device *dev,
-			  bool bind)
+static int pci_dev_hp_notifier(struct notifier_block *nb,
+				 unsigned long event, void *data)
 {
-	if (dev_is_pci(dev) || dev_is_pci_host_bridge(dev)) {
-		if (bind)
-			acpi_pci_bind(acpi_dev, dev);
-		else
-			acpi_pci_unbind(acpi_dev, dev);
+	struct device *dev = data;
+	acpi_handle handle = DEVICE_ACPI_HANDLE(dev);
+	struct acpi_device *acpi_dev;
+
+	if (!handle)
+		return NOTIFY_OK;
+
+	if (acpi_bus_get_device(handle, &acpi_dev))
+		return NOTIFY_OK;
+
+	if (!acpi_dev)
+		return NOTIFY_OK;
+
+	switch (event) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		acpi_pci_bind(acpi_dev, dev);
+		break;
+	case BUS_NOTIFY_DEL_DEVICE:
+		acpi_pci_unbind(acpi_dev, dev);
+		break;
 	}
+
+	return NOTIFY_OK;
 }
+
+static struct notifier_block pci_dev_hp_nb = {
+	.notifier_call = &pci_dev_hp_notifier,
+};
+
+static int __init pci_dev_hp_init(void)
+{
+	return bus_register_notifier(&pci_bus_type, &pci_dev_hp_nb);
+}
+
+arch_initcall(pci_dev_hp_init);

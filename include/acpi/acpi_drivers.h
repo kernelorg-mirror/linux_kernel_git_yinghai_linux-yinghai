@@ -100,6 +100,8 @@ void acpi_pci_irq_del_prt(struct pci_bus *bus);
 struct pci_bus;
 
 struct pci_dev *acpi_get_pci_dev(acpi_handle);
+int acpi_pci_bind(struct acpi_device *acpi_dev, struct device *dev);
+int acpi_pci_unbind(struct acpi_device *acpi_dev, struct device *dev);
 
 /* Arch-defined function to add a bus to the system */
 

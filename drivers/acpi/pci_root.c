@@ -656,3 +656,41 @@ static int __init acpi_pci_root_init(void)
 }
 
 subsys_initcall(acpi_pci_root_init);
+
+static int pci_host_bridge_hp_notifier(struct notifier_block *nb,
+				 unsigned long event, void *data)
+{
+	struct device *dev = data;
+	acpi_handle handle = DEVICE_ACPI_HANDLE(dev);
+	struct acpi_pci_root *root;
+	struct acpi_device *acpi_dev;
+
+	if (!handle)
+		return NOTIFY_OK;
+
+	root = acpi_pci_find_root(handle);
+	acpi_dev = root->device;
+
+	switch (event) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		acpi_pci_bind(acpi_dev, dev);
+		break;
+	case BUS_NOTIFY_DEL_DEVICE:
+		acpi_pci_unbind(acpi_dev, dev);
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block pci_host_bridge_hp_nb = {
+	.notifier_call = &pci_host_bridge_hp_notifier,
+};
+
+static int __init pci_host_bridge_hp_init(void)
+{
+	return bus_register_notifier(&pci_host_bridge_bus_type,
+					 &pci_host_bridge_hp_nb);
+}
+
+arch_initcall(pci_host_bridge_hp_init);

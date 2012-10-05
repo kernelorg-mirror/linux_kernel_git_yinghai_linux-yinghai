@@ -93,7 +93,4 @@ static inline int suspend_nvs_save(void) { return 0; }
 static inline void suspend_nvs_restore(void) {}
 #endif
 
-void acpi_pci_bind_notify(struct acpi_device *acpi_dev, struct device *dev,
-			  bool bind);
-
 #endif /* _ACPI_INTERNAL_H_ */
