@@ -1522,10 +1522,7 @@ int acpi_bus_trim(struct acpi_device *start, int rmdevice)
 			child = parent;
 			parent = parent->parent;
 
-			if (level == 0)
-				err = acpi_bus_remove(child, rmdevice);
-			else
-				err = acpi_bus_remove(child, 1);
+			err = acpi_bus_remove(child, rmdevice);
 
 			continue;
 		}
