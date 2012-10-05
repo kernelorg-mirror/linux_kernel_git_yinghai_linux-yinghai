@@ -1457,6 +1457,19 @@ static int acpi_bus_scan(acpi_handle handle, struct acpi_bus_ops *ops,
 		return -ENODEV;
 }
 
+static void acpi_bus_attach(struct acpi_device *dev)
+{
+	struct acpi_device *child;
+	int ret;
+
+	dev->drivers_autoprobe = true;
+	ret = device_attach(&dev->dev);
+	WARN_ON(ret < 0);
+
+	list_for_each_entry(child, &dev->children, node)
+		acpi_bus_attach(child);
+}
+
 /*
  * acpi_bus_add and acpi_bus_start
  *
@@ -1474,11 +1487,17 @@ acpi_bus_add(struct acpi_device **child,
 	     struct acpi_device *parent, acpi_handle handle, int type)
 {
 	struct acpi_bus_ops ops;
+	int result;
 
 	memset(&ops, 0, sizeof(ops));
 	ops.acpi_op_add = 1;
 
-	return acpi_bus_scan(handle, &ops, child);
+	result = acpi_bus_scan(handle, &ops, child);
+
+	if (*child)
+		acpi_bus_attach(*child);
+
+	return result;
 }
 EXPORT_SYMBOL(acpi_bus_add);
 
@@ -1616,3 +1635,28 @@ int __init acpi_scan_init(void)
 
 	return result;
 }
+
+static int acpi_hp_notifier(struct notifier_block *nb,
+				 unsigned long event, void *data)
+{
+	struct device *dev = data;
+
+	switch (event) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		to_acpi_device(dev)->drivers_autoprobe = false;
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block acpi_hp_nb = {
+	.notifier_call = &acpi_hp_notifier,
+};
+
+static int __init acpi_hp_init(void)
+{
+	return bus_register_notifier(&acpi_bus_type, &acpi_hp_nb);
+}
+
+fs_initcall(acpi_hp_init);
