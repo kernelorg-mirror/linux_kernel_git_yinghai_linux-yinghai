@@ -470,6 +470,39 @@ int acpi_match_device_ids(struct acpi_device *device,
 }
 EXPORT_SYMBOL(acpi_match_device_ids);
 
+int acpi_match_object_info_ids(struct acpi_device_info *info,
+			       const struct acpi_device_id *ids)
+{
+	const struct acpi_device_id *id;
+	char *str;
+	u32 len;
+	int i;
+
+	len = info->hardware_id.length;
+	if (len) {
+		str = info->hardware_id.string;
+		if (str)
+			for (id = ids; id->id[0]; id++)
+				if (!strcmp((char *)id->id, str))
+					return 0;
+	}
+
+	for (i = 0; i < info->compatible_id_list.count; i++) {
+		len = info->compatible_id_list.ids[i].length;
+		if (!len)
+			continue;
+		str = info->compatible_id_list.ids[i].string;
+		if (!str)
+			continue;
+		for (id = ids; id->id[0]; id++)
+			if (!strcmp((char *)id->id, str))
+				return 0;
+	}
+
+	return -ENOENT;
+}
+EXPORT_SYMBOL_GPL(acpi_match_object_info_ids);
+
 static void acpi_free_ids(struct acpi_device *device)
 {
 	struct acpi_hardware_id *id, *tmp;
