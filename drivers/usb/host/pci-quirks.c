@@ -20,7 +20,6 @@
 #include "pci-quirks.h"
 #include "xhci-ext-caps.h"
 
-
 #define UHCI_USBLEGSUP		0xc0		/* legacy support */
 #define UHCI_USBCMD		0		/* command register */
 #define UHCI_USBINTR		4		/* interrupt register */
@@ -406,79 +405,39 @@ int uhci_check_and_reset_hc(struct pci_dev *pdev, unsigned long base)
 	 */
 	pci_read_config_word(pdev, UHCI_USBLEGSUP, &legsup);
 	if (legsup & ~(UHCI_USBLEGSUP_RO | UHCI_USBLEGSUP_RWC)) {
-		dev_dbg(&pdev->dev, "%s: legsup = 0x%04x\n",
-				__func__, legsup);
+		dev_printk(KERN_DEBUG, &pdev->dev, "legsup = 0x%04x\n", legsup);
 		goto reset_needed;
 	}
 
 	cmd = inw(base + UHCI_USBCMD);
 	if ((cmd & UHCI_USBCMD_RUN) || !(cmd & UHCI_USBCMD_CONFIGURE) ||
 			!(cmd & UHCI_USBCMD_EGSM)) {
-		dev_dbg(&pdev->dev, "%s: cmd = 0x%04x\n",
-				__func__, cmd);
+		dev_printk(KERN_DEBUG, &pdev->dev, "cmd = 0x%04x\n", cmd);
 		goto reset_needed;
 	}
 
 	intr = inw(base + UHCI_USBINTR);
 	if (intr & (~UHCI_USBINTR_RESUME)) {
-		dev_dbg(&pdev->dev, "%s: intr = 0x%04x\n",
-				__func__, intr);
+		dev_printk(KERN_DEBUG, &pdev->dev, "intr = 0x%04x\n", intr);
 		goto reset_needed;
 	}
+
 	return 0;
 
 reset_needed:
-	dev_dbg(&pdev->dev, "Performing full reset\n");
+	dev_printk(KERN_DEBUG, &pdev->dev, "Performing full reset\n");
+
 	uhci_reset_hc(pdev, base);
+
 	return 1;
 }
 EXPORT_SYMBOL_GPL(uhci_check_and_reset_hc);
 
-static inline int io_type_enabled(struct pci_dev *pdev, unsigned int mask)
+void __devinit usb_handoff_ohci(struct pci_dev *pdev, void __iomem *base)
 {
-	u16 cmd;
-	return !pci_read_config_word(pdev, PCI_COMMAND, &cmd) && (cmd & mask);
-}
-
-#define pio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_IO)
-#define mmio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_MEMORY)
-
-static void __devinit quirk_usb_handoff_uhci(struct pci_dev *pdev)
-{
-	unsigned long base = 0;
-	int i;
-
-	if (!pio_enabled(pdev))
-		return;
-
-	for (i = 0; i < PCI_ROM_RESOURCE; i++)
-		if ((pci_resource_flags(pdev, i) & IORESOURCE_IO)) {
-			base = pci_resource_start(pdev, i);
-			break;
-		}
-
-	if (base)
-		uhci_check_and_reset_hc(pdev, base);
-}
-
-static int __devinit mmio_resource_enabled(struct pci_dev *pdev, int idx)
-{
-	return pci_resource_start(pdev, idx) && mmio_enabled(pdev);
-}
-
-static void __devinit quirk_usb_handoff_ohci(struct pci_dev *pdev)
-{
-	void __iomem *base;
 	u32 control;
 	u32 fminterval;
 	int cnt;
-
-	if (!mmio_resource_enabled(pdev, 0))
-		return;
-
-	base = pci_ioremap_bar(pdev, 0);
-	if (base == NULL)
-		return;
 
 	control = readl(base + OHCI_CONTROL);
 
@@ -530,7 +489,6 @@ static void __devinit quirk_usb_handoff_ohci(struct pci_dev *pdev)
 	writel(fminterval, base + OHCI_FMINTERVAL);
 
 	/* Now the controller is safely in SUSPEND and nothing can wake it up */
-	iounmap(base);
 }
 
 static const struct dmi_system_id __devinitconst ehci_dmi_nohandoff_table[] = {
@@ -565,7 +523,7 @@ static void __devinit ehci_bios_handoff(struct pci_dev *pdev,
 	}
 
 	if (try_handoff && (cap & EHCI_USBLEGSUP_BIOS)) {
-		dev_dbg(&pdev->dev, "EHCI: BIOS handoff\n");
+		dev_printk(KERN_DEBUG, &pdev->dev, "EHCI: BIOS handoff\n");
 
 #if 0
 /* aleksey_gorelov@phoenix.com reports that some systems need SMI forced on,
@@ -619,19 +577,12 @@ static void __devinit ehci_bios_handoff(struct pci_dev *pdev,
 		writel(0, op_reg_base + EHCI_CONFIGFLAG);
 }
 
-static void __devinit quirk_usb_disable_ehci(struct pci_dev *pdev)
+void __devinit usb_handoff_ehci(struct pci_dev *pdev, void __iomem *base)
 {
-	void __iomem *base, *op_reg_base;
+	void __iomem *op_reg_base;
 	u32	hcc_params, cap, val;
 	u8	offset, cap_length;
 	int	wait_time, count = 256/4;
-
-	if (!mmio_resource_enabled(pdev, 0))
-		return;
-
-	base = pci_ioremap_bar(pdev, 0);
-	if (base == NULL)
-		return;
 
 	cap_length = readb(base);
 	op_reg_base = base + cap_length;
@@ -675,15 +626,12 @@ static void __devinit quirk_usb_disable_ehci(struct pci_dev *pdev)
 			udelay(100);
 			wait_time -= 100;
 			val = readl(op_reg_base + EHCI_USBSTS);
-			if ((val == ~(u32)0) || (val & EHCI_USBSTS_HALTED)) {
+			if ((val == ~(u32)0) || (val & EHCI_USBSTS_HALTED))
 				break;
-			}
 		} while (wait_time > 0);
 	}
 	writel(0, op_reg_base + EHCI_USBINTR);
 	writel(0x3f, op_reg_base + EHCI_USBSTS);
-
-	iounmap(base);
 }
 
 /*
@@ -699,7 +647,7 @@ static void __devinit quirk_usb_disable_ehci(struct pci_dev *pdev)
  * Returns -ETIMEDOUT if this condition is not true after
  * wait_usec microseconds have passed.
  */
-static int handshake(void __iomem *ptr, u32 mask, u32 done,
+static int __devinit handshake(void __iomem *ptr, u32 mask, u32 done,
 		int wait_usec, int delay_usec)
 {
 	u32	result;
@@ -834,21 +782,13 @@ EXPORT_SYMBOL_GPL(usb_disable_xhci_ports);
  * and then waits 5 seconds for the BIOS to hand over control.
  * If we timeout, assume the BIOS is broken and take control anyway.
  */
-static void __devinit quirk_usb_handoff_xhci(struct pci_dev *pdev)
+void __devinit usb_handoff_xhci(struct pci_dev *pdev, void __iomem *base,
+				int len)
 {
-	void __iomem *base;
 	int ext_cap_offset;
 	void __iomem *op_reg_base;
 	u32 val;
 	int timeout;
-	int len = pci_resource_len(pdev, 0);
-
-	if (!mmio_resource_enabled(pdev, 0))
-		return;
-
-	base = ioremap_nocache(pci_resource_start(pdev, 0), len);
-	if (base == NULL)
-		return;
 
 	/*
 	 * Find the Legacy Support Capability register -
@@ -930,6 +870,87 @@ hc_init:
 				"xHCI HW did not halt within %d usec "
 				"status = 0x%x\n", XHCI_MAX_HALT_USEC, val);
 	}
+}
+
+static inline int io_type_enabled(struct pci_dev *pdev, unsigned int mask)
+{
+	u16 cmd;
+	return !pci_read_config_word(pdev, PCI_COMMAND, &cmd) && (cmd & mask);
+}
+
+#define pio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_IO)
+#define mmio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_MEMORY)
+
+static void __devinit quirk_usb_handoff_uhci(struct pci_dev *pdev)
+{
+	unsigned long base = 0;
+	int i;
+
+	if (!pio_enabled(pdev))
+		return;
+
+	for (i = 0; i < PCI_ROM_RESOURCE; i++)
+		if ((pci_resource_flags(pdev, i) & IORESOURCE_IO)) {
+			base = pci_resource_start(pdev, i);
+			break;
+		}
+
+	if (!base)
+		return;
+
+	uhci_check_and_reset_hc(pdev, base);
+}
+
+static int __devinit mmio_resource_enabled(struct pci_dev *pdev, int idx)
+{
+	return pci_resource_start(pdev, idx) && mmio_enabled(pdev);
+}
+
+static void __devinit quirk_usb_handoff_ohci(struct pci_dev *pdev)
+{
+	void __iomem *base;
+
+	if (!mmio_resource_enabled(pdev, 0))
+		return;
+
+	base = pci_ioremap_bar(pdev, 0);
+	if (base == NULL)
+		return;
+
+	usb_handoff_ohci(pdev, base);
+
+	iounmap(base);
+}
+
+static void __devinit quirk_usb_handoff_ehci(struct pci_dev *pdev)
+{
+	void __iomem *base;
+
+	if (!mmio_resource_enabled(pdev, 0))
+		return;
+
+	base = pci_ioremap_bar(pdev, 0);
+	if (base == NULL)
+		return;
+
+	usb_handoff_ehci(pdev, base);
+
+	iounmap(base);
+}
+
+static void __devinit quirk_usb_handoff_xhci(struct pci_dev *pdev)
+{
+	void __iomem *base;
+	int len = pci_resource_len(pdev, 0);
+
+	if (!mmio_resource_enabled(pdev, 0))
+		return;
+
+	base = pci_ioremap_bar(pdev, 0);
+	if (base == NULL)
+		return;
+
+	usb_handoff_xhci(pdev, base, len);
 
 	iounmap(base);
 }
@@ -957,7 +978,7 @@ static void __devinit quirk_usb_early_handoff(struct pci_dev *pdev)
 	else if (pdev->class == PCI_CLASS_SERIAL_USB_OHCI)
 		quirk_usb_handoff_ohci(pdev);
 	else if (pdev->class == PCI_CLASS_SERIAL_USB_EHCI)
-		quirk_usb_disable_ehci(pdev);
+		quirk_usb_handoff_ehci(pdev);
 	else if (pdev->class == PCI_CLASS_SERIAL_USB_XHCI)
 		quirk_usb_handoff_xhci(pdev);
 	pci_disable_device(pdev);
