@@ -1799,8 +1799,14 @@ void __init init_timers(void)
  */
 void msleep(unsigned int msecs)
 {
-	unsigned long timeout = msecs_to_jiffies(msecs) + 1;
+	unsigned long timeout;
 
+	if (!scheduler_running) {
+		mdelay(msecs);
+		return;
+	}
+
+	timeout = msecs_to_jiffies(msecs) + 1;
 	while (timeout)
 		timeout = schedule_timeout_uninterruptible(timeout);
 }

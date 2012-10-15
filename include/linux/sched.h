@@ -2013,6 +2013,7 @@ static inline unsigned int get_sysctl_timer_migration(void)
 }
 #endif
 extern unsigned int sysctl_sched_rt_period;
+extern int scheduler_running;
 extern int sysctl_sched_rt_runtime;
 
 int sched_rt_handler(struct ctl_table *table, int write,
