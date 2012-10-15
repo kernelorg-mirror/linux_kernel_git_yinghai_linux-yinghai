@@ -88,12 +88,17 @@ void early_dump_pci_devices(void)
 	for (bus = 0; bus < 256; bus++) {
 		for (slot = 0; slot < 32; slot++) {
 			for (func = 0; func < 8; func++) {
-				u32 class;
+				u32 l;
 				u8 type;
 
-				class = read_pci_config(bus, slot, func,
-							PCI_CLASS_REVISION);
-				if (class == 0xffffffff)
+				l = read_pci_config(bus, slot, func,
+							PCI_VENDOR_ID);
+				/*
+				 * some broken boards return 0 or ~0 if a slot
+				 *  is empty
+				 */
+				if (l == 0xffffffff || l == 0x00000000 ||
+				    l == 0x0000ffff || l == 0xffff0000)
 					continue;
 
 				early_dump_pci_device(bus, slot, func);
