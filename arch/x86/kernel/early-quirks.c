@@ -19,6 +19,143 @@
 #include <asm/iommu.h>
 #include <asm/gart.h>
 
+#include "../../../drivers/usb/host/pci-quirks.h"
+
+static __init u32 get_usb_io_port(int num, int slot, int func)
+{
+	int i;
+	u16 cmd;
+
+	cmd = read_pci_config_16(num, slot, func, PCI_COMMAND);
+	if (!(cmd & PCI_COMMAND_IO))
+		return 0;
+
+	for (i = 0; i < PCI_ROM_RESOURCE; i++) {
+		u32 addr = read_pci_config(num, slot, func, 0x10 + (i<<2));
+
+		if (!addr)
+			continue;
+		if ((addr&PCI_BASE_ADDRESS_SPACE) != PCI_BASE_ADDRESS_SPACE_IO)
+			continue;
+
+		addr &= PCI_BASE_ADDRESS_IO_MASK;
+		if (addr)
+			return addr;
+	}
+
+	return 0;
+}
+
+static void __init quirk_usb_handoff_uhci(int num, int slot, int func)
+{
+	unsigned long base;
+
+	base = get_usb_io_port(num, slot, func);
+	if (!base)
+		return;
+
+	printk(KERN_DEBUG "%02x:%02x.%01x: uhci ioport = 0x%04lx\n",
+					num, slot, func, base);
+	uhci_check_and_reset_hc(get_early_pci_dev(num, slot, func), base);
+}
+
+static __init u32 get_usb_mmio_addr(int num, int slot, int func)
+{
+	u32 addr;
+	u16 cmd;
+
+	cmd = read_pci_config_16(num, slot, func, PCI_COMMAND);
+	if (!(cmd & PCI_COMMAND_MEMORY))
+		return 0;
+
+	addr = read_pci_config(num, slot, func, 0x10);
+	if (!addr)
+		return 0;
+	if ((addr & PCI_BASE_ADDRESS_SPACE) != PCI_BASE_ADDRESS_SPACE_MEMORY)
+		return 0;
+
+	addr &= PCI_BASE_ADDRESS_MEM_MASK;
+
+	return addr;
+}
+
+static __init void quirk_usb_handoff_ohci(int num, int slot, int func)
+{
+	void __iomem *base;
+	u32 addr;
+
+	addr = get_usb_mmio_addr(num, slot, func);
+	if (!addr)
+		return;
+
+	printk(KERN_DEBUG "%02x:%02x.%01x: ohci mmio = 0x%08x\n",
+				num, slot, func, addr);
+	base = early_ioremap(addr, 0x1000);
+	if (!base)
+		return;
+
+	usb_handoff_ohci(get_early_pci_dev(num, slot, func), base);
+
+	early_iounmap(base, 0x1000);
+}
+
+static __init void quirk_usb_handoff_ehci(int num, int slot, int func)
+{
+	void __iomem *base;
+	u32 addr;
+
+	addr = get_usb_mmio_addr(num, slot, func);
+	if (!addr)
+		return;
+
+	printk(KERN_DEBUG "%02x:%02x.%01x: ehci mmio = 0x%08x\n",
+				 num, slot, func, addr);
+	base = early_ioremap(addr, 0x1000);
+	if (!base)
+		return;
+
+	usb_handoff_ehci(get_early_pci_dev(num, slot, func), base);
+
+	early_iounmap(base, 0x1000);
+}
+
+static __init void quirk_usb_handoff_xhci(int num, int slot, int func)
+{
+	void __iomem *base;
+	u32 addr;
+
+	addr = get_usb_mmio_addr(num, slot, func);
+	if (!addr)
+		return;
+
+	printk(KERN_DEBUG "%02x:%02x.%01x: xhci mmio = 0x%08x\n",
+				num, slot, func, addr);
+	base = early_ioremap(addr, 0x1000);
+	if (!base)
+		return;
+
+	usb_handoff_xhci(get_early_pci_dev(num, slot, func), base, 0x1000);
+
+	early_iounmap(base, 0x1000);
+}
+
+static __init void quirk_usb_handoff(int num, int slot, int func)
+{
+	u32 class;
+
+	class = read_pci_config(num, slot, func, PCI_CLASS_REVISION);
+	class >>= 8;
+
+	if (class == PCI_CLASS_SERIAL_USB_UHCI)
+		quirk_usb_handoff_uhci(num, slot, func);
+	else if (class == PCI_CLASS_SERIAL_USB_OHCI)
+		quirk_usb_handoff_ohci(num, slot, func);
+	else if (class == PCI_CLASS_SERIAL_USB_EHCI)
+		quirk_usb_handoff_ehci(num, slot, func);
+	else if (class == PCI_CLASS_SERIAL_USB_XHCI)
+		quirk_usb_handoff_xhci(num, slot, func);
+}
+
 static void __init fix_hypertransport_config(int num, int slot, int func)
 {
 	u32 htcfg;
@@ -211,6 +348,8 @@ struct chipset {
  * only matching on bus 0.
  */
 static struct chipset early_qrk[] __initdata = {
+	{ PCI_ANY_ID, PCI_ANY_ID,
+	  PCI_CLASS_SERIAL_USB, PCI_ANY_ID, 0, quirk_usb_handoff },
 	{ PCI_VENDOR_ID_NVIDIA, PCI_ANY_ID,
 	  PCI_CLASS_BRIDGE_PCI, PCI_ANY_ID, QFLAG_APPLY_ONCE, nvidia_bugs },
 	{ PCI_VENDOR_ID_VIA, PCI_ANY_ID,
