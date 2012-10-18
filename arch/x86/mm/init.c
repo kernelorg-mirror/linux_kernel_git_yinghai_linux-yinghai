@@ -35,61 +35,32 @@ struct map_range {
 	unsigned page_size_mask;
 };
 
-static void __init find_early_table_space(struct map_range *mr, unsigned long end,
-					  int use_pse, int use_gbpages)
+static int page_size_mask;
+
+static void __init probe_page_size_mask(void)
 {
-	unsigned long puds, pmds, ptes, tables, start = 0, good_end = end;
-	phys_addr_t base;
-
-	puds = (end + PUD_SIZE - 1) >> PUD_SHIFT;
-	tables = roundup(puds * sizeof(pud_t), PAGE_SIZE);
-
-	if (use_gbpages) {
-		unsigned long extra;
-
-		extra = end - ((end>>PUD_SHIFT) << PUD_SHIFT);
-		pmds = (extra + PMD_SIZE - 1) >> PMD_SHIFT;
-	} else
-		pmds = (end + PMD_SIZE - 1) >> PMD_SHIFT;
-
-	tables += roundup(pmds * sizeof(pmd_t), PAGE_SIZE);
-
-	if (use_pse) {
-		unsigned long extra;
-
-		extra = end - ((end>>PMD_SHIFT) << PMD_SHIFT);
-#ifdef CONFIG_X86_32
-		extra += PMD_SIZE;
+#if !defined(CONFIG_DEBUG_PAGEALLOC) && !defined(CONFIG_KMEMCHECK)
+	/*
+	 * For CONFIG_DEBUG_PAGEALLOC, identity mapping will use small pages.
+	 * This will simplify cpa(), which otherwise needs to support splitting
+	 * large pages into small in interrupt context, etc.
+	 */
+	if (direct_gbpages)
+		page_size_mask |= 1 << PG_LEVEL_1G;
+	if (cpu_has_pse)
+		page_size_mask |= 1 << PG_LEVEL_2M;
 #endif
-		/* The first 2/4M doesn't use large pages. */
-		if (mr->start < PMD_SIZE)
-			extra += mr->end - mr->start;
 
-		ptes = (extra + PAGE_SIZE - 1) >> PAGE_SHIFT;
-	} else
-		ptes = (end + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	/* Enable PSE if available */
+	if (cpu_has_pse)
+		set_in_cr4(X86_CR4_PSE);
 
-	tables += roundup(ptes * sizeof(pte_t), PAGE_SIZE);
-
-#ifdef CONFIG_X86_32
-	/* for fixmap */
-	tables += roundup(__end_of_fixed_addresses * sizeof(pte_t), PAGE_SIZE);
-#endif
-	good_end = max_pfn_mapped << PAGE_SHIFT;
-
-	base = memblock_find_in_range(start, good_end, tables, PAGE_SIZE);
-	if (!base)
-		panic("Cannot find space for the kernel page tables");
-
-	pgt_buf_start = base >> PAGE_SHIFT;
-	pgt_buf_end = pgt_buf_start;
-	pgt_buf_top = pgt_buf_start + (tables >> PAGE_SHIFT);
-
-	printk(KERN_DEBUG "kernel direct mapping tables up to %#lx @ [mem %#010lx-%#010lx]\n",
-		end - 1, pgt_buf_start << PAGE_SHIFT,
-		(pgt_buf_top << PAGE_SHIFT) - 1);
+	/* Enable PGE if available */
+	if (cpu_has_pge) {
+		set_in_cr4(X86_CR4_PGE);
+		__supported_pte_mask |= _PAGE_GLOBAL;
+	}
 }
-
 void __init native_pagetable_reserve(u64 start, u64 end)
 {
 	memblock_reserve(start, end - start);
@@ -117,55 +88,13 @@ static int __meminit save_mr(struct map_range *mr, int nr_range,
 	return nr_range;
 }
 
-/*
- * Setup the direct mapping of the physical memory at PAGE_OFFSET.
- * This runs before bootmem is initialized and gets pages directly from
- * the physical memory. To access them they are temporarily mapped.
- */
-unsigned long __init_refok init_memory_mapping(unsigned long start,
-					       unsigned long end)
+static int __meminit split_mem_range(struct map_range *mr, int nr_range,
+				     unsigned long start,
+				     unsigned long end)
 {
-	unsigned long page_size_mask = 0;
 	unsigned long start_pfn, end_pfn;
-	unsigned long ret = 0;
 	unsigned long pos;
-
-	struct map_range mr[NR_RANGE_MR];
-	int nr_range, i;
-	int use_pse, use_gbpages;
-
-	printk(KERN_INFO "init_memory_mapping: [mem %#010lx-%#010lx]\n",
-	       start, end - 1);
-
-#if defined(CONFIG_DEBUG_PAGEALLOC) || defined(CONFIG_KMEMCHECK)
-	/*
-	 * For CONFIG_DEBUG_PAGEALLOC, identity mapping will use small pages.
-	 * This will simplify cpa(), which otherwise needs to support splitting
-	 * large pages into small in interrupt context, etc.
-	 */
-	use_pse = use_gbpages = 0;
-#else
-	use_pse = cpu_has_pse;
-	use_gbpages = direct_gbpages;
-#endif
-
-	/* Enable PSE if available */
-	if (cpu_has_pse)
-		set_in_cr4(X86_CR4_PSE);
-
-	/* Enable PGE if available */
-	if (cpu_has_pge) {
-		set_in_cr4(X86_CR4_PGE);
-		__supported_pte_mask |= _PAGE_GLOBAL;
-	}
-
-	if (use_gbpages)
-		page_size_mask |= 1 << PG_LEVEL_1G;
-	if (use_pse)
-		page_size_mask |= 1 << PG_LEVEL_2M;
-
-	memset(mr, 0, sizeof(mr));
-	nr_range = 0;
+	int i;
 
 	/* head if not big page alignment ? */
 	start_pfn = start >> PAGE_SHIFT;
@@ -259,15 +188,153 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
 			(mr[i].page_size_mask & (1<<PG_LEVEL_1G))?"1G":(
 			 (mr[i].page_size_mask & (1<<PG_LEVEL_2M))?"2M":"4k"));
 
-	/*
-	 * Find space for the kernel direct mapping tables.
-	 *
-	 * Later we should allocate these tables in the local node of the
-	 * memory mapped. Unfortunately this is done currently before the
-	 * nodes are discovered.
-	 */
-	if (!after_bootmem)
-		find_early_table_space(&mr[0], end, use_pse, use_gbpages);
+	return nr_range;
+}
+
+static unsigned long __init calculate_table_space_size(unsigned long start,
+					  unsigned long end)
+{
+	unsigned long puds = 0, pmds = 0, ptes = 0, tables;
+	struct map_range mr[NR_RANGE_MR];
+	int nr_range, i;
+
+	pr_info("calculate_table_space_size: [mem %#010lx-%#010lx]\n",
+	       start, end - 1);
+
+	memset(mr, 0, sizeof(mr));
+	nr_range = 0;
+	nr_range = split_mem_range(mr, nr_range, start, end);
+
+	for (i = 0; i < nr_range; i++) {
+		unsigned long range, extra;
+
+		range = mr[i].end - mr[i].start;
+		puds += (range + PUD_SIZE - 1) >> PUD_SHIFT;
+
+		if (mr[i].page_size_mask & (1 << PG_LEVEL_1G)) {
+			extra = range - ((range >> PUD_SHIFT) << PUD_SHIFT);
+			pmds += (extra + PMD_SIZE - 1) >> PMD_SHIFT;
+		} else
+			pmds += (range + PMD_SIZE - 1) >> PMD_SHIFT;
+
+		if (mr[i].page_size_mask & (1 << PG_LEVEL_2M)) {
+			extra = range - ((range >> PMD_SHIFT) << PMD_SHIFT);
+#ifdef CONFIG_X86_32
+			extra += PMD_SIZE;
+#endif
+			/* The first 2/4M doesn't use large pages. */
+			if (mr[i].start < PMD_SIZE)
+				extra += PMD_SIZE - mr[i].start;
+
+			ptes += (extra + PAGE_SIZE - 1) >> PAGE_SHIFT;
+		} else
+			ptes += (range + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	}
+
+	tables = roundup(puds * sizeof(pud_t), PAGE_SIZE);
+	tables += roundup(pmds * sizeof(pmd_t), PAGE_SIZE);
+	tables += roundup(ptes * sizeof(pte_t), PAGE_SIZE);
+
+#ifdef CONFIG_X86_32
+	/* for fixmap */
+	tables += roundup(__end_of_fixed_addresses * sizeof(pte_t), PAGE_SIZE);
+#endif
+
+	return tables;
+}
+
+static unsigned long __init calculate_all_table_space_size(void)
+{
+	unsigned long start_pfn, end_pfn;
+	unsigned long tables;
+	int i;
+
+	/* the ISA range is always mapped regardless of memory holes */
+	tables = calculate_table_space_size(0, ISA_END_ADDRESS);
+
+	for_each_mem_pfn_range(i, MAX_NUMNODES, &start_pfn, &end_pfn, NULL) {
+		u64 start = start_pfn << PAGE_SHIFT;
+		u64 end = end_pfn << PAGE_SHIFT;
+
+		if (end <= ISA_END_ADDRESS)
+			continue;
+
+		if (start < ISA_END_ADDRESS)
+			start = ISA_END_ADDRESS;
+#ifdef CONFIG_X86_32
+		/* on 32 bit, we only map up to max_low_pfn */
+		if ((start >> PAGE_SHIFT) >= max_low_pfn)
+			continue;
+
+		if ((end >> PAGE_SHIFT) > max_low_pfn)
+			end = max_low_pfn << PAGE_SHIFT;
+#endif
+		tables += calculate_table_space_size(start, end);
+	}
+
+	return tables;
+}
+
+static void __init find_early_table_space(unsigned long start,
+					  unsigned long good_end,
+					  unsigned long tables)
+{
+	phys_addr_t base;
+
+	base = memblock_find_in_range(start, good_end, tables, PAGE_SIZE);
+	if (!base)
+		panic("Cannot find space for the kernel page tables");
+
+	pgt_buf_start = base >> PAGE_SHIFT;
+	pgt_buf_end = pgt_buf_start;
+	pgt_buf_top = pgt_buf_start + (tables >> PAGE_SHIFT);
+}
+
+static struct range pfn_mapped[E820_X_MAX];
+static int nr_pfn_mapped;
+
+static void add_pfn_range_mapped(unsigned long start_pfn, unsigned long end_pfn)
+{
+	nr_pfn_mapped = add_range_with_merge(pfn_mapped, E820_X_MAX,
+					     nr_pfn_mapped, start_pfn, end_pfn);
+	nr_pfn_mapped = clean_sort_range(pfn_mapped, E820_X_MAX);
+
+	max_pfn_mapped = max(max_pfn_mapped, end_pfn);
+
+	if (end_pfn <= (1UL << (32 - PAGE_SHIFT)))
+		max_low_pfn_mapped = max(max_low_pfn_mapped, end_pfn);
+}
+
+bool pfn_range_is_mapped(unsigned long start_pfn, unsigned long end_pfn)
+{
+	int i;
+
+	for (i = 0; i < nr_pfn_mapped; i++)
+		if ((start_pfn >= pfn_mapped[i].start) &&
+		    (end_pfn <= pfn_mapped[i].end))
+			return true;
+
+	return false;
+}
+
+/*
+ * Setup the direct mapping of the physical memory at PAGE_OFFSET.
+ * This runs before bootmem is initialized and gets pages directly from
+ * the physical memory. To access them they are temporarily mapped.
+ */
+unsigned long __init_refok init_memory_mapping(unsigned long start,
+					       unsigned long end)
+{
+	struct map_range mr[NR_RANGE_MR];
+	unsigned long ret = 0;
+	int nr_range, i;
+
+	pr_info("init_memory_mapping: [mem %#010lx-%#010lx]\n",
+	       start, end - 1);
+
+	memset(mr, 0, sizeof(mr));
+	nr_range = 0;
+	nr_range = split_mem_range(mr, nr_range, start, end);
 
 	for (i = 0; i < nr_range; i++)
 		ret = kernel_physical_mapping_init(mr[i].start, mr[i].end,
@@ -280,6 +347,84 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
 #endif
 
 	__flush_tlb_all();
+
+	add_pfn_range_mapped(start >> PAGE_SHIFT, ret >> PAGE_SHIFT);
+
+	return ret >> PAGE_SHIFT;
+}
+
+/*
+ * Iterate through E820 memory map and create direct mappings for only E820_RAM
+ * regions. We cannot simply create direct mappings for all pfns from
+ * [0 to max_low_pfn) and [4GB to max_pfn) because of possible memory holes in
+ * high addresses that cannot be marked as UC by fixed/variable range MTRRs.
+ * Depending on the alignment of E820 ranges, this may possibly result in using
+ * smaller size (i.e. 4K instead of 2M or 1G) page tables.
+ */
+static void __init init_all_memory_mapping(void)
+{
+	unsigned long start_pfn, end_pfn;
+	int i;
+
+	/* the ISA range is always mapped regardless of memory holes */
+	init_memory_mapping(0, ISA_END_ADDRESS);
+
+	for_each_mem_pfn_range(i, MAX_NUMNODES, &start_pfn, &end_pfn, NULL) {
+		u64 start = start_pfn << PAGE_SHIFT;
+		u64 end = end_pfn << PAGE_SHIFT;
+
+		if (end <= ISA_END_ADDRESS)
+			continue;
+
+		if (start < ISA_END_ADDRESS)
+			start = ISA_END_ADDRESS;
+#ifdef CONFIG_X86_32
+		/* on 32 bit, we only map up to max_low_pfn */
+		if ((start >> PAGE_SHIFT) >= max_low_pfn)
+			continue;
+
+		if ((end >> PAGE_SHIFT) > max_low_pfn)
+			end = max_low_pfn << PAGE_SHIFT;
+#endif
+		init_memory_mapping(start, end);
+	}
+
+#ifdef CONFIG_X86_64
+	if (max_pfn > max_low_pfn) {
+		/* can we preseve max_low_pfn ?*/
+		max_low_pfn = max_pfn;
+	}
+#endif
+}
+
+void __init init_mem_mapping(void)
+{
+	unsigned long tables, good_end, end;
+
+	probe_page_size_mask();
+
+	/*
+	 * Find space for the kernel direct mapping tables.
+	 *
+	 * Later we should allocate these tables in the local node of the
+	 * memory mapped. Unfortunately this is done currently before the
+	 * nodes are discovered.
+	 */
+#ifdef CONFIG_X86_64
+	end = max_pfn << PAGE_SHIFT;
+	good_end = end;
+#else
+	end = max_low_pfn << PAGE_SHIFT;
+	good_end = max_pfn_mapped << PAGE_SHIFT;
+#endif
+	tables = calculate_all_table_space_size();
+	find_early_table_space(0, good_end, tables);
+	printk(KERN_DEBUG "kernel direct mapping tables up to %#lx @ [mem %#010lx-%#010lx] prealloc\n",
+		end - 1, pgt_buf_start << PAGE_SHIFT,
+		(pgt_buf_top << PAGE_SHIFT) - 1);
+
+	max_pfn_mapped = 0; /* will get exact value next */
+	init_all_memory_mapping();
 
 	/*
 	 * Reserve the kernel pagetable pages we used (pgt_buf_start -
@@ -296,16 +441,19 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
 	 * RO all the pagetable pages, including the ones that are beyond
 	 * pgt_buf_end at that time.
 	 */
-	if (!after_bootmem && pgt_buf_end > pgt_buf_start)
+	if (pgt_buf_end > pgt_buf_start) {
+		printk(KERN_DEBUG "kernel direct mapping tables up to %#lx @ [mem %#010lx-%#010lx] final\n",
+			end - 1, pgt_buf_start << PAGE_SHIFT,
+			(pgt_buf_end << PAGE_SHIFT) - 1);
 		x86_init.mapping.pagetable_reserve(PFN_PHYS(pgt_buf_start),
 				PFN_PHYS(pgt_buf_end));
+	}
 
-	if (!after_bootmem)
-		early_memtest(start, end);
+	/* stop the wrong using */
+	pgt_buf_top = 0;
 
-	return ret >> PAGE_SHIFT;
+	early_memtest(0, max_pfn_mapped << PAGE_SHIFT);
 }
-
 
 /*
  * devmem_is_allowed() checks to see if /dev/mem access to a certain address
