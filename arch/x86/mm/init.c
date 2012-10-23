@@ -25,6 +25,13 @@ unsigned long __meminitdata pgt_buf_top;
 
 static unsigned long min_pfn_mapped;
 
+/*
+ * Pages returned are already directly mapped.
+ *
+ * Changing that is likely to break Xen, see commit
+ * 279b706bf800b5967037f492dbe4fc5081ad5d0f for more information on the
+ * subject.
+ */
 __ref void *alloc_low_pages(unsigned int num)
 {
 	unsigned long pfn;
