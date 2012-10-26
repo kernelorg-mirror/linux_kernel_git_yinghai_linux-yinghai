@@ -320,7 +320,7 @@ struct acpi_bus_event {
 };
 
 struct acpi_eject_event {
-	acpi_handle	handle;
+	struct acpi_device	*device;
 	u32		event;
 };
 
@@ -367,6 +367,8 @@ int acpi_bus_start(struct acpi_device *device);
 acpi_status acpi_bus_get_ejd(acpi_handle handle, acpi_handle * ejd);
 int acpi_match_device_ids(struct acpi_device *device,
 			  const struct acpi_device_id *ids);
+int acpi_match_object_info_ids(struct acpi_device_info *info,
+			       const struct acpi_device_id *ids);
 int acpi_create_dir(struct acpi_device *);
 void acpi_remove_dir(struct acpi_device *);
 
