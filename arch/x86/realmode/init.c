@@ -111,5 +111,4 @@ static int __init set_real_mode_permissions(void)
 
 	return 0;
 }
-
-arch_initcall(set_real_mode_permissions);
+early_initcall(set_real_mode_permissions);
