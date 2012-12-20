@@ -175,7 +175,7 @@ void __init swiotlb_init_with_tbl(char *tlb, unsigned long nslabs, int verbose)
  * Statically reserve bounce buffer space and initialize bounce buffer data
  * structures for the software IO TLB used to implement the DMA API.
  */
-static void __init
+static int __init
 swiotlb_init_with_default_size(size_t default_size, int verbose)
 {
 	unsigned char *vstart;
@@ -192,16 +192,21 @@ swiotlb_init_with_default_size(size_t default_size, int verbose)
 	 * Get IO TLB memory from the low pages
 	 */
 	vstart = alloc_bootmem_low_pages(PAGE_ALIGN(bytes));
-	if (!vstart)
-		panic("Cannot allocate SWIOTLB buffer");
+	if (!vstart) {
+		WARN(1, "Cannot allocate SWIOTLB buffer");
+		return -1;
+	}
 
 	swiotlb_init_with_tbl(vstart, io_tlb_nslabs, verbose);
+
+	return 0;
 }
 
-void __init
+int __init
 swiotlb_init(int verbose)
 {
-	swiotlb_init_with_default_size(64 * (1<<20), verbose);	/* default to 64MB */
+	/* default to 64MB */
+	return swiotlb_init_with_default_size(64 * (1<<20), verbose);
 }
 
 /*
