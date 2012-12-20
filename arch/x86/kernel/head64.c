@@ -116,12 +116,21 @@ static void __init copy_bootdata(char *real_mode_data)
 {
 	char * command_line;
 	unsigned long cmd_line_ptr;
+	char *p;
 
-	memcpy(&boot_params, real_mode_data, sizeof boot_params);
+	/*
+	 * for 64bit bootloader path, those data could be above 4G,
+	 * and we do not set ident mapping for them in head_64.S.
+	 * So need to use ioremap to access them.
+	 */
+	p = early_memremap((unsigned long)real_mode_data, sizeof(boot_params));
+	memcpy(&boot_params, p, sizeof(boot_params));
+	early_iounmap(p, sizeof(boot_params));
 	cmd_line_ptr = get_cmd_line_ptr();
 	if (cmd_line_ptr) {
-		command_line = __va(cmd_line_ptr);
+		command_line = early_memremap(cmd_line_ptr, COMMAND_LINE_SIZE);
 		memcpy(boot_command_line, command_line, COMMAND_LINE_SIZE);
+		early_iounmap(command_line, COMMAND_LINE_SIZE);
 	}
 }
 
@@ -146,6 +155,10 @@ void __init x86_64_start_kernel(char * real_mode_data)
 	/* clear bss before set_intr_gate with early_idt_handler */
 	clear_bss();
 
+	/* boot_params is in bss */
+	early_ioremap_init();
+	copy_bootdata(real_mode_data);
+
 	/* Make NULL pointers segfault */
 	zap_identity_mappings();
 
@@ -168,7 +181,14 @@ void __init x86_64_start_kernel(char * real_mode_data)
 
 void __init x86_64_start_reservations(char *real_mode_data)
 {
-	copy_bootdata(__va(real_mode_data));
+	/*
+	 * hdr.version is always not 0, so check it to see
+	 *  if boot_params is copied or not.
+	 */
+	if (!boot_params.hdr.version) {
+		early_ioremap_init();
+		copy_bootdata(real_mode_data);
+	}
 
 	memblock_reserve(__pa_symbol(_text),
 			 (unsigned long)__bss_stop - (unsigned long)_text);

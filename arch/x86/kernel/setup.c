@@ -714,7 +714,9 @@ void __init setup_arch(char **cmdline_p)
 
 	early_trap_init();
 	early_cpu_init();
+#ifdef CONFIG_X86_32
 	early_ioremap_init();
+#endif
 
 	setup_olpc_ofw_pgd();
 
