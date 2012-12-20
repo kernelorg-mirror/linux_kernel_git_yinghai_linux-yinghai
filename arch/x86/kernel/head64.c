@@ -190,16 +190,7 @@ void __init x86_64_start_reservations(char *real_mode_data)
 		copy_bootdata(real_mode_data);
 	}
 
-	memblock_reserve(__pa_symbol(_text),
-			 (unsigned long)__bss_stop - (unsigned long)_text);
-
 	reserve_ebda_region();
-
-	/*
-	 * At this point everything still needed from the boot loader
-	 * or BIOS or kernel text should be early reserved or marked not
-	 * RAM in e820. All other memory is free game.
-	 */
 
 	start_kernel();
 }
