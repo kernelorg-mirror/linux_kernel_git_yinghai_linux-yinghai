@@ -29,7 +29,17 @@
 static void __init zap_identity_mappings(void)
 {
 	pgd_t *pgd = pgd_offset_k(0UL);
+	unsigned long pa_text = __pa_symbol(_text);
+	unsigned long pa_end = __pa_symbol(_end);
+
 	pgd_clear(pgd);
+
+	/* When kernel is loaded above 512G */
+	if (pa_text >= PGDIR_SIZE)
+		pgd_clear(pgd + pgd_index(pa_text));
+	if (pa_end - 1 >= PGDIR_SIZE)
+		pgd_clear(pgd + pgd_index(pa_end - 1));
+
 	__flush_tlb_all();
 }
 
