@@ -51,6 +51,7 @@
 #define IO_TLB_MIN_SLABS ((1<<20) >> IO_TLB_SHIFT)
 
 int swiotlb_force;
+int swiotlb_force_off;
 
 /*
  * Used to do a quick range check in swiotlb_tbl_unmap_single and
@@ -102,8 +103,10 @@ setup_io_tlb_npages(char *str)
 	}
 	if (*str == ',')
 		++str;
-	if (!strcmp(str, "force"))
+	if (!strcmp(str, "force") || !strcmp(str, "on"))
 		swiotlb_force = 1;
+	if (!strcmp(str, "off"))
+		swiotlb_force_off = 1;
 
 	return 1;
 }

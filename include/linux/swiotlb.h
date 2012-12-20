@@ -8,6 +8,7 @@ struct dma_attrs;
 struct scatterlist;
 
 extern int swiotlb_force;
+extern int swiotlb_force_off;
 
 /*
  * Maximum allowable number of contiguous slabs to map,

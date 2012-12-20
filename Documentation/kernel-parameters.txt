@@ -2836,6 +2836,13 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 
 	swiotlb=	[IA-64] Number of I/O TLB slabs
 
+	swiotlb=[force|off|on] [KNL] disable or enable swiotlb.
+		force
+		on
+			Enable swiotlb.
+		off
+			Disable swiotlb.
+
 	switches=	[HW,M68k]
 
 	sysfs.deprecated=0|1 [KNL]

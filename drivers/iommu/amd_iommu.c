@@ -3082,6 +3082,7 @@ int __init amd_iommu_init_dma_ops(void)
 	unhandled = device_dma_ops_init();
 	if (unhandled && max_pfn > MAX_DMA32_PFN) {
 		/* There are unhandled devices - initialize swiotlb for them */
+		WARN(swiotlb_force_off, "Please remove swiotlb=off\n");
 		swiotlb = 1;
 	}
 
