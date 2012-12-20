@@ -26,6 +26,60 @@
 #include <asm/e820.h>
 #include <asm/bios_ebda.h>
 
+/* Create a new PMD entry */
+int __init early_make_pgtable(unsigned long address)
+{
+	unsigned long physaddr = address - __PAGE_OFFSET;
+	unsigned long i;
+	pgdval_t pgd, *pgd_p;
+	pudval_t pud, *pud_p;
+	pmdval_t pmd, *pmd_p;
+
+	if (address < __PAGE_OFFSET || physaddr >= MAXMEM)
+		return -1;	/* Invalid address - puke */
+
+	pgd_p = &init_level4_pgt[pgd_index(address)].pgd;
+	pgd = *pgd_p;
+
+	/*
+	 * The use of __START_KERNEL_map rather than __PAGE_OFFSET here is
+	 * critical -- __PAGE_OFFSET would point us back into the dynamic
+	 * range and we might end up looping forever...
+	 */
+	if (pgd)
+		pud_p = (pudval_t *)((pgd & PTE_PFN_MASK) + __START_KERNEL_map - phys_base);
+	else {
+		if ((char *)(_brk_end + PAGE_SIZE) > __brk_limit)
+			return -1;
+		pud_p = (pudval_t *)_brk_end;
+		_brk_end += PAGE_SIZE;
+
+		for (i = 0; i < PTRS_PER_PUD; i++)
+			pud_p[i] = 0;
+		*pgd_p = (pgdval_t)pud_p - __START_KERNEL_map + phys_base + _KERNPG_TABLE;
+	}
+	pud_p += pud_index(address);
+	pud = *pud_p;
+
+	if (pud)
+		pmd_p = (pmdval_t *)((pud & PTE_PFN_MASK) + __START_KERNEL_map - phys_base);
+	else {
+		if ((char *)(_brk_end + PAGE_SIZE) > __brk_limit)
+			return -1;
+		pmd_p = (pmdval_t *)_brk_end;
+		_brk_end += PAGE_SIZE;
+
+		for (i = 0; i < PTRS_PER_PMD; i++)
+			pmd_p[i] = 0;
+		*pud_p = (pudval_t)pmd_p - __START_KERNEL_map + phys_base + _KERNPG_TABLE;
+	}
+	pmd = (physaddr & PMD_MASK) + __PAGE_KERNEL_LARGE;
+	pmd_p[pmd_index(address)] = pmd;
+
+	return 0;
+}
+
+
 static void __init zap_identity_mappings(void)
 {
 	pgd_t *pgd = pgd_offset_k(0UL);

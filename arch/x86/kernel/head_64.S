@@ -494,14 +494,21 @@ ENTRY(early_idt_handler)
 	pushq %r11		#  0(%rsp)
 
 	cmpl $__KERNEL_CS,96(%rsp)
-	jne 10f
+	jne 11f
 
+	cmpl $14,72(%rsp)       # Page fault?
+	jnz 10f
+	GET_CR2_INTO(%rdi)      # can clobber any volatile register if pv
+	call early_make_pgtable
+	andl %eax,%eax
+	jz 20f                  # All good
+10:
 	leaq 88(%rsp),%rdi	# Pointer to %rip
 	call early_fixup_exception
 	andl %eax,%eax
 	jnz 20f			# Found an exception entry
 
-10:
+11:
 #ifdef CONFIG_EARLY_PRINTK
 	GET_CR2_INTO(%r9)	# can clobber any volatile register if pv
 	movl 80(%rsp),%r8d	# error code
@@ -523,7 +530,7 @@ ENTRY(early_idt_handler)
 1:	hlt
 	jmp 1b
 
-20:	# Exception table entry found
+20:	# Exception table entry found or page table generaged.
 	popq %r11
 	popq %r10
 	popq %r9
