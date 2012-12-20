@@ -671,6 +671,26 @@ static int __init parse_reservelow(char *p)
 
 early_param("reservelow", parse_reservelow);
 
+static __init void print_init_mem_mapped(void)
+{
+#ifdef CONFIG_X86_32
+	printk(KERN_DEBUG "initial memory mapped: [mem 0x00000000-%#010lx]\n",
+			(max_pfn_mapped<<PAGE_SHIFT) - 1);
+#else
+	unsigned long text = __pa_symbol(&_text);
+	unsigned long end = round_up(__pa_symbol(_end) - 1, PMD_SIZE);
+
+	if (end <= PUD_SIZE)
+		printk(KERN_DEBUG "initial memory mapped: [mem 0x00000000-%#010lx]\n",
+			PUD_SIZE - 1);
+	else if (text <= PUD_SIZE)
+		printk(KERN_DEBUG "initial memory mapped: [mem 0x00000000-%#010lx]\n",
+			end - 1);
+	else
+		printk(KERN_DEBUG "initial memory mapped: [mem 0x00000000-%#010lx] [mem %#010lx-%#010lx]\n",
+			PUD_SIZE - 1, text, end - 1);
+#endif
+}
 /*
  * Determine if we were loaded by an EFI loader.  If so, then we have also been
  * passed the efi memmap, systab, etc., so we should use these data structures
@@ -939,8 +959,7 @@ void __init setup_arch(char **cmdline_p)
 	setup_bios_corruption_check();
 #endif
 
-	printk(KERN_DEBUG "initial memory mapped: [mem 0x00000000-%#010lx]\n",
-			(max_pfn_mapped<<PAGE_SHIFT) - 1);
+	print_init_mem_mapped();
 
 	setup_real_mode();
 
