@@ -374,6 +374,8 @@ struct pci_host_bridge {
 };
 
 #define	to_pci_host_bridge(n) container_of(n, struct pci_host_bridge, dev)
+#define for_each_pci_host_bridge(d) while ((d = pci_get_next_host_bridge(d)) != NULL)
+
 void pci_set_host_bridge_release(struct pci_host_bridge *bridge,
 		     void (*release_fn)(struct pci_host_bridge *),
 		     void *release_data);
@@ -759,6 +761,7 @@ int pci_find_ht_capability(struct pci_dev *dev, int ht_cap);
 int pci_find_next_ht_capability(struct pci_dev *dev, int pos, int ht_cap);
 struct pci_bus *pci_find_next_bus(const struct pci_bus *from);
 
+struct pci_host_bridge *pci_get_next_host_bridge(struct pci_host_bridge *from);
 struct pci_dev *pci_get_device(unsigned int vendor, unsigned int device,
 				struct pci_dev *from);
 struct pci_dev *pci_get_subsys(unsigned int vendor, unsigned int device,
@@ -1413,6 +1416,12 @@ static inline int pci_domain_nr(struct pci_bus *bus)
 
 static inline struct pci_dev *pci_dev_get(struct pci_dev *dev)
 { return NULL; }
+
+static inline struct pci_host_bridge *pci_get_next_host_bridge(
+			struct pci_host_bridge *host_bridge)
+{
+	return NULL;
+}
 
 #define dev_is_pci(d) (false)
 #define dev_is_pf(d) (false)
