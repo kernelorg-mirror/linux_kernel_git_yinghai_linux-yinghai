@@ -381,7 +381,7 @@ struct acpi_bus_type {
 	struct bus_type *bus;
 	/* For general devices under the bus */
 	int (*find_device) (struct device *, acpi_handle *);
-	/* For bridges, such as PCI root bridge, IDE controller */
+	/* For bridges that does not have bus_type, such as usb_port */
 	int (*find_bridge) (struct device *, acpi_handle *);
 	void (*setup)(struct device *);
 	void (*cleanup)(struct device *);
