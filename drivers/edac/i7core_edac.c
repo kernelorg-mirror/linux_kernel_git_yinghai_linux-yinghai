@@ -1294,10 +1294,10 @@ static void __init i7core_xeon_pci_fixup(const struct pci_id_table *table)
 static unsigned i7core_pci_lastbus(void)
 {
 	int last_bus = 0, bus;
-	struct pci_bus *b = NULL;
+	struct pci_host_bridge *host_bridge = NULL;
 
-	while ((b = pci_find_next_bus(b)) != NULL) {
-		bus = b->number;
+	for_each_pci_host_bridge(host_bridge) {
+		bus = host_bridge->bus->number;
 		edac_dbg(0, "Found bus %d\n", bus);
 		if (bus > last_bus)
 			last_bus = bus;
