@@ -1195,6 +1195,7 @@ struct pci_dev *alloc_pci_dev(void)
 		return NULL;
 
 	INIT_LIST_HEAD(&dev->bus_list);
+	dev->drivers_autoprobe = true;
 
 	return dev;
 }
