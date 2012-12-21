@@ -356,9 +356,13 @@ static int drm_open_helper(struct inode *inode, struct file *filp,
 			pci_dev_put(pci_dev);
 		}
 		if (!dev->hose) {
-			struct pci_bus *b = pci_bus_b(pci_root_buses.next);
-			if (b)
-				dev->hose = b->sysdata;
+			struct pci_host_bridge *host_bridge;
+
+			host_bridge = pci_next_host_bridge(NULL);
+			if (host_bridge) {
+				dev->hose = host_bridge->bus->sysdata;
+				put_device(&host_bridge->dev);
+			}
 		}
 	}
 #endif
