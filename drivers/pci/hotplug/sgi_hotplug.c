@@ -674,7 +674,7 @@ alloc_err:
 
 static int __init sn_pci_hotplug_init(void)
 {
-	struct pci_bus *pci_bus = NULL;
+	struct pci_host_bridge *host_bridge = NULL;
 	int rc;
 	int registered = 0;
 
@@ -686,7 +686,9 @@ static int __init sn_pci_hotplug_init(void)
 
 	INIT_LIST_HEAD(&sn_hp_list);
 
-	while ((pci_bus = pci_find_next_bus(pci_bus))) {
+	for_each_pci_host_bridge(host_bridge) {
+		struct pci_bus *pci_bus = host_bridge->bus;
+
 		if (!pci_bus->sysdata)
 			continue;
 
