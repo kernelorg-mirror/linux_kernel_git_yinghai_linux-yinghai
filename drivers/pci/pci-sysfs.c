@@ -289,15 +289,15 @@ static ssize_t bus_rescan_store(struct bus_type *bus, const char *buf,
 				size_t count)
 {
 	unsigned long val;
-	struct pci_bus *b = NULL;
+	struct pci_host_bridge *host_bridge = NULL;
 
 	if (strict_strtoul(buf, 0, &val) < 0)
 		return -EINVAL;
 
 	if (val) {
 		mutex_lock(&pci_remove_rescan_mutex);
-		while ((b = pci_find_next_bus(b)) != NULL)
-			pci_rescan_bus(b);
+		for_each_pci_host_bridge(host_bridge)
+			pci_rescan_bus(host_bridge->bus);
 		mutex_unlock(&pci_remove_rescan_mutex);
 	}
 	return count;
