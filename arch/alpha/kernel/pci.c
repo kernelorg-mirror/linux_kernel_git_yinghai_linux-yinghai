@@ -305,10 +305,10 @@ pcibios_claim_one_bus(struct pci_bus *b)
 static void __init
 pcibios_claim_console_setup(void)
 {
-	struct pci_bus *b;
+	struct pci_host_bridge *host_bridge = NULL;
 
-	list_for_each_entry(b, &pci_root_buses, node)
-		pcibios_claim_one_bus(b);
+	for_each_pci_host_bridge(host_bridge)
+		pcibios_claim_one_bus(host_bridge->bus);
 }
 
 void __init
