@@ -759,7 +759,6 @@ int pci_find_ext_capability(struct pci_dev *dev, int cap);
 int pci_find_next_ext_capability(struct pci_dev *dev, int pos, int cap);
 int pci_find_ht_capability(struct pci_dev *dev, int ht_cap);
 int pci_find_next_ht_capability(struct pci_dev *dev, int pos, int ht_cap);
-struct pci_bus *pci_find_next_bus(const struct pci_bus *from);
 
 struct pci_host_bridge *pci_get_next_host_bridge(struct pci_host_bridge *from);
 struct pci_dev *pci_get_device(unsigned int vendor, unsigned int device,
@@ -1399,9 +1398,6 @@ static inline int pci_block_cfg_access_in_atomic(struct pci_dev *dev)
 
 static inline void pci_unblock_cfg_access(struct pci_dev *dev)
 { }
-
-static inline struct pci_bus *pci_find_next_bus(const struct pci_bus *from)
-{ return NULL; }
 
 static inline struct pci_dev *pci_get_slot(struct pci_bus *bus,
 						unsigned int devfn)
