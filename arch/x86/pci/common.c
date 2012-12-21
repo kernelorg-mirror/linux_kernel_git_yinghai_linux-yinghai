@@ -447,11 +447,14 @@ void __init dmi_check_pciprobe(void)
 
 struct pci_bus * __devinit pcibios_scan_root(int busnum)
 {
-	struct pci_bus *bus = NULL;
+	struct pci_host_bridge *host_bridge = NULL;
+	struct pci_bus *bus;
 
-	while ((bus = pci_find_next_bus(bus)) != NULL) {
-		if (bus->number == busnum) {
+	for_each_pci_host_bridge(host_bridge) {
+		if (host_bridge->bus->number == busnum) {
 			/* Already scanned */
+			bus = host_bridge->bus;
+			put_device(&host_bridge->dev);
 			return bus;
 		}
 	}
