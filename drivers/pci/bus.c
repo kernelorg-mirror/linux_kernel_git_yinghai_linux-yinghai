@@ -178,22 +178,9 @@ static void pci_bus_attach_device(struct pci_dev *dev)
  */
 int pci_bus_add_device(struct pci_dev *dev)
 {
-	int retval;
-
-	pci_fixup_device(pci_fixup_final, dev);
-
-	retval = pcibios_add_device(dev);
-	if (retval)
-		return retval;
-
-	retval = device_add(&dev->dev);
-	if (retval)
-		return retval;
-
 	pci_bus_attach_device(dev);
 	dev->is_added = 1;
-	pci_proc_attach_device(dev);
-	pci_create_sysfs_dev_files(dev);
+
 	return 0;
 }
 
@@ -205,21 +192,9 @@ int pci_bus_add_device(struct pci_dev *dev)
  */
 int pci_bus_add_child(struct pci_bus *bus)
 {
-	int retval;
-
-	if (bus->bridge)
-		bus->dev.parent = bus->bridge;
-
-	retval = device_add(&bus->dev);
-	if (retval)
-		return retval;
-
 	bus->is_added = 1;
 
-	/* Create legacy_io and legacy_mem files for this bus */
-	pci_create_legacy_files(bus);
-
-	return retval;
+	return 0;
 }
 
 /**
@@ -245,36 +220,20 @@ void pci_bus_add_devices(const struct pci_bus *bus)
 		if (dev->is_added)
 			continue;
 		retval = pci_bus_add_device(dev);
-		if (retval)
-			dev_err(&dev->dev, "Error adding device, continuing\n");
 	}
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
 		BUG_ON(!dev->is_added);
 
 		child = dev->subordinate;
-		/*
-		 * If there is an unattached subordinate bus, attach
-		 * it and then scan for unattached PCI devices.
-		 */
+
 		if (!child)
 			continue;
-		if (list_empty(&child->node)) {
-			down_write(&pci_bus_sem);
-			list_add_tail(&child->node, &dev->bus->children);
-			up_write(&pci_bus_sem);
-		}
 		pci_bus_add_devices(child);
 
-		/*
-		 * register the bus with sysfs as the parent is now
-		 * properly registered.
-		 */
 		if (child->is_added)
 			continue;
 		retval = pci_bus_add_child(child);
-		if (retval)
-			dev_err(&dev->dev, "Error adding bus, continuing\n");
 	}
 }
 
