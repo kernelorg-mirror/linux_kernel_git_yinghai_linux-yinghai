@@ -88,40 +88,40 @@ resource_size_t pcibios_align_resource(void *data, const struct resource *res,
  *	    requested by the user, configure expansion ROM address
  *	    as well.
  */
-static void __init pcibios_allocate_bus_resources(struct list_head *bus_list)
+static void __init pcibios_allocate_bridge_resources(struct pci_dev *dev)
 {
-	struct pci_bus *bus;
-	struct pci_dev *dev;
 	int idx;
 	struct resource *r;
 
-	/* Depth-First Search on bus tree */
-	list_for_each_entry(bus, bus_list, node) {
-		dev = bus->self;
-		if (dev) {
-			for (idx = PCI_BRIDGE_RESOURCES;
-			     idx < PCI_NUM_RESOURCES;
-			     idx++) {
-				r = &dev->resource[idx];
-				if (!r->flags)
-					continue;
-				if (!r->start ||
-				    pci_claim_resource(dev, idx) < 0) {
-					printk(KERN_ERR "PCI:"
-					       " Cannot allocate resource"
-					       " region %d of bridge %s\n",
-					       idx, pci_name(dev));
-					/* Something is wrong with the region.
-					 * Invalidate the resource to prevent
-					 * child resource allocations in this
-					 * range. */
-					r->start = r->end = 0;
-					r->flags = 0;
-				}
-			}
+	for (idx = PCI_BRIDGE_RESOURCES;
+	     idx < PCI_NUM_RESOURCES;
+	     idx++) {
+		r = &dev->resource[idx];
+		if (!r->flags)
+			continue;
+		if (!r->start ||
+		    pci_claim_resource(dev, idx) < 0) {
+			pr_err("PCI: Cannot allocate resource region %d of bridge %s\n",
+			       idx, pci_name(dev));
+			/* Something is wrong with the region.
+			 * Invalidate the resource to prevent
+			 * child resource allocations in this
+			 * range. */
+			r->start = r->end = 0;
+			r->flags = 0;
 		}
-		pcibios_allocate_bus_resources(&bus->children);
 	}
+}
+
+static void pcibios_allocate_bus_resources(struct pci_bus *bus)
+{
+	struct pci_bus *child;
+
+	/* Depth-First Search on bus tree */
+	if (bus->self)
+		pcibios_allocate_bridge_resources(bus->self);
+	list_for_each_entry(child, &bus->children, node)
+		pcibios_allocate_bus_resources(child);
 }
 
 static void __init pcibios_allocate_resources(int pass)
@@ -207,8 +207,12 @@ fs_initcall(pcibios_assign_resources);
 
 void __init pcibios_resource_survey(void)
 {
+	struct pci_host_bridge *host_bridge = NULL;
+
 	DBG("PCI: Allocating resources\n");
-	pcibios_allocate_bus_resources(&pci_root_buses);
+
+	for_each_pci_host_bridge(host_bridge)
+		pcibios_allocate_bus_resources(host_bridge->bus);
 	pcibios_allocate_resources(0);
 	pcibios_allocate_resources(1);
 }
