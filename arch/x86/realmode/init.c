@@ -111,5 +111,9 @@ static int __init set_real_mode_permissions(void)
 
 	return 0;
 }
-
-arch_initcall(set_real_mode_permissions);
+/*
+ * Trampoline will be executed by APs with SMP.
+ * So we need to set it to EXEC in do_pre_smp_initcalls() at least,
+ * and that needs early_initcall().
+ */
+early_initcall(set_real_mode_permissions);
