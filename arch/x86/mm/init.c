@@ -75,13 +75,44 @@ __ref void *alloc_low_pages(unsigned int num)
 	return __va(pfn << PAGE_SHIFT);
 }
 
-/* need 4 4k for initial PMD_SIZE, 4k for 0-ISA_END_ADDRESS */
-#define INIT_PGT_BUF_SIZE	(5 * PAGE_SIZE)
+#ifdef CONFIG_X86_64
+/*
+ * need 3 4k for initial PMD_SIZE,
+ *      3 4k for 0-ISA_END_ADDRESS,
+ *      4 4k for KERNEL
+ */
+#define INIT_PGT_BUF_SIZE      (9 * PAGE_SIZE)
+#else
+/*
+ * need 3 4k for initial PMD_SIZE,
+ *      3 4k for 0-ISA_END_ADDRESS,
+ */
+#define INIT_PGT_BUF_SIZE      (6 * PAGE_SIZE)
+#endif
 RESERVE_BRK(early_pgt_alloc, INIT_PGT_BUF_SIZE);
 void  __init early_alloc_pgt_buf(void)
 {
 	unsigned long tables = INIT_PGT_BUF_SIZE;
 	phys_addr_t base;
+
+	/* already set ? */
+	if (pgt_buf_end)
+		return;
+
+#ifdef CONFIG_X86_64
+	/* share level3 and level2 with ISA_END_ADDRESS ? */
+	if (__pa_symbol(_end - 1) < PUD_SIZE)
+		tables -= 4 * PAGE_SIZE;
+	else {
+		unsigned long pa_start = __pa_symbol(_text);
+		unsigned long pa_end = __pa_symbol(_end) - 1;
+		/* check if kernel is in one 512G */
+		if ((pa_start>>PUD_SHIFT) == (pa_end>>PUD_SHIFT))
+			tables -= 2 * PAGE_SIZE;
+		else if ((pa_start>>PGDIR_SHIFT) == (pa_end>>PGDIR_SHIFT))
+			tables -= PAGE_SIZE;
+	}
+#endif
 
 	base = __pa(extend_brk(tables, PAGE_SIZE));
 
