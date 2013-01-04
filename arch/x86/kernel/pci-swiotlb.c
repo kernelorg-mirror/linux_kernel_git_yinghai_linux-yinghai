@@ -6,6 +6,7 @@
 #include <linux/swiotlb.h>
 #include <linux/bootmem.h>
 #include <linux/dma-mapping.h>
+#include <linux/memblock.h>
 
 #include <asm/iommu.h>
 #include <asm/swiotlb.h>
@@ -50,6 +51,11 @@ static struct dma_map_ops swiotlb_dma_ops = {
 	.dma_supported = NULL,
 };
 
+static bool __init enough_mem_for_swiotlb(void)
+{
+	/* do we have less than 1M RAM under 4G ? */
+	return memblock_mem_size(1ULL<<(32-PAGE_SHIFT)) > (1ULL<<20);
+}
 /*
  * pci_swiotlb_detect_override - set swiotlb to 1 if necessary
  *
@@ -58,12 +64,12 @@ static struct dma_map_ops swiotlb_dma_ops = {
  */
 int __init pci_swiotlb_detect_override(void)
 {
-	int use_swiotlb = swiotlb | swiotlb_force;
-
 	if (swiotlb_force)
 		swiotlb = 1;
+	else if (!enough_mem_for_swiotlb())
+		swiotlb = 0;
 
-	return use_swiotlb;
+	return swiotlb;
 }
 IOMMU_INIT_FINISH(pci_swiotlb_detect_override,
 		  pci_xen_swiotlb_detect,
@@ -78,7 +84,7 @@ int __init pci_swiotlb_detect_4gb(void)
 {
 	/* don't initialize swiotlb if iommu=off (no_iommu=1) */
 #ifdef CONFIG_X86_64
-	if (!no_iommu && max_pfn > MAX_DMA32_PFN)
+	if (!no_iommu && max_pfn > MAX_DMA32_PFN && enough_mem_for_swiotlb())
 		swiotlb = 1;
 #endif
 	return swiotlb;
