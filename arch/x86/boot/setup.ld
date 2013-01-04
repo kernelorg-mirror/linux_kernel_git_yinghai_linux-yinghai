@@ -13,6 +13,13 @@ SECTIONS
 	.bstext		: { *(.bstext) }
 	.bsdata		: { *(.bsdata) }
 
+	/* sentinel: make sure if boot_params from bootloader is right */
+	. = 495;
+	.sentinel	: {
+		sentinel = .;
+		BYTE(0xff);
+	}
+
 	. = 497;
 	.header		: { *(.header) }
 	.entrytext	: { *(.entrytext) }

@@ -318,12 +318,24 @@ static void parse_elf(void *output)
 	free(phdrs);
 }
 
+static void sanitize_real_mode(struct boot_params *real_mode)
+{
+	if (real_mode->sentinel) {
+		/* ext_* fields in boot_params are not valid, clear them */
+		real_mode->ext_ramdisk_image = 0;
+		real_mode->ext_ramdisk_size  = 0;
+		real_mode->ext_cmd_line_ptr  = 0;
+	}
+}
+
 asmlinkage void decompress_kernel(void *rmode, memptr heap,
 				  unsigned char *input_data,
 				  unsigned long input_len,
 				  unsigned char *output)
 {
 	real_mode = rmode;
+
+	sanitize_real_mode(real_mode);
 
 	if (real_mode->screen_info.orig_video_mode == 7) {
 		vidmem = (char *) 0xb0000;
