@@ -1507,10 +1507,6 @@ static inline struct pci_host_bridge *pci_get_next_host_bridge(
 
 #include <asm/pci.h>
 
-#ifndef PCIBIOS_MAX_MEM_32
-#define PCIBIOS_MAX_MEM_32 (-1)
-#endif
-
 /* these helpers provide future and backwards compatibility
  * for accessing popular PCI BAR info */
 #define pci_resource_start(dev, bar)	(pci_dev_resource_n(dev, (bar))->start)
