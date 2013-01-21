@@ -3902,6 +3902,10 @@ static int __init pci_setup(char *str)
 				pci_realloc_get_opt(str + 8);
 			} else if (!strncmp(str, "realloc", 7)) {
 				pci_realloc_get_opt("on");
+			} else if (!strncmp(str, "alloc_high=", 11)) {
+				pci_alloc_high_get_opt(str + 11);
+			} else if (!strncmp(str, "alloc_high", 10)) {
+				pci_alloc_high_get_opt("on");
 			} else if (!strcmp(str, "nodomains")) {
 				pci_no_domains();
 			} else if (!strncmp(str, "noari", 5)) {

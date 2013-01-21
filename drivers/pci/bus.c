@@ -98,6 +98,14 @@ void pci_bus_remove_resources(struct pci_bus *bus)
 	}
 }
 
+static bool pci_alloc_high_enable;
+void __init pci_alloc_high_get_opt(char *str)
+{
+	if (!strncmp(str, "off", 3))
+		pci_alloc_high_enable = false;
+	else if (!strncmp(str, "on", 2))
+		pci_alloc_high_enable = true;
+}
 /**
  * pci_bus_alloc_resource - allocate a resource from a parent bus
  * @bus: PCI bus
@@ -147,6 +155,8 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 
 		start = 0;
 		end = MAX_RESOURCE;
+		if (!pci_alloc_high_enable)
+			goto again;
 		/*
 		 * don't allocate too high if the pref mem doesn't
 		 * support 64bit, also if this is a 64-bit mem

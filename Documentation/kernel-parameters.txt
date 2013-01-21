@@ -2255,6 +2255,12 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 				off: Turn realloc off
 				on: Turn realloc on
 		realloc		same as realloc=on
+		alloc_high=	Enable/disable allocating PCI resources above
+				4G at first when allocating resource to PCI
+				devices that does not get assigned by BIOS.
+				off: Turn alloc_high off
+				on: Turn alloc_high on
+		alloc_high	same as alloc_high=on
 		noari		do not use PCIe ARI.
 		pcie_scan_all	Scan all possible PCIe devices.  Otherwise we
 				only look for one device below a PCIe downstream
