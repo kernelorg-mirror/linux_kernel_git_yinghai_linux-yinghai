@@ -741,13 +741,12 @@ void insert_resource_expand_to_fit(struct resource *root, struct resource *new)
  * arguments.  Returns 0 on success, -EBUSY if it can't fit.
  * Existing children of the resource are assumed to be immutable.
  */
-int adjust_resource(struct resource *res, resource_size_t start, resource_size_t size)
+static int __adjust_resource(struct resource *res, resource_size_t start,
+			     resource_size_t size)
 {
 	struct resource *tmp, *parent = res->parent;
 	resource_size_t end = start + size - 1;
 	int result = -EBUSY;
-
-	write_lock(&resource_lock);
 
 	if (!parent)
 		goto skip;
@@ -776,8 +775,18 @@ skip:
 	result = 0;
 
  out:
-	write_unlock(&resource_lock);
 	return result;
+}
+int adjust_resource(struct resource *res, resource_size_t start,
+		    resource_size_t size)
+{
+	int ret;
+
+	write_lock(&resource_lock);
+	ret = __adjust_resource(res, start, size);
+	write_unlock(&resource_lock);
+
+	return ret;
 }
 EXPORT_SYMBOL(adjust_resource);
 
