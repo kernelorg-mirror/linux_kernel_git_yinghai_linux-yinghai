@@ -3785,8 +3785,7 @@ void pci_reassigndev_resource_alignment(struct pci_dev *dev)
 	pci_write_config_word(dev, PCI_COMMAND, command);
 
 	align = pci_specified_resource_alignment(dev);
-	for (i = 0; i < PCI_BRIDGE_RESOURCES; i++) {
-		r = &dev->resource[i];
+	for_each_pci_resource(dev, r, i, PCI_NOBRIDGE_RES) {
 		if (!(r->flags & IORESOURCE_MEM))
 			continue;
 		size = resource_size(r);
@@ -3805,8 +3804,7 @@ void pci_reassigndev_resource_alignment(struct pci_dev *dev)
 	 */
 	if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE &&
 	    (dev->class >> 8) == PCI_CLASS_BRIDGE_PCI) {
-		for (i = PCI_BRIDGE_RESOURCES; i < PCI_NUM_RESOURCES; i++) {
-			r = &dev->resource[i];
+		for_each_pci_resource(dev, r, i, PCI_BRIDGE_RES) {
 			if (!(r->flags & IORESOURCE_MEM))
 				continue;
 			r->end = resource_size(r) - 1;
