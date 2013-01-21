@@ -128,7 +128,7 @@ static void pdev_sort_resources(struct pci_dev *dev, struct list_head *head)
 
 	for_each_pci_resource(dev, r, i, PCI_ALL_RES) {
 		struct pci_dev_resource *dev_res, *tmp;
-		resource_size_t r_align;
+		resource_size_t r_align, r_size;
 		struct list_head *n;
 
 		if (r->flags & IORESOURCE_PCI_FIXED)
@@ -143,6 +143,7 @@ static void pdev_sort_resources(struct pci_dev *dev, struct list_head *head)
 				 i, r);
 			continue;
 		}
+		r_size = resource_size(r);
 
 		tmp = kzalloc(sizeof(*tmp), GFP_KERNEL);
 		if (!tmp)
@@ -159,7 +160,9 @@ static void pdev_sort_resources(struct pci_dev *dev, struct list_head *head)
 			align = pci_resource_alignment(dev_res->dev,
 							 dev_res->res);
 
-			if (r_align > align) {
+			if (r_align > align ||
+			    (r_align == align &&
+			     r_size > resource_size(dev_res->res))) {
 				n = &dev_res->list;
 				break;
 			}
