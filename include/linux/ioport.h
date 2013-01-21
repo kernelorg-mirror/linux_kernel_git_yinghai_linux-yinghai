@@ -163,6 +163,7 @@ int probe_resource(struct resource *b_res,
 			struct resource *busn_res,
 			resource_size_t needed_size, struct resource **p,
 			int skip_nr, int flags);
+void replace_resource(struct resource *old_res, struct resource *new_res);
 struct resource *lookup_resource(struct resource *root, resource_size_t start);
 int adjust_resource(struct resource *res, resource_size_t start,
 		    resource_size_t size);
