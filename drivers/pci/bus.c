@@ -98,6 +98,14 @@ void pci_bus_remove_resources(struct pci_bus *bus)
 	}
 }
 
+static bool pci_alloc_high_enable;
+void __init pci_alloc_high_get_opt(char *str)
+{
+	if (!strncmp(str, "off", 3))
+		pci_alloc_high_enable = false;
+	else if (!strncmp(str, "on", 2))
+		pci_alloc_high_enable = true;
+}
 /**
  * pci_bus_alloc_resource - allocate a resource from a parent bus
  * @bus: PCI bus
@@ -114,26 +122,24 @@ void pci_bus_remove_resources(struct pci_bus *bus)
  * for a specific device resource.
  */
 int
-pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+pci_bus_alloc_resource_fit(struct pci_bus *bus, struct resource *res,
 		resource_size_t size, resource_size_t align,
 		resource_size_t min, unsigned int type_mask,
 		resource_size_t (*alignf)(void *,
 					  const struct resource *,
 					  resource_size_t,
 					  resource_size_t),
-		void *alignf_data)
+		void *alignf_data, bool fit)
 {
 	int i, ret = -ENOMEM;
 	struct resource *r;
-	resource_size_t max = -1;
 
 	type_mask |= IORESOURCE_IO | IORESOURCE_MEM;
 
-	/* don't allocate too high if the pref mem doesn't support 64bit*/
-	if (!(res->flags & IORESOURCE_MEM_64))
-		max = PCIBIOS_MAX_MEM_32;
-
 	pci_bus_for_each_resource(bus, r, i) {
+		resource_size_t start, end, middle;
+		struct pci_bus_region region;
+
 		if (!r)
 			continue;
 
@@ -147,80 +153,97 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 		    !(res->flags & IORESOURCE_PREFETCH))
 			continue;
 
+		start = 0;
+		end = MAX_RESOURCE;
+		if (!pci_alloc_high_enable)
+			goto again;
+		/*
+		 * don't allocate too high if the pref mem doesn't
+		 * support 64bit, also if this is a 64-bit mem
+		 * resource, try above 4GB first
+		 */
+		__pcibios_resource_to_bus(bus, &region, r);
+		if (region.start <= PCI_MAX_ADDR_32 &&
+		    region.end > PCI_MAX_ADDR_32) {
+			middle = pcibios_bus_addr_to_res(bus, res->flags,
+						      PCI_MAX_ADDR_32);
+			if (res->flags & IORESOURCE_MEM_64)
+				start = middle + 1;
+			else
+				end = middle;
+		} else if (region.start > PCI_MAX_ADDR_32 &&
+			   !(res->flags & IORESOURCE_MEM_64))
+				continue;
+
+again:
 		/* Ok, try it out.. */
-		ret = allocate_resource(r, res, size,
-					r->start ? : min,
-					max, align,
-					alignf, alignf_data);
+		ret = allocate_resource_fit(r, res, size,
+					max(start, r->start ? : min),
+					end, align,
+					alignf, alignf_data, fit);
 		if (ret == 0)
-			break;
+			return 0;
+
+		if (start != 0) {
+			start = 0;
+			goto again;
+		}
 	}
+
+
 	return ret;
 }
 
+void __weak pcibios_resource_survey_bus(struct pci_bus *bus) { }
+
+static void pci_bus_attach_device(struct pci_dev *dev)
+{
+	int ret;
+
+	dev->match_driver = true;
+	ret = device_attach(&dev->dev);
+	WARN_ON(ret < 0);
+}
+
+int
+pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+		resource_size_t size, resource_size_t align,
+		resource_size_t min, unsigned int type_mask,
+		resource_size_t (*alignf)(void *,
+					  const struct resource *,
+					  resource_size_t,
+					  resource_size_t),
+		void *alignf_data)
+{
+	return pci_bus_alloc_resource_fit(bus, res, size, align, min, type_mask,
+					alignf, alignf_data, false);
+}
+
 /**
- * pci_bus_add_device - add a single device
+ * pci_bus_add_device - start driver for a single device
  * @dev: device to add
  *
- * This adds a single pci device to the global
- * device list and adds sysfs and procfs entries
+ * This adds add sysfs entries and start device drivers
  */
 int pci_bus_add_device(struct pci_dev *dev)
 {
-	int retval;
-
-	pci_fixup_device(pci_fixup_final, dev);
-
-	retval = pcibios_add_device(dev);
-	if (retval)
-		return retval;
-
-	retval = device_add(&dev->dev);
-	if (retval)
-		return retval;
-
-	dev->is_added = 1;
-	pci_proc_attach_device(dev);
+	/*
+	 * Can not put in pci_device_add yet because pci resources
+	 * are not assigned yet for some pci devices.
+	 */
 	pci_create_sysfs_dev_files(dev);
+
+	pci_bus_attach_device(dev);
+	dev->is_added = 1;
+
 	return 0;
 }
 
 /**
- * pci_bus_add_child - add a child bus
- * @bus: bus to add
- *
- * This adds sysfs entries for a single bus
- */
-int pci_bus_add_child(struct pci_bus *bus)
-{
-	int retval;
-
-	if (bus->bridge)
-		bus->dev.parent = bus->bridge;
-
-	retval = device_register(&bus->dev);
-	if (retval)
-		return retval;
-
-	bus->is_added = 1;
-
-	/* Create legacy_io and legacy_mem files for this bus */
-	pci_create_legacy_files(bus);
-
-	return retval;
-}
-
-/**
- * pci_bus_add_devices - insert newly discovered PCI devices
+ * pci_bus_add_devices - start driver for PCI devices
  * @bus: bus to check for new devices
  *
- * Add newly discovered PCI devices (which are on the bus->devices
- * list) to the global PCI device list, add the sysfs and procfs
- * entries.  Where a bridge is found, add the discovered bus to
- * the parents list of child buses, and recurse (breadth-first
- * to be compatible with 2.4)
- *
- * Call hotplug for each new devices.
+ * Start driver for PCI devices and add some sysfs entries.
  */
 void pci_bus_add_devices(const struct pci_bus *bus)
 {
@@ -233,36 +256,20 @@ void pci_bus_add_devices(const struct pci_bus *bus)
 		if (dev->is_added)
 			continue;
 		retval = pci_bus_add_device(dev);
-		if (retval)
-			dev_err(&dev->dev, "Error adding device, continuing\n");
 	}
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
 		BUG_ON(!dev->is_added);
 
 		child = dev->subordinate;
-		/*
-		 * If there is an unattached subordinate bus, attach
-		 * it and then scan for unattached PCI devices.
-		 */
+
 		if (!child)
 			continue;
-		if (list_empty(&child->node)) {
-			down_write(&pci_bus_sem);
-			list_add_tail(&child->node, &dev->bus->children);
-			up_write(&pci_bus_sem);
-		}
 		pci_bus_add_devices(child);
 
-		/*
-		 * register the bus with sysfs as the parent is now
-		 * properly registered.
-		 */
 		if (child->is_added)
 			continue;
-		retval = pci_bus_add_child(child);
-		if (retval)
-			dev_err(&dev->dev, "Error adding bus, continuing\n");
+		child->is_added = 1;
 	}
 }
 

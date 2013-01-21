@@ -412,7 +412,6 @@ static int enable_slot(struct hotplug_slot *bss_hotplug_slot)
 	if (SN_ACPI_BASE_SUPPORT() && ssdt) {
 		unsigned long long adr;
 		struct acpi_device *pdevice;
-		struct acpi_device *device;
 		acpi_handle phandle;
 		acpi_handle chandle = NULL;
 		acpi_handle rethandle;
@@ -448,17 +447,14 @@ static int enable_slot(struct hotplug_slot *bss_hotplug_slot)
 			if (ACPI_SUCCESS(ret) &&
 			    (adr>>16) == (slot->device_num + 1)) {
 
-				ret = acpi_bus_add(&device, pdevice, chandle,
-						   ACPI_BUS_TYPE_DEVICE);
+				ret = acpi_bus_scan(chandle);
 				if (ACPI_FAILURE(ret)) {
-					printk(KERN_ERR "%s: acpi_bus_add "
+					printk(KERN_ERR "%s: acpi_bus_scan "
 					       "failed (0x%x) for slot %d "
 					       "func %d\n", __func__,
 					       ret, (int)(adr>>16),
 					       (int)(adr&0xffff));
 					/* try to continue on */
-				} else {
-					acpi_bus_start(device);
 				}
 			}
 		}
@@ -539,7 +535,7 @@ static int disable_slot(struct hotplug_slot *bss_hotplug_slot)
 				ret = acpi_bus_get_device(chandle,
 							  &device);
 				if (ACPI_SUCCESS(ret))
-					acpi_bus_trim(device, 1);
+					acpi_bus_trim(device);
 			}
 		}
 
@@ -678,7 +674,7 @@ alloc_err:
 
 static int __init sn_pci_hotplug_init(void)
 {
-	struct pci_bus *pci_bus = NULL;
+	struct pci_host_bridge *host_bridge = NULL;
 	int rc;
 	int registered = 0;
 
@@ -690,7 +686,9 @@ static int __init sn_pci_hotplug_init(void)
 
 	INIT_LIST_HEAD(&sn_hp_list);
 
-	while ((pci_bus = pci_find_next_bus(pci_bus))) {
+	for_each_pci_host_bridge(host_bridge) {
+		struct pci_bus *pci_bus = host_bridge->bus;
+
 		if (!pci_bus->sysdata)
 			continue;
 

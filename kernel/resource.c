@@ -46,6 +46,7 @@ struct resource_constraint {
 	resource_size_t (*alignf)(void *, const struct resource *,
 			resource_size_t, resource_size_t);
 	void *alignf_data;
+	bool fit;
 };
 
 static DEFINE_RWLOCK(resource_lock);
@@ -437,7 +438,7 @@ static int __find_resource(struct resource *root, struct resource *old,
 			alloc.end = alloc.start + size - 1;
 			if (resource_contains(&avail, &alloc)) {
 				new->start = alloc.start;
-				new->end = alloc.end;
+				new->end = !old ? avail.end : alloc.end;
 				return 0;
 			}
 		}
@@ -452,6 +453,10 @@ next:		if (!this || this->end == root->end)
 	return -EBUSY;
 }
 
+struct avail_resource {
+	struct list_head list;
+	struct resource res;
+};
 /*
  * Find empty slot in the resource tree given range and alignment.
  */
@@ -459,7 +464,67 @@ static int find_resource(struct resource *root, struct resource *new,
 			resource_size_t size,
 			struct resource_constraint  *constraint)
 {
-	return  __find_resource(root, NULL, new, size, constraint);
+	int ret = -1;
+	LIST_HEAD(head);
+	struct avail_resource *avail, *tmp;
+	resource_size_t avail_start = 0, avail_size = -1ULL;
+
+	if (!constraint->fit) {
+		ret = __find_resource(root, NULL, new, size, constraint);
+		if (!ret)
+			new->end = new->start + size - 1;
+		return ret;
+	}
+
+again:
+	/* find all suitable ones */
+	avail = kzalloc(sizeof(*avail), GFP_KERNEL);
+	if (!avail)
+		goto out;
+
+	avail->res.start = new->start;
+	avail->res.end = new->end;
+	avail->res.flags = new->flags;
+	ret = __find_resource(root, NULL, &avail->res, size, constraint);
+	if (ret || __request_resource(root, &avail->res)) {
+		ret = -EBUSY;
+		kfree(avail);
+		goto out;
+	}
+	/* add to the list */
+	list_add(&avail->list, &head);
+	goto again;
+
+out:
+	/* pick up the smallest one and delete the list */
+	list_for_each_entry_safe(avail, tmp, &head, list) {
+		if (resource_size(&avail->res) < avail_size) {
+			avail_size = resource_size(&avail->res);
+			avail_start = avail->res.start;
+			ret = 0;
+		}
+		list_del(&avail->list);
+		__release_resource(&avail->res);
+		kfree(avail);
+	}
+
+	if (!ret) {
+		/* compare which one have max order */
+		new->start = round_down(avail_start + avail_size - size,
+					 constraint->align);
+		new->end = avail_start + avail_size - 1;
+		new->start = constraint->alignf(constraint->alignf_data, new,
+					size, constraint->align);
+		new->end = new->start + size - 1;
+
+		if (new->start < avail_start ||
+		    new->end > (avail_start + avail_size - 1) ||
+		    __ffs64(new->start) >= __ffs64(avail_start)) {
+			new->start = avail_start;
+			new->end = new->start + size - 1;
+		}
+	}
+	return ret;
 }
 
 /**
@@ -472,7 +537,7 @@ static int find_resource(struct resource *root, struct resource *new,
  * @newsize: new size of the resource descriptor
  * @constraint: the size and alignment constraints to be met.
  */
-int reallocate_resource(struct resource *root, struct resource *old,
+static int __reallocate_resource(struct resource *root, struct resource *old,
 			resource_size_t newsize,
 			struct resource_constraint  *constraint)
 {
@@ -480,7 +545,6 @@ int reallocate_resource(struct resource *root, struct resource *old,
 	struct resource new = *old;
 	struct resource *conflict;
 
-	write_lock(&resource_lock);
 
 	if ((err = __find_resource(root, old, &new, newsize, constraint)))
 		goto out;
@@ -506,11 +570,20 @@ int reallocate_resource(struct resource *root, struct resource *old,
 		BUG_ON(conflict);
 	}
 out:
-	write_unlock(&resource_lock);
 	return err;
 }
+int reallocate_resource(struct resource *root, struct resource *old,
+			resource_size_t newsize,
+			struct resource_constraint  *constraint)
+{
+	int ret;
 
+	write_lock(&resource_lock);
+	ret = __reallocate_resource(root, old, newsize, constraint);
+	write_unlock(&resource_lock);
 
+	return ret;
+}
 /**
  * allocate_resource - allocate empty slot in the resource tree given range & alignment.
  * 	The resource will be reallocated with a new size if it was already allocated
@@ -523,14 +596,14 @@ out:
  * @alignf: alignment function, optional, called if not NULL
  * @alignf_data: arbitrary data to pass to the @alignf function
  */
-int allocate_resource(struct resource *root, struct resource *new,
+static int __allocate_resource(struct resource *root, struct resource *new,
 		      resource_size_t size, resource_size_t min,
 		      resource_size_t max, resource_size_t align,
 		      resource_size_t (*alignf)(void *,
 						const struct resource *,
 						resource_size_t,
 						resource_size_t),
-		      void *alignf_data)
+		      void *alignf_data, bool fit)
 {
 	int err;
 	struct resource_constraint constraint;
@@ -543,21 +616,50 @@ int allocate_resource(struct resource *root, struct resource *new,
 	constraint.align = align;
 	constraint.alignf = alignf;
 	constraint.alignf_data = alignf_data;
+	constraint.fit = fit;
 
-	if ( new->parent ) {
+	if (new->parent) {
 		/* resource is already allocated, try reallocating with
 		   the new constraints */
-		return reallocate_resource(root, new, size, &constraint);
+		return __reallocate_resource(root, new, size, &constraint);
 	}
 
-	write_lock(&resource_lock);
 	err = find_resource(root, new, size, &constraint);
 	if (err >= 0 && __request_resource(root, new))
 		err = -EBUSY;
-	write_unlock(&resource_lock);
+
 	return err;
 }
+int allocate_resource_fit(struct resource *root, struct resource *new,
+		      resource_size_t size, resource_size_t min,
+		      resource_size_t max, resource_size_t align,
+		      resource_size_t (*alignf)(void *,
+						const struct resource *,
+						resource_size_t,
+						resource_size_t),
+		      void *alignf_data, bool fit)
+{
+	int ret;
 
+	write_lock(&resource_lock);
+	ret = __allocate_resource(root, new, size, min, max, align,
+				   alignf, alignf_data, fit);
+	write_unlock(&resource_lock);
+
+	return ret;
+}
+int allocate_resource(struct resource *root, struct resource *new,
+		      resource_size_t size, resource_size_t min,
+		      resource_size_t max, resource_size_t align,
+		      resource_size_t (*alignf)(void *,
+						const struct resource *,
+						resource_size_t,
+						resource_size_t),
+		      void *alignf_data)
+{
+	return allocate_resource_fit(root, new, size, min, max,
+					align, alignf, alignf_data, false);
+}
 EXPORT_SYMBOL(allocate_resource);
 
 /**
@@ -716,13 +818,12 @@ void insert_resource_expand_to_fit(struct resource *root, struct resource *new)
  * arguments.  Returns 0 on success, -EBUSY if it can't fit.
  * Existing children of the resource are assumed to be immutable.
  */
-int adjust_resource(struct resource *res, resource_size_t start, resource_size_t size)
+static int __adjust_resource(struct resource *res, resource_size_t start,
+			     resource_size_t size)
 {
 	struct resource *tmp, *parent = res->parent;
 	resource_size_t end = start + size - 1;
 	int result = -EBUSY;
-
-	write_lock(&resource_lock);
 
 	if (!parent)
 		goto skip;
@@ -751,8 +852,18 @@ skip:
 	result = 0;
 
  out:
-	write_unlock(&resource_lock);
 	return result;
+}
+int adjust_resource(struct resource *res, resource_size_t start,
+		    resource_size_t size)
+{
+	int ret;
+
+	write_lock(&resource_lock);
+	ret = __adjust_resource(res, start, size);
+	write_unlock(&resource_lock);
+
+	return ret;
 }
 EXPORT_SYMBOL(adjust_resource);
 
@@ -1011,6 +1122,176 @@ void __release_region(struct resource *parent, resource_size_t start,
 		(unsigned long long)end);
 }
 EXPORT_SYMBOL(__release_region);
+
+static int __resource_shrink_parents_top(struct resource *b_res,
+		 long size, struct resource *parent_res)
+{
+	struct resource *res = b_res;
+
+	if (size <= 0)
+		return 0;
+
+	while (res && res != parent_res) {
+		if (__adjust_resource(res, res->start,
+			 resource_size(res) - size)) {
+			struct resource *tmp = b_res;
+
+			/* roll back */
+			while (tmp != res) {
+				__adjust_resource(tmp, tmp->start,
+					resource_size(tmp) + size);
+				tmp = tmp->parent;
+			}
+
+			return -EBUSY;
+
+		}
+		res = res->parent;
+	}
+
+	return 0;
+}
+
+int resource_shrink_parents_top(struct resource *b_res,
+		 long size, struct resource *parent_res)
+{
+	int ret;
+
+	write_lock(&resource_lock);
+	ret = __resource_shrink_parents_top(b_res, size, parent_res);
+	write_unlock(&resource_lock);
+
+	return ret;
+}
+
+static resource_size_t __find_res_under_top_free_size(struct resource *res,
+							 int skip_nr)
+{
+	resource_size_t n_size;
+
+	/*
+	 *   find out free number below res->end that we can use.
+	 *	res->start to res->start + skip_nr - 1 can not be used.
+	 */
+	if (res->child) {
+		struct resource *child = res->child;
+
+		while (child->sibling)
+			child = child->sibling;
+
+		/* check if children cover skip_nr */
+		if (child->end - res->start + 1 >= skip_nr)
+			return res->end - child->end;
+	}
+
+	n_size = resource_size(res);
+	if (n_size <= skip_nr)
+		return 0;
+	return n_size - skip_nr;
+}
+
+/**
+ * probe_resource - Probe resource in parent resource.
+ * @b_res: parent resource descriptor
+ * @busn_res: return probed resource
+ * @needed_size: target size
+ * @p: pointer to farest parent that we extend the top
+ * @skip_nr: number in b_res start that we need to skip.
+ * @stop_flags: flags for stopping extend parent res
+ *
+ * will try to allocate resource in b_res, if can not find the range
+ *  will try to extend parent resources' top.
+ */
+int probe_resource(struct resource *b_res,
+			 struct resource *busn_res,
+			 resource_size_t needed_size, struct resource **p,
+			 int skip_nr, int stop_flags)
+{
+	int ret;
+	resource_size_t n_size;
+	struct resource *parent_res;
+
+	write_lock(&resource_lock);
+	/*
+	 * We first try to allocate range in b_res that
+	 *  we can use in b_res directly.
+	 *  we also need to skip skip_nr from start of b_res.
+	 */
+	memset(busn_res, 0, sizeof(struct resource));
+	ret = __allocate_resource(b_res, busn_res, needed_size,
+				b_res->start + skip_nr, b_res->end,
+				1, NULL, NULL, false);
+	if (!ret) {
+		*p = NULL;
+		goto out;
+	}
+
+	/* Try to extend the top of parent resources to meet needed_size */
+
+	/* b_res could be root bus resource and can not be extended */
+	if (b_res->flags & stop_flags)
+		goto out;
+
+	/* find out free range under top at first */
+	n_size = __find_res_under_top_free_size(b_res, skip_nr);
+
+	/* Probe extended range above top */
+	memset(busn_res, 0, sizeof(struct resource));
+	parent_res = b_res;
+	while (parent_res && !(parent_res->flags & stop_flags)) {
+		ret = __adjust_resource(parent_res, parent_res->start,
+			resource_size(parent_res) + (needed_size - n_size));
+		if (!ret) {
+			struct resource *res = b_res;
+
+			/* save parent_res, we need it as stopper later */
+			*p = parent_res->parent;
+
+			/* extend parent resources top */
+			while (res && res != parent_res) {
+				res->end += needed_size - n_size;
+				res = res->parent;
+			}
+
+			ret = __allocate_resource(b_res, busn_res, needed_size,
+					b_res->start + skip_nr, b_res->end,
+					1, NULL, NULL, false);
+			/* ret must be 0 here*/
+			goto out;
+		}
+		parent_res = parent_res->parent;
+	}
+
+out:
+	write_unlock(&resource_lock);
+
+	return ret;
+}
+
+/* replace old with new in the resource tree */
+void replace_resource(struct resource *old, struct resource *new)
+{
+	struct resource *parent, *tmp, *p;
+
+	write_lock(&resource_lock);
+	new->start = old->start;
+	new->end = old->end;
+	new->flags = old->flags;
+
+	p = old->child;
+	while (p) {
+		tmp = p;
+		p = p->sibling;
+		__release_resource(tmp);
+		__request_resource(new, tmp);
+	}
+	parent = old->parent;
+	if (parent) {
+		__release_resource(old);
+		__request_resource(parent, new);
+	}
+	write_unlock(&resource_lock);
+}
 
 /*
  * Managed region resource

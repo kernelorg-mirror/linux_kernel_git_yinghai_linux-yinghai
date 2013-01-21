@@ -280,6 +280,7 @@ static void pci_fixed_bar_fixup(struct pci_dev *dev)
 	unsigned long offset;
 	u32 size;
 	int i;
+	struct resource *res;
 
 	if (!pci_soc_mode)
 		return;
@@ -294,10 +295,10 @@ static void pci_fixed_bar_fixup(struct pci_dev *dev)
 	    PCI_DEVFN(2, 2) == dev->devfn)
 		return;
 
-	for (i = 0; i < PCI_ROM_RESOURCE; i++) {
+	for_each_pci_resource(dev, res, i, PCI_STD_RES) {
 		pci_read_config_dword(dev, offset + 8 + (i * 4), &size);
-		dev->resource[i].end = dev->resource[i].start + size - 1;
-		dev->resource[i].flags |= IORESOURCE_PCI_FIXED;
+		res->end = res->start + size - 1;
+		res->flags |= IORESOURCE_PCI_FIXED;
 	}
 }
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, PCI_ANY_ID, pci_fixed_bar_fixup);

@@ -48,12 +48,7 @@ static struct pci_bus *virtfn_add_bus(struct pci_bus *bus, int busnr)
 		return NULL;
 
 	pci_bus_insert_busn_res(child, busnr, busnr);
-	child->dev.parent = bus->bridge;
-	rc = pci_bus_add_child(child);
-	if (rc) {
-		pci_remove_bus(child);
-		return NULL;
-	}
+	bus->is_added = 1;
 
 	return child;
 }
@@ -99,17 +94,20 @@ static int virtfn_add(struct pci_dev *dev, int id, int reset)
 	pci_setup_device(virtfn);
 	virtfn->dev.parent = dev->dev.parent;
 
-	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
-		res = dev->resource + PCI_IOV_RESOURCES + i;
+	for_each_pci_resource(dev, res, i, PCI_IOV_RES) {
+		struct resource *virtfn_res;
+
 		if (!res->parent)
 			continue;
-		virtfn->resource[i].name = pci_name(virtfn);
-		virtfn->resource[i].flags = res->flags;
+
+		virtfn_res = pci_dev_resource_n(virtfn, i - PCI_IOV_RESOURCES);
+		virtfn_res->name = pci_name(virtfn);
+		virtfn_res->flags = res->flags;
 		size = resource_size(res);
 		do_div(size, iov->total_VFs);
-		virtfn->resource[i].start = res->start + size * id;
-		virtfn->resource[i].end = virtfn->resource[i].start + size - 1;
-		rc = request_resource(res, &virtfn->resource[i]);
+		virtfn_res->start = res->start + size * id;
+		virtfn_res->end = virtfn_res->start + size - 1;
+		rc = request_resource(res, virtfn_res);
 		BUG_ON(rc);
 	}
 
@@ -123,8 +121,6 @@ static int virtfn_add(struct pci_dev *dev, int id, int reset)
 	virtfn->is_virtfn = 1;
 
 	rc = pci_bus_add_device(virtfn);
-	if (rc)
-		goto failed1;
 	sprintf(buf, "virtfn%u", id);
 	rc = sysfs_create_link(&dev->dev.kobj, &virtfn->dev.kobj, buf);
 	if (rc)
@@ -313,9 +309,8 @@ static int sriov_enable(struct pci_dev *dev, int nr_virtfn)
 		return -EIO;
 
 	nres = 0;
-	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
-		bars |= (1 << (i + PCI_IOV_RESOURCES));
-		res = dev->resource + PCI_IOV_RESOURCES + i;
+	for_each_pci_resource(dev, res, i, PCI_IOV_RES) {
+		bars |= 1 << i;
 		if (res->parent)
 			nres++;
 	}
@@ -473,10 +468,9 @@ found:
 	pci_write_config_dword(dev, pos + PCI_SRIOV_SYS_PGSIZE, pgsz);
 
 	nres = 0;
-	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
-		res = dev->resource + PCI_IOV_RESOURCES + i;
+	for_each_pci_resource(dev, res, i, PCI_IOV_RES) {
 		i += __pci_read_base(dev, pci_bar_unknown, res,
-				     pos + PCI_SRIOV_BAR + i * 4);
+			     pos + PCI_SRIOV_BAR + (i - PCI_IOV_RESOURCES) * 4);
 		if (!res->flags)
 			continue;
 		if (resource_size(res) & (PAGE_SIZE - 1)) {
@@ -519,10 +513,8 @@ found:
 	return 0;
 
 failed:
-	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
-		res = dev->resource + PCI_IOV_RESOURCES + i;
+	for_each_pci_resource(dev, res, i, PCI_IOV_RES)
 		res->flags = 0;
-	}
 
 	return rc;
 }
