@@ -986,6 +986,7 @@ int __pci_reset_function_locked(struct pci_dev *dev);
 int pci_reset_function(struct pci_dev *dev);
 void pci_update_resource(struct pci_dev *dev, int resno);
 int __must_check pci_assign_resource(struct pci_dev *dev, int i);
+int __must_check pci_assign_resource_fit(struct pci_dev *dev, int i, bool fit);
 int __must_check pci_reassign_resource(struct pci_dev *dev, int i, resource_size_t add_size, resource_size_t align);
 int pci_select_bars(struct pci_dev *dev, unsigned long flags);
 
@@ -1100,6 +1101,15 @@ int __must_check pci_bus_alloc_resource(struct pci_bus *bus,
 						  resource_size_t,
 						  resource_size_t),
 			void *alignf_data);
+int __must_check pci_bus_alloc_resource_fit(struct pci_bus *bus,
+			struct resource *res, resource_size_t size,
+			resource_size_t align, resource_size_t min,
+			unsigned int type_mask,
+			resource_size_t (*alignf)(void *,
+						  const struct resource *,
+						  resource_size_t,
+						  resource_size_t),
+			void *alignf_data, bool fit);
 void pci_enable_bridges(struct pci_bus *bus);
 
 /* Proper probing supporting hot-pluggable devices */
