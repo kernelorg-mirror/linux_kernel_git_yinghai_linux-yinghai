@@ -516,6 +516,7 @@ arch_initcall(sn_io_early_init);
 int __init
 sn_io_late_init(void)
 {
+	struct pci_host_bridge *host_bridge = NULL;
 	struct pci_bus *bus;
 	struct pcibus_bussoft *bussoft;
 	cnodeid_t cnode;
@@ -530,8 +531,8 @@ sn_io_late_init(void)
 	 * PIC, TIOCP, TIOCE (TIOCA does it during bus fixup using
 	 * info from the PROM).
 	 */
-	bus = NULL;
-	while ((bus = pci_find_next_bus(bus)) != NULL) {
+	for_each_pci_host_bridge(host_bridge) {
+		bus = host_bridge->bus;
 		bussoft = SN_PCIBUS_BUSSOFT(bus);
 		nasid = NASID_GET(bussoft->bs_base);
 		cnode = nasid_to_cnodeid(nasid);
