@@ -149,6 +149,14 @@ extern struct resource *insert_resource_conflict(struct resource *parent, struct
 extern int insert_resource(struct resource *parent, struct resource *new);
 extern void insert_resource_expand_to_fit(struct resource *root, struct resource *new);
 extern void arch_remove_reservations(struct resource *avail);
+int allocate_resource_fit(struct resource *root, struct resource *new,
+			     resource_size_t size, resource_size_t min,
+			     resource_size_t max, resource_size_t align,
+			     resource_size_t (*alignf)(void *,
+						       const struct resource *,
+						       resource_size_t,
+						       resource_size_t),
+			     void *alignf_data, bool fit);
 extern int allocate_resource(struct resource *root, struct resource *new,
 			     resource_size_t size, resource_size_t min,
 			     resource_size_t max, resource_size_t align,
