@@ -115,6 +115,8 @@ static unsigned long get_cmd_line_ptr(void)
 {
 	unsigned long cmd_line_ptr = boot_params.hdr.cmd_line_ptr;
 
+	cmd_line_ptr |= (u64)boot_params.ext_cmd_line_ptr << 32;
+
 	return cmd_line_ptr;
 }
 
