@@ -835,6 +835,8 @@ static int __init parse_memopt(char *p)
 }
 early_param("mem", parse_memopt);
 
+static bool __initdata exactmap_parsed;
+
 static int __init parse_memmap_one(char *p)
 {
 	char *oldp;
@@ -844,6 +846,10 @@ static int __init parse_memmap_one(char *p)
 		return -EINVAL;
 
 	if (!strncmp(p, "exactmap", 8)) {
+		if (exactmap_parsed)
+			return 0;
+
+		exactmap_parsed = true;
 #ifdef CONFIG_CRASH_DUMP
 		/*
 		 * If we are doing a crash dump, we still need to know
@@ -879,6 +885,12 @@ static int __init parse_memmap_one(char *p)
 }
 static int __init parse_memmap_opt(char *str)
 {
+	char *p = boot_command_line;
+
+	p = strstr(p, "exactmap");
+	if (p)
+		parse_memmap_one("exactmap");
+
 	while (str) {
 		char *k = strchr(str, ',');
 
