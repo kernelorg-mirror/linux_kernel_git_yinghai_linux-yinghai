@@ -836,6 +836,7 @@ static int __init parse_memopt(char *p)
 early_param("mem", parse_memopt);
 
 static bool __initdata exactmap_parsed;
+static bool __initdata reserveram_parsed;
 
 static int __init parse_memmap_one(char *p)
 {
@@ -845,7 +846,7 @@ static int __init parse_memmap_one(char *p)
 	if (!p)
 		return -EINVAL;
 
-	if (!strncmp(p, "exactmap", 8)) {
+	if (!strncmp(p, "exactmap", 8) || !strncmp(p, "reserveram", 10)) {
 		if (exactmap_parsed)
 			return 0;
 
@@ -858,7 +859,12 @@ static int __init parse_memmap_one(char *p)
 		 */
 		saved_max_pfn = e820_end_of_ram_pfn();
 #endif
-		e820.nr_map = 0;
+		if (!strncmp(p, "reserveram", 10)) {
+			e820_update_range(0, ULLONG_MAX, E820_RAM,
+					  E820_RESERVED);
+			reserveram_parsed = true;
+		} else
+			e820.nr_map = 0;
 		userdef = 1;
 		return 0;
 	}
@@ -871,6 +877,10 @@ static int __init parse_memmap_one(char *p)
 	userdef = 1;
 	if (*p == '@') {
 		start_at = memparse(p+1, &p);
+		if (reserveram_parsed) {
+			/* Remove old reserved so new ram could take over. */
+			e820_remove_range(start_at, mem_size, E820_RESERVED, 0);
+		}
 		e820_add_region(start_at, mem_size, E820_RAM);
 	} else if (*p == '#') {
 		start_at = memparse(p+1, &p);
@@ -890,6 +900,11 @@ static int __init parse_memmap_opt(char *str)
 	p = strstr(p, "exactmap");
 	if (p)
 		parse_memmap_one("exactmap");
+	else {
+		p = strstr(boot_command_line, "reserveram");
+		if (p)
+			parse_memmap_one("reserveram");
+	}
 
 	while (str) {
 		char *k = strchr(str, ',');
