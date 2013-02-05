@@ -207,10 +207,7 @@ void __devinit pcibios_setup_phb_io_space(struct pci_controller *hose)
 long sys_pciconfig_iobase(long which, unsigned long in_bus,
 			  unsigned long in_devfn)
 {
-	struct pci_controller* hose;
-	struct list_head *ln;
-	struct pci_bus *bus = NULL;
-	struct device_node *hose_node;
+	struct pci_host_bridge *host_bridge = NULL;
 
 	/* Argh ! Please forgive me for that hack, but that's the
 	 * simplest way to get existing XFree to not lockup on some
@@ -229,33 +226,49 @@ long sys_pciconfig_iobase(long which, unsigned long in_bus,
 	/* That syscall isn't quite compatible with PCI domains, but it's
 	 * used on pre-domains setup. We return the first match
 	 */
+	for_each_pci_host_bridge(host_bridge) {
+		struct device_node *hose_node;
+		struct pci_controller* hose;
+		struct pci_bus *bus;
+		long ret;
 
-	for (ln = pci_root_buses.next; ln != &pci_root_buses; ln = ln->next) {
-		bus = pci_bus_b(ln);
-		if (in_bus >= bus->number && in_bus <= bus->busn_res.end)
+		bus = host_bridge->bus;
+		if (in_bus < bus->number || in_bus > bus->busn_res.end)
+			continue;
+
+		if (!bus->dev.of_node) {
+			put_device(&host_bridge->dev);
+			return -ENODEV;
+		}
+
+		hose_node = bus->dev.of_node;
+		hose = PCI_DN(hose_node)->phb;
+
+		switch (which) {
+		case IOBASE_BRIDGE_NUMBER:
+			ret = (long)hose->first_busno;
 			break;
-		bus = NULL;
+		case IOBASE_MEMORY:
+			ret = (long)hose->pci_mem_offset;
+			break;
+		case IOBASE_IO:
+			ret = (long)hose->io_base_phys;
+			break;
+		case IOBASE_ISA_IO:
+			ret = (long)isa_io_base;
+			break;
+		case IOBASE_ISA_MEM:
+			ret = -EINVAL;
+			break;
+		default:
+			ret = -EOPNOTSUPP;
+		}
+
+		put_device(&host_bridge->dev);
+		return ret;
 	}
-	if (bus == NULL || bus->dev.of_node == NULL)
-		return -ENODEV;
 
-	hose_node = bus->dev.of_node;
-	hose = PCI_DN(hose_node)->phb;
-
-	switch (which) {
-	case IOBASE_BRIDGE_NUMBER:
-		return (long)hose->first_busno;
-	case IOBASE_MEMORY:
-		return (long)hose->pci_mem_offset;
-	case IOBASE_IO:
-		return (long)hose->io_base_phys;
-	case IOBASE_ISA_IO:
-		return (long)isa_io_base;
-	case IOBASE_ISA_MEM:
-		return -EINVAL;
-	}
-
-	return -EOPNOTSUPP;
+	return -ENODEV;
 }
 
 #ifdef CONFIG_NUMA
