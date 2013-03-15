@@ -354,9 +354,11 @@ out:
 static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 {
 	unsigned int pos, reg;
+	struct resource *res;
 
-	for (pos = 0; pos < howmany; pos++) {
-		struct resource *res = &dev->resource[pos];
+	for_each_pci_resource(dev, res, pos, PCI_STD_RES) {
+		if (pos >= howmany)
+			break;
 		reg = PCI_BASE_ADDRESS_0 + (pos << 2);
 		pos += __pci_read_base(dev, pci_bar_unknown, res, reg);
 	}
