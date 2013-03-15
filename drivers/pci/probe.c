@@ -107,8 +107,19 @@ postcore_initcall(pcibus_class_init);
 
 struct resource *pci_dev_resource_n(struct pci_dev *dev, int n)
 {
-	if (n >= 0 && n < PCI_NUM_RESOURCES)
+	struct pci_dev_addon_resource *addon_res;
+
+	if (n < 0)
+		return NULL;
+
+	if (n < PCI_NUM_RESOURCES)
 		return &dev->resource[n];
+
+	n -= PCI_NUM_RESOURCES;
+	list_for_each_entry(addon_res, &dev->addon_resources, list) {
+		if (n-- == 0)
+			return &addon_res->res;
+	}
 
 	return NULL;
 }
@@ -116,11 +127,31 @@ EXPORT_SYMBOL(pci_dev_resource_n);
 
 int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res)
 {
+	struct pci_dev_addon_resource *addon_res;
+	int n;
+
 	if (res >= dev->resource &&
 	    res <= dev->resource + (PCI_NUM_RESOURCES - 1))
 		return res - dev->resource;
 
+	n = PCI_NUM_RESOURCES;
+	list_for_each_entry(addon_res, &dev->addon_resources, list) {
+		if (res == &addon_res->res)
+			return n;
+		n++;
+	}
+
 	return -1;
+}
+
+static void pci_release_dev_addon_resource(struct pci_dev *dev)
+{
+	struct pci_dev_addon_resource *addon_res, *tmp;
+
+	list_for_each_entry_safe(addon_res, tmp, &dev->addon_resources, list) {
+		list_del(&addon_res->list);
+		kfree(addon_res);
+	}
 }
 
 static void __init_res_idx_mask(unsigned long *mask, int flag)
@@ -165,6 +196,9 @@ int pci_next_resource_idx(int i, int flag)
 		i = find_next_bit(get_res_idx_mask(flag), PCI_NUM_RESOURCES, i);
 
 	if (i < PCI_NUM_RESOURCES)
+		return i;
+
+	if (flag & PCI_ADDON_RES)
 		return i;
 
 	return -1;
@@ -1199,6 +1233,7 @@ static void pci_release_dev(struct device *dev)
 	pci_dev = to_pci_dev(dev);
 	pci_release_capabilities(pci_dev);
 	pci_release_of_node(pci_dev);
+	pci_release_dev_addon_resource(pci_dev);
 	kfree(pci_dev);
 }
 
@@ -1276,6 +1311,7 @@ struct pci_dev *alloc_pci_dev(void)
 		return NULL;
 
 	INIT_LIST_HEAD(&dev->bus_list);
+	INIT_LIST_HEAD(&dev->addon_resources);
 
 	return dev;
 }
