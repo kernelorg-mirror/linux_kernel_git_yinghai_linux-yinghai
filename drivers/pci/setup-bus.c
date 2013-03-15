@@ -106,7 +106,7 @@ static resource_size_t get_res_add_size(struct list_head *head,
 
 	list_for_each_entry(dev_res, head, list) {
 		if (dev_res->res == res) {
-			int idx = res - &dev_res->dev->resource[0];
+			int idx = pci_dev_resource_idx(dev_res->dev, res);
 
 			dev_printk(KERN_DEBUG, &dev_res->dev->dev,
 				 "res[%d]=%pR get_res_add_size add_size %llx\n",
@@ -124,14 +124,12 @@ static resource_size_t get_res_add_size(struct list_head *head,
 static void pdev_sort_resources(struct pci_dev *dev, struct list_head *head)
 {
 	int i;
+	struct resource *r;
 
-	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
-		struct resource *r;
+	for_each_pci_resource(dev, r, i, PCI_ALL_RES) {
 		struct pci_dev_resource *dev_res, *tmp;
 		resource_size_t r_align;
 		struct list_head *n;
-
-		r = &dev->resource[i];
 
 		if (r->flags & IORESOURCE_PCI_FIXED)
 			continue;
@@ -237,7 +235,7 @@ static void reassign_resources_sorted(struct list_head *realloc_head,
 		if (!found_match)/* just skip */
 			continue;
 
-		idx = res - &add_res->dev->resource[0];
+		idx = pci_dev_resource_idx(add_res->dev, res);
 		add_size = add_res->add_size;
 		if (!resource_size(res)) {
 			res->start = add_res->start;
@@ -280,7 +278,7 @@ static void assign_requested_resources_sorted(struct list_head *head,
 
 	list_for_each_entry(dev_res, head, list) {
 		res = dev_res->res;
-		idx = res - &dev_res->dev->resource[0];
+		idx = pci_dev_resource_idx(dev_res->dev, res);
 		if (resource_size(res) &&
 		    pci_assign_resource(dev_res->dev, idx)) {
 			if (fail_head) {
@@ -757,9 +755,9 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 	io_align = min_align = window_alignment(bus, IORESOURCE_IO);
 	list_for_each_entry(dev, &bus->devices, bus_list) {
 		int i;
+		struct resource *r;
 
-		for (i = 0; i < PCI_NUM_RESOURCES; i++) {
-			struct resource *r = &dev->resource[i];
+		for_each_pci_resource(dev, r, i, PCI_ALL_RES) {
 			unsigned long r_size;
 
 			if (r->parent || !(r->flags & IORESOURCE_IO))
@@ -870,9 +868,9 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
 		int i;
+		struct resource *r;
 
-		for (i = 0; i < PCI_NUM_RESOURCES; i++) {
-			struct resource *r = &dev->resource[i];
+		for_each_pci_resource(dev, r, i, PCI_ALL_RES) {
 			resource_size_t r_size;
 
 			if (r->parent || (r->flags & mask) != type)
@@ -1196,9 +1194,7 @@ static void pci_bridge_release_resources(struct pci_bus *bus,
 				  IORESOURCE_PREFETCH;
 
 	dev = bus->self;
-	for (idx = PCI_BRIDGE_RESOURCES; idx <= PCI_BRIDGE_RESOURCE_END;
-	     idx++) {
-		r = &dev->resource[idx];
+	for_each_pci_resource(dev, r, idx, PCI_BRIDGE_RES) {
 		if ((r->flags & type_mask) != type)
 			continue;
 		if (!r->parent)
@@ -1369,9 +1365,9 @@ static void __init pci_realloc_detect(void)
 
 	for_each_pci_dev(dev) {
 		int i;
+		struct resource *r;
 
-		for (i = PCI_IOV_RESOURCES; i <= PCI_IOV_RESOURCE_END; i++) {
-			struct resource *r = &dev->resource[i];
+		for_each_pci_resource(dev, r, i, PCI_IOV_RES) {
 
 			/* Not assigned, or rejected by kernel ? */
 			if (r->flags && !r->start) {
