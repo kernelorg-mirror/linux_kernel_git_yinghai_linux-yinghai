@@ -1173,7 +1173,8 @@ pci_dev_driver(const struct pci_dev *dev)
 		struct resource *res;
 		int i;
 
-		for_each_pci_resource((struct pci_dev *)dev, res, i, PCI_STD_ROM_RES)
+		for_each_pci_resource((struct pci_dev *)dev, res, i,
+					 PCI_STD_ROM_ADDON_RES)
 			if (res->flags & IORESOURCE_BUSY)
 				return &pci_compat_driver;
 	}

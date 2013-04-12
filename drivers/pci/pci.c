@@ -442,7 +442,7 @@ pci_restore_bars(struct pci_dev *dev)
 	int i;
 	struct resource *res;
 
-	for_each_pci_resource(dev, res, i, PCI_STD_ROM_IOV_RES)
+	for_each_pci_resource(dev, res, i, PCI_STD_ROM_IOV_ADDON_RES)
 		pci_update_resource(dev, i);
 }
 
@@ -1172,7 +1172,7 @@ static int pci_enable_device_flags(struct pci_dev *dev, unsigned long flags)
 		return 0;		/* already enabled */
 
 	/* only skip sriov related */
-	for_each_pci_resource(dev, res, i, PCI_STD_ROM_BRIDGE_RES) {
+	for_each_pci_resource(dev, res, i, PCI_STD_ROM_BRIDGE_ADDON_RES) {
 		/* TODO: check i with bits of bars */
 		if (res->flags & flags)
 			bars |= (1 << i);
@@ -3782,7 +3782,7 @@ void pci_reassigndev_resource_alignment(struct pci_dev *dev)
 	command &= ~PCI_COMMAND_MEMORY;
 	pci_write_config_word(dev, PCI_COMMAND, command);
 
-	for_each_pci_resource(dev, r, i, PCI_STD_ROM_IOV_RES) {
+	for_each_pci_resource(dev, r, i, PCI_STD_ROM_IOV_ADDON_RES) {
 		r = &dev->resource[i];
 		if (!(r->flags & IORESOURCE_MEM))
 			continue;

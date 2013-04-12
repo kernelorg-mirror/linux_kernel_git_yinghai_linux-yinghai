@@ -240,7 +240,7 @@ static void pcibios_allocate_dev_resources(struct pci_dev *dev, int pass)
 	struct resource *r;
 
 	pci_read_config_word(dev, PCI_COMMAND, &command);
-	for_each_pci_resource(dev, r, idx, PCI_STD_IOV_RES) {
+	for_each_pci_resource(dev, r, idx, PCI_STD_IOV_ADDON_RES) {
 		if (r->parent)	/* Already allocated */
 			continue;
 		if (!r->start)	/* Address not assigned at all */

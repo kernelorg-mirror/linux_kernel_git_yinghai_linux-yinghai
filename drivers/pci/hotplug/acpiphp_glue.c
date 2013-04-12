@@ -1088,7 +1088,7 @@ static void acpiphp_sanitize_bus(struct pci_bus *bus)
 	struct resource *res;
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
-		for_each_pci_resource(dev, res, i, PCI_STD_ROM_IOV_RES) {
+		for_each_pci_resource(dev, res, i, PCI_STD_ROM_IOV_ADDON_RES) {
 			if ((res->flags & type_mask) && !res->start &&
 					res->end) {
 				/* Could not assign a required resources
