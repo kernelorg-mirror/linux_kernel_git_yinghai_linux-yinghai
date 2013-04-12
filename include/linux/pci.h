@@ -1455,16 +1455,31 @@ static inline struct pci_dev *pci_dev_get(struct pci_dev *dev)
 
 /* these helpers provide future and backwards compatibility
  * for accessing popular PCI BAR info */
-#define pci_resource_start(dev, bar)	((dev)->resource[(bar)].start)
-#define pci_resource_end(dev, bar)	((dev)->resource[(bar)].end)
-#define pci_resource_flags(dev, bar)	((dev)->resource[(bar)].flags)
-#define pci_resource_len(dev,bar) \
-	((pci_resource_start((dev), (bar)) == 0 &&	\
-	  pci_resource_end((dev), (bar)) ==		\
-	  pci_resource_start((dev), (bar))) ? 0 :	\
-							\
-	 (pci_resource_end((dev), (bar)) -		\
-	  pci_resource_start((dev), (bar)) + 1))
+static inline resource_size_t pci_resource_start(const struct pci_dev *dev,
+						 int bar)
+{
+	return pci_dev_resource_n((struct pci_dev *)dev, bar)->start;
+}
+static inline resource_size_t pci_resource_end(const struct pci_dev *dev,
+						int bar)
+{
+	return pci_dev_resource_n((struct pci_dev *)dev, bar)->end;
+}
+static inline unsigned long pci_resource_flags(const struct pci_dev *dev,
+						 int bar)
+{
+	return pci_dev_resource_n((struct pci_dev *)dev, bar)->flags;
+}
+static inline resource_size_t pci_resource_len(const struct pci_dev *dev,
+							 int bar)
+{
+	struct resource *res = pci_dev_resource_n((struct pci_dev *)dev, bar);
+
+	if (res->start == 0 && res->end == res->start)
+		return 0;
+
+	return res->end - res->start + 1;
+}
 
 /* Similar to the helpers above, these manipulate per-pci_dev
  * driver-specific data.  They are really just a wrapper around
