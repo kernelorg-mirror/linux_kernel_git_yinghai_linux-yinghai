@@ -233,49 +233,34 @@ static void pcibios_allocate_bus_resources(struct pci_bus *bus)
 		pcibios_allocate_bus_resources(child);
 }
 
-struct pci_check_idx_range {
-	int start;
-	int end;
-};
-
 static void pcibios_allocate_dev_resources(struct pci_dev *dev, int pass)
 {
-	int idx, disabled, i;
+	int idx, disabled;
 	u16 command;
 	struct resource *r;
 
-	struct pci_check_idx_range idx_range[] = {
-		{ PCI_STD_RESOURCES, PCI_STD_RESOURCE_END },
-#ifdef CONFIG_PCI_IOV
-		{ PCI_IOV_RESOURCES, PCI_IOV_RESOURCE_END },
-#endif
-	};
-
 	pci_read_config_word(dev, PCI_COMMAND, &command);
-	for (i = 0; i < ARRAY_SIZE(idx_range); i++)
-		for (idx = idx_range[i].start; idx <= idx_range[i].end; idx++) {
-			r = &dev->resource[idx];
-			if (r->parent)	/* Already allocated */
-				continue;
-			if (!r->start)	/* Address not assigned at all */
-				continue;
-			if (r->flags & IORESOURCE_IO)
-				disabled = !(command & PCI_COMMAND_IO);
-			else
-				disabled = !(command & PCI_COMMAND_MEMORY);
-			if (pass == disabled) {
-				dev_dbg(&dev->dev,
-					"BAR %d: reserving %pr (d=%d, p=%d)\n",
-					idx, r, disabled, pass);
-				if (pci_claim_resource(dev, idx) < 0) {
-					/* We'll assign a new address later */
-					pcibios_save_fw_addr(dev,
-							idx, r->start);
-					r->end -= r->start;
-					r->start = 0;
-				}
+	for_each_pci_resource(dev, r, idx, PCI_STD_IOV_RES) {
+		if (r->parent)	/* Already allocated */
+			continue;
+		if (!r->start)	/* Address not assigned at all */
+			continue;
+		if (r->flags & IORESOURCE_IO)
+			disabled = !(command & PCI_COMMAND_IO);
+		else
+			disabled = !(command & PCI_COMMAND_MEMORY);
+		if (pass == disabled) {
+			dev_dbg(&dev->dev,
+				"BAR %d: reserving %pr (d=%d, p=%d)\n",
+				idx, r, disabled, pass);
+			if (pci_claim_resource(dev, idx) < 0) {
+				/* We'll assign a new address later */
+				pcibios_save_fw_addr(dev, idx, r->start);
+				r->end -= r->start;
+				r->start = 0;
 			}
 		}
+	}
 	if (!pass) {
 		r = &dev->resource[PCI_ROM_RESOURCE];
 		if (r->flags & IORESOURCE_ROM_ENABLE) {
