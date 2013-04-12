@@ -379,6 +379,30 @@ struct pci_dev {
 struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
 int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res);
 
+#define PCI_STD_RES		(1<<0)
+#define PCI_ROM_RES		(1<<1)
+#define PCI_IOV_RES		(1<<2)
+#define PCI_BRIDGE_RES		(1<<3)
+#define PCI_RES_BLOCK_NUM	4
+
+#define PCI_ALL_RES		(PCI_STD_RES | PCI_ROM_RES | PCI_BRIDGE_RES | PCI_IOV_RES)
+#define PCI_ROM_IOV_BRIDGE_RES	(PCI_ROM_RES | PCI_BRIDGE_RES | PCI_IOV_RES)
+#define PCI_STD_ROM_BRIDGE_RES	(PCI_STD_RES | PCI_ROM_RES | PCI_BRIDGE_RES)
+#define PCI_STD_IOV_BRIDGE_RES	(PCI_STD_RES | PCI_IOV_RES | PCI_BRIDGE_RES)
+#define PCI_STD_ROM_IOV_RES	(PCI_STD_RES | PCI_ROM_RES | PCI_IOV_RES)
+#define PCI_STD_ROM_RES		(PCI_STD_RES | PCI_ROM_RES)
+#define PCI_STD_IOV_RES		(PCI_STD_RES | PCI_IOV_RES)
+#define PCI_STD_ROM_IOV_RES	(PCI_STD_RES | PCI_ROM_RES | PCI_IOV_RES)
+
+int pci_next_resource_idx(int i, int flag);
+
+#define for_each_pci_resource(dev, res, i, flag)	\
+	for (i = pci_next_resource_idx(-1, flag),	\
+		res = pci_dev_resource_n(dev, i);	\
+	     res;					\
+	     i = pci_next_resource_idx(i, flag),	\
+		res = pci_dev_resource_n(dev, i))
+
 static inline struct pci_dev *pci_physfn(struct pci_dev *dev)
 {
 #ifdef CONFIG_PCI_IOV

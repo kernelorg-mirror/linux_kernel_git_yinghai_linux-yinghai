@@ -123,6 +123,54 @@ int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res)
 	return -1;
 }
 
+static void __init_res_idx_mask(unsigned long *mask, int flag)
+{
+	bitmap_zero(mask, PCI_NUM_RESOURCES);
+	if (flag & PCI_STD_RES)
+		bitmap_set(mask, PCI_STD_RESOURCES,
+			PCI_STD_RESOURCE_END - PCI_STD_RESOURCES + 1);
+	if (flag & PCI_ROM_RES)
+		bitmap_set(mask, PCI_ROM_RESOURCE, 1);
+#ifdef CONFIG_PCI_IOV
+	if (flag & PCI_IOV_RES)
+		bitmap_set(mask, PCI_IOV_RESOURCES,
+			PCI_IOV_RESOURCE_END - PCI_IOV_RESOURCES + 1);
+#endif
+	if (flag & PCI_BRIDGE_RES)
+		bitmap_set(mask, PCI_BRIDGE_RESOURCES,
+			PCI_BRIDGE_RESOURCE_END - PCI_BRIDGE_RESOURCES + 1);
+}
+
+static DECLARE_BITMAP(res_idx_mask[1 << PCI_RES_BLOCK_NUM], PCI_NUM_RESOURCES);
+static int __init pci_res_idx_mask_init(void)
+{
+	int i;
+
+	for (i = 0; i < (1 << PCI_RES_BLOCK_NUM); i++)
+		__init_res_idx_mask(res_idx_mask[i], i);
+
+	return 0;
+}
+postcore_initcall(pci_res_idx_mask_init);
+
+static inline unsigned long *get_res_idx_mask(int flag)
+{
+	return res_idx_mask[flag & ((1 << PCI_RES_BLOCK_NUM) - 1)];
+}
+
+int pci_next_resource_idx(int i, int flag)
+{
+	i++;
+	if (i < PCI_NUM_RESOURCES)
+		i = find_next_bit(get_res_idx_mask(flag), PCI_NUM_RESOURCES, i);
+
+	if (i < PCI_NUM_RESOURCES)
+		return i;
+
+	return -1;
+}
+EXPORT_SYMBOL(pci_next_resource_idx);
+
 static u64 pci_size(u64 base, u64 maxbase, u64 mask)
 {
 	u64 size = mask & maxbase;	/* Find the significant bits */
