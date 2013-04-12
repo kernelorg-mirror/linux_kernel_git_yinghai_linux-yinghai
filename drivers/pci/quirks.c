@@ -382,14 +382,14 @@ static void quirk_ali7101_acpi(struct pci_dev *dev)
 }
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_AL,	PCI_DEVICE_ID_AL_M7101,		quirk_ali7101_acpi);
 
-static void piix4_io_quirk(struct pci_dev *dev, const char *name, unsigned int port, unsigned int enable)
+static int piix4_read_io(struct pci_dev *dev, struct resource *res, int port)
 {
 	u32 devres;
 	u32 mask, size, base;
+	struct pci_bus_region bus_region;
 
 	pci_read_config_dword(dev, port, &devres);
-	if ((devres & enable) != enable)
-		return;
+
 	mask = (devres >> 16) & 15;
 	base = devres & 0xffff;
 	size = 16;
@@ -399,23 +399,54 @@ static void piix4_io_quirk(struct pci_dev *dev, const char *name, unsigned int p
 			break;
 		size = bit;
 	}
-	/*
-	 * For now we only print it out. Eventually we'll want to
-	 * reserve it (at least if it's in the 0x1000+ range), but
-	 * let's get enough confirmation reports first. 
-	 */
 	base &= -size;
-	dev_info(&dev->dev, "%s PIO at %04x-%04x\n", name, base, base + size - 1);
-}
 
-static void piix4_mem_quirk(struct pci_dev *dev, const char *name, unsigned int port, unsigned int enable)
+	bus_region.start = base;
+	bus_region.end = base + size - 1;
+	res->flags |= IORESOURCE_IO;
+	pcibios_bus_to_resource(dev, res, &bus_region);
+	dev_info(&dev->dev, "PIO at %pR\n", res);
+
+	return 0;
+}
+static int piix4_write_io(struct pci_dev *dev, struct resource *res, int port)
 {
 	u32 devres;
-	u32 mask, size, base;
+	struct pci_bus_region bus_region;
+	unsigned size = to_pci_dev_addon_resource(res)->size;
+
+	pcibios_resource_to_bus(dev, &bus_region, res);
+
+	pci_read_config_dword(dev, port, &devres);
+	devres &= 0xffff0000 | (size - 1);
+	devres |= bus_region.start & 0xffff & (~(size - 1));
+	pci_write_config_dword(dev, port, devres);
+
+	return 0;
+}
+static struct resource_ops piix4_io_ops = {
+	.read = piix4_read_io,
+	.write = piix4_write_io,
+};
+static void piix4_io_quirk(struct pci_dev *dev, char *name, unsigned int port,
+				unsigned int enable)
+{
+	u32 devres;
 
 	pci_read_config_dword(dev, port, &devres);
 	if ((devres & enable) != enable)
 		return;
+
+	pci_add_dev_addon_resource(dev, port, 0, &piix4_io_ops, name);
+}
+
+static int piix4_read_mem(struct pci_dev *dev, struct resource *res, int port)
+{
+	u32 devres;
+	u32 mask, size, base;
+	struct pci_bus_region bus_region;
+
+	pci_read_config_dword(dev, port, &devres);
 	base = devres & 0xffff0000;
 	mask = (devres & 0x3f) << 16;
 	size = 128 << 16;
@@ -425,12 +456,44 @@ static void piix4_mem_quirk(struct pci_dev *dev, const char *name, unsigned int 
 			break;
 		size = bit;
 	}
-	/*
-	 * For now we only print it out. Eventually we'll want to
-	 * reserve it, but let's get enough confirmation reports first. 
-	 */
 	base &= -size;
-	dev_info(&dev->dev, "%s MMIO at %04x-%04x\n", name, base, base + size - 1);
+	bus_region.start = base;
+	bus_region.end = base + size - 1;
+	res->flags |= IORESOURCE_MEM;
+	pcibios_bus_to_resource(dev, res, &bus_region);
+	dev_info(&dev->dev, "MMIO at %pR\n", res);
+
+	return 0;
+}
+static int piix4_write_mem(struct pci_dev *dev, struct resource *res, int port)
+{
+	u32 devres;
+	struct pci_bus_region bus_region;
+	unsigned size = to_pci_dev_addon_resource(res)->size;
+
+	pcibios_resource_to_bus(dev, &bus_region, res);
+
+	pci_read_config_dword(dev, port, &devres);
+	devres &= 0x0000ffff | ((size - 1) & 0xffff0000);
+	devres |= bus_region.start & 0xffff0000 & (~(size - 1));
+	pci_write_config_dword(dev, port, devres);
+
+	return 0;
+}
+static struct resource_ops piix4_mem_ops = {
+	.read = piix4_read_mem,
+	.write = piix4_write_mem,
+};
+static void piix4_mem_quirk(struct pci_dev *dev, char *name, unsigned int port,
+				unsigned int enable)
+{
+	u32 devres;
+
+	pci_read_config_dword(dev, port, &devres);
+	if ((devres & enable) != enable)
+		return;
+
+	pci_add_dev_addon_resource(dev, port, 0, &piix4_mem_ops, name);
 }
 
 /*
