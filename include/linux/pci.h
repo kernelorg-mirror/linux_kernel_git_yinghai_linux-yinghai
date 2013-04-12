@@ -354,6 +354,7 @@ struct pci_dev {
 };
 
 struct resource *pci_dev_resource_n(struct pci_dev *dev, int n);
+int pci_dev_resource_idx(struct pci_dev *dev, struct resource *res);
 
 static inline struct pci_dev *pci_physfn(struct pci_dev *dev)
 {
