@@ -440,8 +440,9 @@ static void
 pci_restore_bars(struct pci_dev *dev)
 {
 	int i;
+	struct resource *res;
 
-	for (i = 0; i < PCI_BRIDGE_RESOURCES; i++)
+	for_each_pci_resource(dev, res, i, PCI_STD_ROM_IOV_RES)
 		pci_update_resource(dev, i);
 }
 
@@ -1153,6 +1154,7 @@ static int pci_enable_device_flags(struct pci_dev *dev, unsigned long flags)
 {
 	int err;
 	int i, bars = 0;
+	struct resource *res;
 
 	/*
 	 * Power state could be unknown at this point, either due to a fresh
@@ -1170,12 +1172,11 @@ static int pci_enable_device_flags(struct pci_dev *dev, unsigned long flags)
 		return 0;		/* already enabled */
 
 	/* only skip sriov related */
-	for (i = 0; i <= PCI_ROM_RESOURCE; i++)
-		if (dev->resource[i].flags & flags)
+	for_each_pci_resource(dev, res, i, PCI_STD_ROM_BRIDGE_RES) {
+		/* TODO: check i with bits of bars */
+		if (res->flags & flags)
 			bars |= (1 << i);
-	for (i = PCI_BRIDGE_RESOURCES; i < DEVICE_COUNT_RESOURCE; i++)
-		if (dev->resource[i].flags & flags)
-			bars |= (1 << i);
+	}
 
 	err = do_pci_enable_device(dev, bars);
 	if (err < 0)
@@ -2557,7 +2558,7 @@ static int __pci_request_region(struct pci_dev *pdev, int bar, const char *res_n
 
 err_out:
 	dev_warn(&pdev->dev, "BAR %d: can't reserve %pR\n", bar,
-		 &pdev->resource[bar]);
+		 pci_dev_resource_n(pdev, bar));
 	return -EBUSY;
 }
 
