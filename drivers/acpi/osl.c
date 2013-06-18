@@ -572,14 +572,13 @@ static const char * const table_sigs[] = {
 #define ACPI_OVERRIDE_TABLES 64
 static struct cpio_data __initdata acpi_initrd_files[ACPI_OVERRIDE_TABLES];
 
-void __init acpi_initrd_override(void *data, size_t size)
+void __init acpi_initrd_override_find(void *data, size_t size)
 {
-	int sig, no, table_nr = 0, total_offset = 0;
+	int sig, no, table_nr = 0;
 	long offset = 0;
 	struct acpi_table_header *table;
 	char cpio_path[32] = "kernel/firmware/acpi/";
 	struct cpio_data file;
-	char *p;
 
 	if (data == NULL || size == 0)
 		return;
@@ -620,7 +619,14 @@ void __init acpi_initrd_override(void *data, size_t size)
 		acpi_initrd_files[table_nr].size = file.size;
 		table_nr++;
 	}
-	if (table_nr == 0)
+}
+
+void __init acpi_initrd_override_copy(void)
+{
+	int no, total_offset = 0;
+	char *p;
+
+	if (!all_tables_size)
 		return;
 
 	/* under 4G at first, then above 4G */
@@ -652,9 +658,11 @@ void __init acpi_initrd_override(void *data, size_t size)
 	 * tables one time, we will hit the limit. Need to map table
 	 * one by one during copying.
 	 */
-	for (no = 0; no < table_nr; no++) {
+	for (no = 0; no < ACPI_OVERRIDE_TABLES; no++) {
 		phys_addr_t size = acpi_initrd_files[no].size;
 
+		if (!size)
+			break;
 		p = early_ioremap(acpi_tables_addr + total_offset, size);
 		memcpy(p, acpi_initrd_files[no].data, size);
 		early_iounmap(p, size);
