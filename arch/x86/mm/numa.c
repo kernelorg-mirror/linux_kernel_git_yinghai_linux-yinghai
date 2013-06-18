@@ -597,7 +597,6 @@ static int __init numa_init(int (*init_func)(void))
 
 	nodes_clear(numa_nodes_parsed);
 	memset(&numa_meminfo, 0, sizeof(numa_meminfo));
-	numa_reset_distance();
 
 	ret = init_func();
 	if (ret < 0)
@@ -635,6 +634,10 @@ static int __init dummy_numa_init(void)
 	return 0;
 }
 
+#ifdef CONFIG_ACPI_NUMA
+static bool srat_used __initdata;
+#endif
+
 /**
  * x86_numa_init - Initialize NUMA
  *
@@ -650,8 +653,10 @@ static void __init early_x86_numa_init(void)
 			return;
 #endif
 #ifdef CONFIG_ACPI_NUMA
-		if (!numa_init(x86_acpi_numa_init))
+		if (!numa_init(x86_acpi_numa_init_srat)) {
+			srat_used = true;
 			return;
+		}
 #endif
 #ifdef CONFIG_AMD_NUMA
 		if (!numa_init(amd_numa_init))
@@ -668,6 +673,11 @@ void __init x86_numa_init(void)
 	struct numa_meminfo *mi = &numa_meminfo;
 
 	early_x86_numa_init();
+
+#ifdef CONFIG_ACPI_NUMA
+	if (srat_used)
+		x86_acpi_numa_init_slit();
+#endif
 
 	numa_emulation(&numa_meminfo, numa_distance_cnt);
 

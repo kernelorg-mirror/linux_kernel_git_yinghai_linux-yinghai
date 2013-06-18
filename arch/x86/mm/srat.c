@@ -185,14 +185,17 @@ out_err:
 	return -1;
 }
 
-void __init acpi_numa_arch_fixup(void) {}
-
-int __init x86_acpi_numa_init(void)
+int __init x86_acpi_numa_init_srat(void)
 {
 	int ret;
 
-	ret = acpi_numa_init();
+	ret = acpi_numa_init_srat();
 	if (ret < 0)
 		return ret;
 	return srat_disabled() ? -EINVAL : 0;
+}
+
+void __init x86_acpi_numa_init_slit(void)
+{
+	acpi_numa_init_slit();
 }

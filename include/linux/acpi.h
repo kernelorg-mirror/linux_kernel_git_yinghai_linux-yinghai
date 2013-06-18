@@ -85,7 +85,8 @@ int early_acpi_boot_init(void);
 int acpi_boot_init (void);
 void acpi_boot_table_init (void);
 int acpi_mps_check (void);
-int acpi_numa_init (void);
+int acpi_numa_init_srat(void);
+void acpi_numa_init_slit(void);
 
 int acpi_table_init (void);
 int acpi_table_parse(char *id, acpi_tbl_table_handler handler);

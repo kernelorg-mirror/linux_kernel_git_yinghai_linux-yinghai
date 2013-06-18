@@ -282,7 +282,7 @@ acpi_table_parse_srat(enum acpi_srat_type id,
 					    handler, max_entries);
 }
 
-int __init acpi_numa_init(void)
+int __init acpi_numa_init_srat(void)
 {
 	int cnt = 0;
 
@@ -303,16 +303,17 @@ int __init acpi_numa_init(void)
 					    NR_NODE_MEMBLKS);
 	}
 
-	/* SLIT: System Locality Information Table */
-	acpi_table_parse(ACPI_SIG_SLIT, acpi_parse_slit);
-
-	acpi_numa_arch_fixup();
-
 	if (cnt < 0)
 		return cnt;
 	else if (!parsed_numa_memblks)
 		return -ENOENT;
 	return 0;
+}
+
+void __init acpi_numa_init_slit(void)
+{
+	/* SLIT: System Locality Information Table */
+	acpi_table_parse(ACPI_SIG_SLIT, acpi_parse_slit);
 }
 
 int acpi_get_pxm(acpi_handle h)
