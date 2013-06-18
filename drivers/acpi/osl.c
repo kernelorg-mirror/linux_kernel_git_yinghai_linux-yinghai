@@ -570,7 +570,12 @@ static const char * const table_sigs[] = {
 #define ACPI_HEADER_SIZE sizeof(struct acpi_table_header)
 
 #define ACPI_OVERRIDE_TABLES 64
-static struct cpio_data __initdata acpi_initrd_files[ACPI_OVERRIDE_TABLES];
+struct acpi_initrd_file {
+	phys_addr_t data;
+	phys_addr_t size;
+};
+static struct acpi_initrd_file __initdata
+			acpi_initrd_files[ACPI_OVERRIDE_TABLES];
 
 void __init acpi_initrd_override_find(void *data, size_t size)
 {
@@ -615,7 +620,7 @@ void __init acpi_initrd_override_find(void *data, size_t size)
 			table->signature, cpio_path, file.name, table->length);
 
 		all_tables_size += table->length;
-		acpi_initrd_files[table_nr].data = file.data;
+		acpi_initrd_files[table_nr].data = __pa_nodebug(file.data);
 		acpi_initrd_files[table_nr].size = file.size;
 		table_nr++;
 	}
@@ -624,7 +629,7 @@ void __init acpi_initrd_override_find(void *data, size_t size)
 void __init acpi_initrd_override_copy(void)
 {
 	int no, total_offset = 0;
-	char *p;
+	char *p, *q;
 
 	if (!all_tables_size)
 		return;
@@ -659,12 +664,15 @@ void __init acpi_initrd_override_copy(void)
 	 * one by one during copying.
 	 */
 	for (no = 0; no < ACPI_OVERRIDE_TABLES; no++) {
+		phys_addr_t addr = acpi_initrd_files[no].data;
 		phys_addr_t size = acpi_initrd_files[no].size;
 
 		if (!size)
 			break;
+		q = early_ioremap(addr, size);
 		p = early_ioremap(acpi_tables_addr + total_offset, size);
-		memcpy(p, acpi_initrd_files[no].data, size);
+		memcpy(p, q, size);
+		early_iounmap(q, size);
 		early_iounmap(p, size);
 		total_offset += size;
 	}
