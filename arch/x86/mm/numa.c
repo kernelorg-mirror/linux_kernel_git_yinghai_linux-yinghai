@@ -17,8 +17,10 @@
 #include <asm/dma.h>
 #include <asm/acpi.h>
 #include <asm/amd_nb.h>
+#include <asm/tlbflush.h>
 
 #include "numa_internal.h"
+#include "mm_internal.h"
 
 int __initdata numa_off;
 nodemask_t numa_nodes_parsed __initdata;
@@ -667,9 +669,31 @@ static void __init early_x86_numa_init(void)
 	numa_init(dummy_numa_init);
 }
 
+#ifdef CONFIG_X86_64
+static void __init early_x86_numa_init_mapping(void)
+{
+	init_mem_mapping(0, max_pfn << PAGE_SHIFT);
+	if (max_pfn > max_low_pfn)
+		max_low_pfn = max_pfn;
+}
+#else
+static void __init early_x86_numa_init_mapping(void)
+{
+	init_mem_mapping(0, max_low_pfn << PAGE_SHIFT);
+	early_ioremap_page_table_range_init();
+}
+#endif
+
 void __init early_initmem_init(void)
 {
 	early_x86_numa_init();
+
+	early_x86_numa_init_mapping();
+
+	load_cr3(swapper_pg_dir);
+	__flush_tlb_all();
+
+	early_memtest(0, max_pfn_mapped<<PAGE_SHIFT);
 }
 
 void __init x86_numa_init(void)

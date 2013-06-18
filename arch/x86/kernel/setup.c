@@ -1132,7 +1132,6 @@ void __init setup_arch(char **cmdline_p)
 	acpi_boot_table_init();
 	early_acpi_boot_init();
 	early_initmem_init();
-	init_mem_mapping();
 	memblock.current_limit = get_max_mapped();
 	early_trap_pf_init();
 

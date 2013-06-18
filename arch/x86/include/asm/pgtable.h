@@ -621,7 +621,7 @@ static inline int pgd_none(pgd_t pgd)
 #ifndef __ASSEMBLY__
 
 extern int direct_gbpages;
-void init_mem_mapping(void);
+void init_mem_mapping(unsigned long begin, unsigned long end);
 void early_alloc_pgt_buf(void);
 
 /* local pte updates need not use xchg for locking */
