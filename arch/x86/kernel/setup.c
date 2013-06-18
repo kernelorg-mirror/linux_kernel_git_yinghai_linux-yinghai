@@ -1120,7 +1120,7 @@ void __init setup_arch(char **cmdline_p)
 	reserve_initrd();
 
 	acpi_initrd_override_find((void *)initrd_start,
-					initrd_end - initrd_start);
+					initrd_end - initrd_start, false);
 	acpi_initrd_override_copy();
 
 	reserve_crashkernel();
