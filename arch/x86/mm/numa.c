@@ -477,7 +477,7 @@ static bool __init numa_meminfo_cover_memory(const struct numa_meminfo *mi)
 static int __init numa_register_memblks(struct numa_meminfo *mi)
 {
 	unsigned long uninitialized_var(pfn_align);
-	int i, nid;
+	int i;
 
 	/* Account for nodes with cpus and no memory */
 	node_possible_map = numa_nodes_parsed;
@@ -506,24 +506,6 @@ static int __init numa_register_memblks(struct numa_meminfo *mi)
 	if (!numa_meminfo_cover_memory(mi))
 		return -EINVAL;
 
-	/* Finally register nodes. */
-	for_each_node_mask(nid, node_possible_map) {
-		u64 start = PFN_PHYS(max_pfn);
-		u64 end = 0;
-
-		for (i = 0; i < mi->nr_blks; i++) {
-			if (nid != mi->blk[i].nid)
-				continue;
-			start = min(mi->blk[i].start, start);
-			end = max(mi->blk[i].end, end);
-		}
-
-		if (start < end)
-			setup_node_data(nid, start, end);
-	}
-
-	/* Dump memblock with node info and return. */
-	memblock_dump_all();
 	return 0;
 }
 
@@ -559,7 +541,6 @@ static int __init numa_init(int (*init_func)(void))
 
 	nodes_clear(numa_nodes_parsed);
 	nodes_clear(node_possible_map);
-	nodes_clear(node_online_map);
 	memset(&numa_meminfo, 0, sizeof(numa_meminfo));
 	WARN_ON(memblock_set_node(0, ULLONG_MAX, MAX_NUMNODES));
 	numa_reset_distance();
@@ -577,15 +558,6 @@ static int __init numa_init(int (*init_func)(void))
 	if (ret < 0)
 		return ret;
 
-	for (i = 0; i < nr_cpu_ids; i++) {
-		int nid = early_cpu_to_node(i);
-
-		if (nid == NUMA_NO_NODE)
-			continue;
-		if (!node_online(nid))
-			numa_clear_node(i);
-	}
-	numa_init_array();
 	return 0;
 }
 
@@ -618,7 +590,7 @@ static int __init dummy_numa_init(void)
  * last fallback is dummy single node config encomapssing whole memory and
  * never fails.
  */
-void __init x86_numa_init(void)
+static void __init early_x86_numa_init(void)
 {
 	if (!numa_off) {
 #ifdef CONFIG_X86_NUMAQ
@@ -636,6 +608,43 @@ void __init x86_numa_init(void)
 	}
 
 	numa_init(dummy_numa_init);
+}
+
+void __init x86_numa_init(void)
+{
+	int i, nid;
+	struct numa_meminfo *mi = &numa_meminfo;
+
+	early_x86_numa_init();
+
+	/* Finally register nodes. */
+	for_each_node_mask(nid, node_possible_map) {
+		u64 start = PFN_PHYS(max_pfn);
+		u64 end = 0;
+
+		for (i = 0; i < mi->nr_blks; i++) {
+			if (nid != mi->blk[i].nid)
+				continue;
+			start = min(mi->blk[i].start, start);
+			end = max(mi->blk[i].end, end);
+		}
+
+		if (start < end)
+			setup_node_data(nid, start, end); /* online is set */
+	}
+
+	/* Dump memblock with node info */
+	memblock_dump_all();
+
+	for (i = 0; i < nr_cpu_ids; i++) {
+		int nid = early_cpu_to_node(i);
+
+		if (nid == NUMA_NO_NODE)
+			continue;
+		if (!node_online(nid))
+			numa_clear_node(i);
+	}
+	numa_init_array();
 }
 
 static __init int find_near_online_node(int node)
