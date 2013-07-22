@@ -1359,30 +1359,46 @@ static bool __init pci_realloc_enabled(void)
 	return pci_realloc_enable >= user_enabled;
 }
 
-static void __init pci_realloc_detect(void)
-{
 #if defined(CONFIG_PCI_IOV) && defined(CONFIG_PCI_REALLOC_ENABLE_AUTO)
-	struct pci_dev *dev = NULL;
+static int __init check_unassigned_resources(struct pci_dev *dev, void *data)
+{
+	int i;
+	int *unassigned = data;
+
+	for (i = PCI_IOV_RESOURCES; i <= PCI_IOV_RESOURCE_END; i++) {
+		struct resource *r = &dev->resource[i];
+
+		/* Not assigned, or rejected by kernel ? */
+		if (r->flags && !r->start) {
+			(*unassigned)++;
+			return 1; /* return early from pci_walk_bus */
+		}
+	}
+
+	return 0;
+}
+
+static void  __init pci_realloc_detect(void)
+{
+	int unassigned = 0;
+	struct pci_bus *bus;
 
 	if (pci_realloc_enable != undefined)
 		return;
 
-	for_each_pci_dev(dev) {
-		int i;
-
-		for (i = PCI_IOV_RESOURCES; i <= PCI_IOV_RESOURCE_END; i++) {
-			struct resource *r = &dev->resource[i];
-
-			/* Not assigned, or rejected by kernel ? */
-			if (r->flags && !r->start) {
-				pci_realloc_enable = auto_enabled;
-
-				return;
-			}
+	list_for_each_entry(bus, &pci_root_buses, node) {
+		pci_walk_bus(bus, check_unassigned_resources, &unassigned);
+		if (unassigned) {
+			pci_realloc_enable = auto_enabled;
+			return;
 		}
 	}
-#endif
 }
+#else
+static void __init pci_realloc_detect(void)
+{
+}
+#endif
 
 /*
  * first try will not touch pci bridge res
