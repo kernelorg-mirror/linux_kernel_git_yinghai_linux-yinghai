@@ -410,6 +410,29 @@ __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 EXPORT_SYMBOL_GPL(__irq_alloc_descs);
 
 /**
+ * __irq_alloc_reserved_desc - allocate irq descriptor for irq that is already reserved
+ * @irq:	Allocate for specific irq number if irq >= 0
+ * @node:	Preferred node on which the irq descriptor should be allocated
+ * @owner:	Owning module (can be NULL)
+ *
+ * Returns the irq number or error code
+ */
+int __ref __irq_alloc_reserved_desc(int irq, int node, struct module *owner)
+{
+	mutex_lock(&sparse_irq_lock);
+	if (!test_bit(irq, allocated_irqs)) {
+		mutex_unlock(&sparse_irq_lock);
+		return -EINVAL;
+	}
+	mutex_unlock(&sparse_irq_lock);
+
+	if (irq_to_desc(irq))
+		return irq;
+
+	return alloc_descs(irq, 1, node, owner);
+}
+
+/**
  * irq_reserve_irqs - mark irqs allocated
  * @from:	mark from irq number
  * @cnt:	number of irqs to mark
