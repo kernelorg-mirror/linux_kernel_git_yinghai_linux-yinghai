@@ -215,6 +215,11 @@ static inline void io_apic_modify(unsigned int apic, unsigned int reg, unsigned 
 
 extern void io_apic_eoi(unsigned int apic, unsigned int vector);
 
+extern struct irq_chip ioapic_chip;
+extern struct irq_chip msi_chip;
+extern struct irq_chip hpet_msi_type;
+void irq_remap_modify_chips(void);
+
 #else  /* !CONFIG_X86_IO_APIC */
 
 #define io_apic_assign_pci_irqs 0
