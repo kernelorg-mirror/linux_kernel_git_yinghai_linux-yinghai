@@ -2796,6 +2796,7 @@ static int efx_pci_probe(struct pci_dev *pci_dev,
 		netif_warn(efx, probe, efx->net_dev,
 			   "pci_enable_pcie_error_reporting failed (%d)\n", rc);
 
+	pci_bus_add_device_vfs(pci_dev);
 	return 0;
 
  fail4:
