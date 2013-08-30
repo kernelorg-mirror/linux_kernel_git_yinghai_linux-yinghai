@@ -22,7 +22,10 @@ static void pci_stop_dev(struct pci_dev *dev)
 
 static void pci_destroy_dev(struct pci_dev *dev)
 {
-	put_device(&dev->dev);
+	if (!dev->is_removed) {
+		dev->is_removed = 1;
+		put_device(&dev->dev);
+	}
 }
 
 void pci_remove_bus(struct pci_bus *bus)
