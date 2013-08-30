@@ -277,12 +277,16 @@ static int pci_call_probe(struct pci_driver *drv, struct pci_dev *dev,
 	int error, node;
 	struct drv_dev_and_id ddi = { drv, dev, id };
 
-	/* Execute driver initialization on node where the device's
-	   bus is attached to.  This way the driver likely allocates
-	   its local memory on the right node without any need to
-	   change it. */
+	/*
+	 * Execute driver initialization on the node where the device's
+	 * bus is attached.  This way the driver likely allocates
+	 * its local memory on the right node without any need to
+	 * change it.  If the node is the current node just call
+	 * local_pci_probe and avoid the possibility of reentrant
+	 * calls to work_on_cpu.
+	 */
 	node = dev_to_node(&dev->dev);
-	if (node >= 0) {
+	if ((node >= 0) && (node != numa_node_id())) {
 		int cpu;
 
 		get_online_cpus();
