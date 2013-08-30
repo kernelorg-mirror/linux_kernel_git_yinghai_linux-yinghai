@@ -321,6 +321,10 @@ static int acpi_pci_find_device(struct device *dev, acpi_handle *handle)
 	bool is_bridge;
 	u64 addr;
 
+	/* don't mix vf with real pci device */
+	if (pci_dev->is_virtfn)
+		return -ENODEV;
+
 	/*
 	 * pci_is_bridge() is not suitable here, because pci_dev->subordinate
 	 * is set only after acpi_pci_find_device() has been called for the
