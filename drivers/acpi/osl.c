@@ -570,7 +570,12 @@ static const char * const table_sigs[] = {
 #define ACPI_HEADER_SIZE sizeof(struct acpi_table_header)
 
 #define ACPI_OVERRIDE_TABLES 64
-static struct cpio_data __initdata acpi_initrd_files[ACPI_OVERRIDE_TABLES];
+struct acpi_initrd_file {
+	phys_addr_t data;
+	phys_addr_t size;
+};
+static struct acpi_initrd_file __initdata
+			acpi_initrd_files[ACPI_OVERRIDE_TABLES];
 
 void __init acpi_initrd_override_find(void *data, size_t size)
 {
@@ -623,13 +628,15 @@ void __init acpi_initrd_override_find(void *data, size_t size)
 			table->signature, cpio_path, file.name, table->length);
 
 		all_tables_size += table->length;
-		acpi_initrd_files[table_nr].data = file.data;
+		acpi_initrd_files[table_nr].data = __pa_nodebug(file.data);
 		acpi_initrd_files[table_nr].size = file.size;
 		table_nr++;
 	}
 }
 
-#define MAP_CHUNK_SIZE   (NR_FIX_BTMAPS << PAGE_SHIFT)
+/*
+ * -1 page so source can be mapped even if it is not page aligned */
+#define MAP_CHUNK_SIZE   ((NR_FIX_BTMAPS - 1) << PAGE_SHIFT)
 
 void __init acpi_initrd_override_copy(void)
 {
@@ -668,11 +675,11 @@ void __init acpi_initrd_override_copy(void)
 	 * one by one during copying the same as that in relocate_initrd().
 	 */
 	for (no = 0; no < ACPI_OVERRIDE_TABLES; no++) {
-		unsigned char *src_p = acpi_initrd_files[no].data;
+		phys_addr_t src_addr = acpi_initrd_files[no].data;
 		phys_addr_t size = acpi_initrd_files[no].size;
 		phys_addr_t dest_addr = acpi_tables_addr + total_offset;
 		phys_addr_t slop, clen;
-		char *dest_p;
+		char *dest_p, *src_p;
 
 		if (!size)
 			break;
@@ -686,10 +693,12 @@ void __init acpi_initrd_override_copy(void)
 				clen = MAP_CHUNK_SIZE - slop;
 			dest_p = early_ioremap(dest_addr & PAGE_MASK,
 						 clen + slop);
+			src_p = early_ioremap(src_addr, clen);
 			memcpy(dest_p + slop, src_p, clen);
 			early_iounmap(dest_p, clen + slop);
-			src_p += clen;
+			early_iounmap(src_p, clen);
 			dest_addr += clen;
+			src_addr += clen;
 			size -= clen;
 		}
 	}
