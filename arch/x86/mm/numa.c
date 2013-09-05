@@ -667,12 +667,15 @@ static void __init early_x86_numa_init(void)
 	numa_init(dummy_numa_init);
 }
 
+void __init early_initmem_init(void)
+{
+	early_x86_numa_init();
+}
+
 void __init x86_numa_init(void)
 {
 	int i, nid;
 	struct numa_meminfo *mi = &numa_meminfo;
-
-	early_x86_numa_init();
 
 #ifdef CONFIG_ACPI_NUMA
 	if (srat_used)
