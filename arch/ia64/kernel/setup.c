@@ -558,7 +558,9 @@ setup_arch (char **cmdline_p)
 	acpi_table_init();
 	early_acpi_boot_init();
 # ifdef CONFIG_ACPI_NUMA
-	acpi_numa_init();
+	acpi_numa_init_srat();
+	acpi_numa_init_slit();
+	acpi_numa_arch_fixup();
 #  ifdef CONFIG_ACPI_HOTPLUG_CPU
 	prefill_possible_map();
 #  endif

@@ -181,7 +181,8 @@ static inline void disable_acpi(void) { }
 
 #ifdef CONFIG_ACPI_NUMA
 extern int acpi_numa;
-extern int x86_acpi_numa_init(void);
+int x86_acpi_numa_init_srat(void);
+void x86_acpi_numa_init_slit(void);
 #endif /* CONFIG_ACPI_NUMA */
 
 #define acpi_unlazy_tlb(x)	leave_mm(x)
