@@ -24,7 +24,10 @@ static unsigned long __initdata pgt_buf_start;
 static unsigned long __initdata pgt_buf_end;
 static unsigned long __initdata pgt_buf_top;
 
-static unsigned long min_pfn_mapped;
+static unsigned long low_min_pfn_mapped;
+static unsigned long low_max_pfn_mapped;
+static unsigned long local_min_pfn_mapped;
+static unsigned long local_max_pfn_mapped;
 
 static bool __initdata can_use_brk_pgt = true;
 
@@ -52,10 +55,17 @@ __ref void *alloc_low_pages(unsigned int num)
 
 	if ((pgt_buf_end + num) > pgt_buf_top || !can_use_brk_pgt) {
 		unsigned long ret;
-		if (min_pfn_mapped >= max_pfn_mapped)
-			panic("alloc_low_page: ran out of memory");
-		ret = memblock_find_in_range(min_pfn_mapped << PAGE_SHIFT,
-					max_pfn_mapped << PAGE_SHIFT,
+		if (local_min_pfn_mapped >= local_max_pfn_mapped) {
+			if (low_min_pfn_mapped >= low_max_pfn_mapped)
+				panic("alloc_low_page: ran out of memory");
+			ret = memblock_find_in_range(
+					low_min_pfn_mapped << PAGE_SHIFT,
+					low_max_pfn_mapped << PAGE_SHIFT,
+					PAGE_SIZE * num , PAGE_SIZE);
+		} else
+			ret = memblock_find_in_range(
+					local_min_pfn_mapped << PAGE_SHIFT,
+					local_max_pfn_mapped << PAGE_SHIFT,
 					PAGE_SIZE * num , PAGE_SIZE);
 		if (!ret)
 			panic("alloc_low_page: can not alloc memory");
@@ -412,67 +422,87 @@ static unsigned long __init get_new_step_size(unsigned long step_size)
 	return  step_size;
 }
 
-void __init init_mem_mapping(void)
+void __init init_mem_mapping(unsigned long begin, unsigned long end)
 {
-	unsigned long end, real_end, start, last_start;
+	unsigned long real_end, start, last_start;
 	unsigned long step_size;
 	unsigned long addr;
 	unsigned long mapped_ram_size = 0;
 	unsigned long new_mapped_ram_size;
+	bool is_low = false;
 
-	probe_page_size_mask();
+	if (!begin) {
+		probe_page_size_mask();
+		/* the ISA range is always mapped regardless of memory holes */
+		init_memory_mapping(0, ISA_END_ADDRESS);
+		begin = ISA_END_ADDRESS;
+		is_low = true;
+	}
 
-#ifdef CONFIG_X86_64
-	end = max_pfn << PAGE_SHIFT;
-#else
-	end = max_low_pfn << PAGE_SHIFT;
-#endif
-
-	/* the ISA range is always mapped regardless of memory holes */
-	init_memory_mapping(0, ISA_END_ADDRESS);
+	if (begin >= end)
+		return;
 
 	/* xen has big range in reserved near end of ram, skip it at first.*/
-	addr = memblock_find_in_range(ISA_END_ADDRESS, end, PMD_SIZE, PMD_SIZE);
+	addr = memblock_find_in_range(begin, end, PMD_SIZE, PMD_SIZE);
 	real_end = addr + PMD_SIZE;
 
 	/* step_size need to be small so pgt_buf from BRK could cover it */
 	step_size = PMD_SIZE;
-	max_pfn_mapped = 0; /* will get exact value next */
-	min_pfn_mapped = real_end >> PAGE_SHIFT;
+	local_max_pfn_mapped = begin >> PAGE_SHIFT;
+	local_min_pfn_mapped = real_end >> PAGE_SHIFT;
 	last_start = start = real_end;
 
 	/*
-	 * We start from the top (end of memory) and go to the bottom.
-	 * The memblock_find_in_range() gets us a block of RAM from the
-	 * end of RAM in [min_pfn_mapped, max_pfn_mapped) used as new pages
-	 * for page table.
+	 * alloc_low_pages() will allocate pagetable pages in the following
+	 * order:
+	 *      BRK, local node, low range
+	 *
+	 * That means it will first use up all the BRK memory, then try to get
+	 * us a block of RAM from [local_min_pfn_mapped, local_max_pfn_mapped)
+	 * used as new pagetable pages. If no memory on the local node has
+	 * been mapped, it will allocate memory from
+	 * [low_min_pfn_mapped, low_max_pfn_mapped).
 	 */
-	while (last_start > ISA_END_ADDRESS) {
+	while (last_start > begin) {
 		if (last_start > step_size) {
 			start = round_down(last_start - 1, step_size);
-			if (start < ISA_END_ADDRESS)
-				start = ISA_END_ADDRESS;
+			if (start < begin)
+				start = begin;
 		} else
-			start = ISA_END_ADDRESS;
+			start = begin;
 		new_mapped_ram_size = init_range_memory_mapping(start,
 							last_start);
+		if ((last_start >> PAGE_SHIFT) > local_max_pfn_mapped)
+			local_max_pfn_mapped = last_start >> PAGE_SHIFT;
+		local_min_pfn_mapped = start >> PAGE_SHIFT;
 		last_start = start;
-		min_pfn_mapped = last_start >> PAGE_SHIFT;
 		/* only increase step_size after big range get mapped */
 		if (new_mapped_ram_size > mapped_ram_size)
 			step_size = get_new_step_size(step_size);
 		mapped_ram_size += new_mapped_ram_size;
 	}
 
-	if (real_end < end)
+	if (real_end < end) {
 		init_range_memory_mapping(real_end, end);
-
-#ifdef CONFIG_X86_64
-	if (max_pfn > max_low_pfn) {
-		/* can we preseve max_low_pfn ?*/
-		max_low_pfn = max_pfn;
+		if ((end >> PAGE_SHIFT) > local_max_pfn_mapped)
+			local_max_pfn_mapped = end >> PAGE_SHIFT;
 	}
+
+	if (is_low) {
+		low_min_pfn_mapped = local_min_pfn_mapped;
+		low_max_pfn_mapped = local_max_pfn_mapped;
+	}
+}
+
+#ifndef CONFIG_NUMA
+void __init early_initmem_init(void)
+{
+#ifdef CONFIG_X86_64
+	init_mem_mapping(0, max_pfn << PAGE_SHIFT);
+	if (max_pfn > max_low_pfn)
+		max_low_pfn = max_pfn;
 #else
+	init_mem_mapping(0, max_low_pfn << PAGE_SHIFT);
 	early_ioremap_page_table_range_init();
 #endif
 
@@ -480,11 +510,6 @@ void __init init_mem_mapping(void)
 	__flush_tlb_all();
 
 	early_memtest(0, max_pfn_mapped << PAGE_SHIFT);
-}
-
-#ifndef CONFIG_NUMA
-void __init early_initmem_init(void)
-{
 }
 #endif
 
