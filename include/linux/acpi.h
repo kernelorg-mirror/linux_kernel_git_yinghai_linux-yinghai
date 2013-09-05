@@ -468,10 +468,11 @@ static inline bool acpi_driver_match_device(struct device *dev,
 #endif	/* !CONFIG_ACPI */
 
 #ifdef CONFIG_ACPI_INITRD_TABLE_OVERRIDE
-void acpi_initrd_override_find(void *data, size_t size);
+void acpi_initrd_override_find(void *data, size_t size, bool is_phys);
 void acpi_initrd_override_copy(void);
 #else
-static inline void acpi_initrd_override_find(void *data, size_t size) { }
+static inline void acpi_initrd_override_find(void *data, size_t size,
+						 bool is_phys) { }
 static inline void acpi_initrd_override_copy(void) { }
 #endif
 
