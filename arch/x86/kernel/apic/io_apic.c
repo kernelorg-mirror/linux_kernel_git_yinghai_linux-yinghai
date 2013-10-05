@@ -3826,12 +3826,9 @@ void __init ioapic_insert_resources(void)
 	}
 }
 
-int mp_find_ioapic(u32 gsi)
+static int __mp_find_ioapic(u32 gsi)
 {
-	int i = 0;
-
-	if (nr_ioapics == 0)
-		return -1;
+	int i;
 
 	/* Find the IOAPIC that manages this GSI. */
 	for_each_ioapic(i) {
@@ -3841,8 +3838,17 @@ int mp_find_ioapic(u32 gsi)
 			return i;
 	}
 
-	printk(KERN_ERR "ERROR: Unable to locate IOAPIC for GSI %d\n", gsi);
 	return -1;
+}
+
+int mp_find_ioapic(u32 gsi)
+{
+	int ret = __mp_find_ioapic(gsi);
+
+	if (ret == -1)
+		pr_err("ERROR: Unable to locate IOAPIC for GSI %d\n", gsi);
+
+	return ret;
 }
 
 int mp_find_ioapic_pin(int ioapic, u32 gsi)
@@ -3896,6 +3902,11 @@ void __init mp_register_ioapic(int id, u32 address, u32 gsi_base)
 	if (bad_ioapic(address))
 		return;
 
+	/* already registered ? */
+	idx = __mp_find_ioapic(gsi_base);
+	if (idx >= 0)
+		return;
+
 	idx = find_first_zero_bit(ioapics_mask, MAX_IO_APICS);
 	if (idx >= MAX_IO_APICS) {
 		pr_warn("WARNING: Max # of I/O APICs (%d) exceeded, skipping\n",
@@ -3922,6 +3933,13 @@ void __init mp_register_ioapic(int id, u32 address, u32 gsi_base)
 	 * and to prevent reprogramming of IOAPIC pins (PCI GSIs).
 	 */
 	entries = io_apic_get_redir_entries(idx);
+
+	if (!entries || entries > MP_MAX_IOAPIC_PIN) {
+		clear_fixmap(FIX_IO_APIC_BASE_0 + idx);
+		memset(&ioapics[idx], 0, sizeof(struct ioapic));
+		return;
+	}
+
 	gsi_cfg = mp_ioapic_gsi_routing(idx);
 	gsi_cfg->gsi_base = gsi_base;
 	gsi_cfg->gsi_end = gsi_base + entries - 1;
