@@ -67,6 +67,14 @@ static inline void acpiphp_remove_slots(struct pci_bus *bus) { }
 static inline void acpiphp_check_host_bridge(acpi_handle handle) { }
 #endif
 
+#ifdef CONFIG_PCI_IOAPIC
+void acpi_pci_ioapic_add(struct acpi_pci_root *root);
+void acpi_pci_ioapic_remove(struct acpi_pci_root *root);
+#else
+static inline void acpi_pci_ioapic_add(struct acpi_pci_root *root) { }
+static inline void acpi_pci_ioapic_remove(struct acpi_pci_root *root) { }
+#endif
+
 #else	/* CONFIG_ACPI */
 static inline void acpi_pci_add_bus(struct pci_bus *bus) { }
 static inline void acpi_pci_remove_bus(struct pci_bus *bus) { }
