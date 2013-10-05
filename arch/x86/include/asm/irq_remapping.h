@@ -52,9 +52,7 @@ extern void compose_remapped_msi_msg(struct pci_dev *pdev,
 				     struct msi_msg *msg, u8 hpet_id);
 extern int setup_hpet_msi_remapped(unsigned int irq, unsigned int id);
 extern void panic_if_irq_remap(const char *msg);
-extern bool setup_remapped_irq(int irq,
-			       struct irq_cfg *cfg,
-			       struct irq_chip *chip);
+extern bool setup_remapped_irq(int irq, struct irq_cfg *cfg);
 
 #else  /* CONFIG_IRQ_REMAP */
 
@@ -89,9 +87,7 @@ static inline void panic_if_irq_remap(const char *msg)
 {
 }
 
-static inline bool setup_remapped_irq(int irq,
-				      struct irq_cfg *cfg,
-				      struct irq_chip *chip)
+static inline bool setup_remapped_irq(int irq, struct irq_cfg *cfg)
 {
 	return false;
 }
