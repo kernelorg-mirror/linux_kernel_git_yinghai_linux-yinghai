@@ -334,6 +334,20 @@ static void __init reserve_ioapic_gsi_irq_extra(void)
 	}
 }
 
+static void free_ioapic_gsi_irq_base(int idx)
+{
+	int i;
+	struct mp_ioapic_gsi *gsi_cfg = mp_ioapic_gsi_routing(idx);
+	int irq_base = gsi_cfg->irq_base;
+	int irq_cnt = gsi_cfg->gsi_end - gsi_cfg->gsi_base + 1;
+
+	if (irq_base < 0)
+		return;
+
+	for (i = irq_base; i < irq_base + irq_cnt; i++)
+		free_irq_at(i, irq_get_chip_data(i));
+}
+
 static void alloc_ioapic_saved_registers(int idx)
 {
 	if (ioapics[idx].saved_registers)
@@ -345,6 +359,11 @@ static void alloc_ioapic_saved_registers(int idx)
 
 	if (!ioapics[idx].saved_registers)
 		pr_err("IOAPIC %d: suspend/resume impossible!\n", idx);
+}
+
+static void free_ioapic_saved_registers(int idx)
+{
+	kfree(ioapics[idx].saved_registers);
 }
 
 int __init arch_early_irq_init(void)
@@ -3997,6 +4016,32 @@ out:
 void mp_register_ioapic(int id, u32 address, u32 gsi_base)
 {
 	__mp_register_ioapic(id, address, gsi_base, false);
+}
+
+int mp_unregister_ioapic(u32 gsi_base)
+{
+	int idx;
+
+	lock_ioapics();
+
+	idx = __mp_find_ioapic(gsi_base);
+	if (idx < 0) {
+		unlock_ioapics();
+		return -EINVAL;
+	}
+	clear_bit(idx, ioapics_mask);
+
+	free_ioapic_saved_registers(idx);
+
+	free_ioapic_gsi_irq_base(idx);
+
+	clear_fixmap(FIX_IO_APIC_BASE_0 + idx);
+	memset(&ioapics[idx], 0, sizeof(struct ioapic));
+	nr_ioapics = bitmap_weight(ioapics_mask, MAX_IO_APICS);
+
+	unlock_ioapics();
+
+	return 0;
 }
 
 /* Enable IOAPIC early just for system timer */
