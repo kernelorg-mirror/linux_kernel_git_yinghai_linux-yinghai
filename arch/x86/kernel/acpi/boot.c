@@ -651,16 +651,26 @@ EXPORT_SYMBOL(acpi_unmap_lsapic);
 
 int acpi_register_ioapic(acpi_handle handle, u64 phys_addr, u32 gsi_base)
 {
-	/* TBD */
-	return -EINVAL;
+	u64 addr = 0;
+	int apic_id;
+
+	apic_id = acpi_get_ioapic_id(handle, gsi_base, &addr);
+
+	if (apic_id < 0)
+		return -1;
+
+	if (phys_addr != addr)
+		pr_warn("ioapic 0x%02x address is not consistent _CRS/dev(%llx) _MAT/MADT(%llx) \n",
+			apic_id, phys_addr, addr);
+
+	return	__mp_register_ioapic(apic_id, phys_addr, gsi_base, true);
 }
 
 EXPORT_SYMBOL(acpi_register_ioapic);
 
 int acpi_unregister_ioapic(acpi_handle handle, u32 gsi_base)
 {
-	/* TBD */
-	return -EINVAL;
+	return mp_unregister_ioapic(gsi_base);
 }
 
 EXPORT_SYMBOL(acpi_unregister_ioapic);
