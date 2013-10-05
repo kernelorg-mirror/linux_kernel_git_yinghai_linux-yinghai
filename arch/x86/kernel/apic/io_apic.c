@@ -3964,8 +3964,10 @@ int __mp_register_ioapic(int id, u32 address, u32 gsi_base, bool hotadd)
 
 	/* already registered ? */
 	idx = __mp_find_ioapic(gsi_base);
-	if (idx >= 0)
+	if (idx >= 0) {
+		ret = -EEXIST;
 		goto out;
+	}
 
 	idx = find_first_zero_bit(ioapics_mask, MAX_IO_APICS);
 	if (idx >= MAX_IO_APICS) {

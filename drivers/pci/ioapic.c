@@ -126,7 +126,8 @@ static void handle_ioapic_add(acpi_handle handle, struct pci_dev **pdev,
 		}
 	}
 
-	if (acpi_register_ioapic(handle, res->start, gsi_base)) {
+	ret = acpi_register_ioapic(handle, res->start, gsi_base);
+	if (ret && ret != -EEXIST) {
 		if (dev)
 			goto exit_release;
 		return;
