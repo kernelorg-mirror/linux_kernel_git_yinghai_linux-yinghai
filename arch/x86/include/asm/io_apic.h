@@ -105,6 +105,12 @@ struct IR_IO_APIC_route_entry {
  * # of IO-APICs and # of IRQ routing registers
  */
 extern int nr_ioapics;
+extern DECLARE_BITMAP(ioapics_mask, MAX_IO_APICS);
+
+#define for_each_ioapic(i)						\
+	for ((i) = -1;							\
+		(i) = find_next_bit(ioapics_mask, MAX_IO_APICS, (i)+1), \
+		(i) < MAX_IO_APICS;)
 
 extern int mpc_ioapic_id(int ioapic);
 extern unsigned int mpc_ioapic_addr(int ioapic);
