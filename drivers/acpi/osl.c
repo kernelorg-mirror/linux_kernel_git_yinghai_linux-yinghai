@@ -555,18 +555,6 @@ u8 __init acpi_table_checksum(u8 *buffer, u32 length)
 	return sum;
 }
 
-/* All but ACPI_SIG_RSDP and ACPI_SIG_FACS: */
-static const char * const table_sigs[] = {
-	ACPI_SIG_BERT, ACPI_SIG_CPEP, ACPI_SIG_ECDT, ACPI_SIG_EINJ,
-	ACPI_SIG_ERST, ACPI_SIG_HEST, ACPI_SIG_MADT, ACPI_SIG_MSCT,
-	ACPI_SIG_SBST, ACPI_SIG_SLIT, ACPI_SIG_SRAT, ACPI_SIG_ASF,
-	ACPI_SIG_BOOT, ACPI_SIG_DBGP, ACPI_SIG_DMAR, ACPI_SIG_HPET,
-	ACPI_SIG_IBFT, ACPI_SIG_IVRS, ACPI_SIG_MCFG, ACPI_SIG_MCHI,
-	ACPI_SIG_SLIC, ACPI_SIG_SPCR, ACPI_SIG_SPMI, ACPI_SIG_TCPA,
-	ACPI_SIG_UEFI, ACPI_SIG_WAET, ACPI_SIG_WDAT, ACPI_SIG_WDDT,
-	ACPI_SIG_WDRT, ACPI_SIG_DSDT, ACPI_SIG_FADT, ACPI_SIG_PSDT,
-	ACPI_SIG_RSDT, ACPI_SIG_XSDT, ACPI_SIG_SSDT, NULL };
-
 #define ACPI_HEADER_SIZE sizeof(struct acpi_table_header)
 
 #define ACPI_OVERRIDE_TABLES 64
@@ -577,16 +565,46 @@ struct acpi_initrd_file {
 static struct acpi_initrd_file __initdata
 			acpi_initrd_files[ACPI_OVERRIDE_TABLES];
 
-void __init acpi_initrd_override_find(void *data, size_t size)
+/*
+ * When called from head_32.S, the CPU is in 32bit flat mode, and the
+ * kernel virtual address isn't available yet.
+ * As initrd is in phys_addr, it can be accessed directly; however
+ * global variables must be accessed by explicitly obtaining their
+ * physical address.
+ * Note that table_sigs array is built on stack to avoid such address
+ * translations while accessing its members.
+ * Also don't call printk as it uses global variables.
+ */
+void __init acpi_initrd_override_find(void *data, size_t size, bool is_phys)
 {
 	int sig, no, table_nr = 0;
 	long offset = 0;
 	struct acpi_table_header *table;
 	char cpio_path[32] = "kernel/firmware/acpi/";
 	struct cpio_data file;
+	struct acpi_initrd_file *files = acpi_initrd_files;
+	int *all_tables_size_p = &all_tables_size;
+
+	/* All but ACPI_SIG_RSDP and ACPI_SIG_FACS: */
+	char *table_sigs[] = {
+		ACPI_SIG_BERT, ACPI_SIG_CPEP, ACPI_SIG_ECDT, ACPI_SIG_EINJ,
+		ACPI_SIG_ERST, ACPI_SIG_HEST, ACPI_SIG_MADT, ACPI_SIG_MSCT,
+		ACPI_SIG_SBST, ACPI_SIG_SLIT, ACPI_SIG_SRAT, ACPI_SIG_ASF,
+		ACPI_SIG_BOOT, ACPI_SIG_DBGP, ACPI_SIG_DMAR, ACPI_SIG_HPET,
+		ACPI_SIG_IBFT, ACPI_SIG_IVRS, ACPI_SIG_MCFG, ACPI_SIG_MCHI,
+		ACPI_SIG_SLIC, ACPI_SIG_SPCR, ACPI_SIG_SPMI, ACPI_SIG_TCPA,
+		ACPI_SIG_UEFI, ACPI_SIG_WAET, ACPI_SIG_WDAT, ACPI_SIG_WDDT,
+		ACPI_SIG_WDRT, ACPI_SIG_DSDT, ACPI_SIG_FADT, ACPI_SIG_PSDT,
+		ACPI_SIG_RSDT, ACPI_SIG_XSDT, ACPI_SIG_SSDT, NULL };
 
 	if (data == NULL || size == 0)
 		return;
+
+	if (is_phys) {
+		files = (struct acpi_initrd_file *)
+				__pa_symbol(acpi_initrd_files);
+		all_tables_size_p = (int *)__pa_symbol(&all_tables_size);
+	}
 
 	for (no = 0; no < ACPI_OVERRIDE_TABLES; no++) {
 		file = find_cpio_data(cpio_path, data, size, &offset);
@@ -597,8 +615,9 @@ void __init acpi_initrd_override_find(void *data, size_t size)
 		size -= offset;
 
 		if (file.size < sizeof(struct acpi_table_header)) {
-			pr_err("ACPI OVERRIDE: Table smaller than ACPI header [%s%s]\n",
-				cpio_path, file.name);
+			if (!is_phys)
+				pr_err("ACPI OVERRIDE: Table smaller than ACPI header [%s%s]\n",
+					cpio_path, file.name);
 			continue;
 		}
 
@@ -609,27 +628,34 @@ void __init acpi_initrd_override_find(void *data, size_t size)
 				break;
 
 		if (!table_sigs[sig]) {
-			pr_err("ACPI OVERRIDE: Unknown signature [%s%s]\n",
-				cpio_path, file.name);
+			if (!is_phys)
+				pr_err("ACPI OVERRIDE: Unknown signature [%s%s]\n",
+					cpio_path, file.name);
 			continue;
 		}
 		if (file.size != table->length) {
-			pr_err("ACPI OVERRIDE: File length does not match table length [%s%s]\n",
-				cpio_path, file.name);
+			if (!is_phys)
+				pr_err("ACPI OVERRIDE: File length does not match table length [%s%s]\n",
+					cpio_path, file.name);
 			continue;
 		}
 		if (acpi_table_checksum(file.data, table->length)) {
-			pr_err("ACPI OVERRIDE: Bad table checksum [%s%s]\n",
-				cpio_path, file.name);
+			if (!is_phys)
+				pr_err("ACPI OVERRIDE: Bad table checksum [%s%s]\n",
+					cpio_path, file.name);
 			continue;
 		}
 
-		pr_info("%4.4s ACPI table found in initrd [%s%s][0x%x]\n",
-			table->signature, cpio_path, file.name, table->length);
+		if (!is_phys)
+			pr_info("%4.4s ACPI table found in initrd [%s%s][0x%x]\n",
+				table->signature, cpio_path, file.name,
+				table->length);
 
-		all_tables_size += table->length;
-		acpi_initrd_files[table_nr].data = __pa_nodebug(file.data);
-		acpi_initrd_files[table_nr].size = file.size;
+		(*all_tables_size_p) += table->length;
+		files[table_nr].data = is_phys ?
+						(phys_addr_t)(size_t)file.data :
+						__pa_nodebug(file.data);
+		files[table_nr].size = file.size;
 		table_nr++;
 	}
 }
@@ -683,6 +709,13 @@ void __init acpi_initrd_override_copy(void)
 
 		if (!size)
 			break;
+
+		src_p = early_ioremap(src_addr, PAGE_SIZE);
+		pr_info("%4.4s ACPI table found in initrd [%#010llx-%#010llx]\n",
+			((struct acpi_table_header *)src_p)->signature,
+			(u64)src_addr, (u64)(src_addr + size - 1));
+		early_iounmap(src_p, PAGE_SIZE);
+
 
 		total_offset += size;
 
