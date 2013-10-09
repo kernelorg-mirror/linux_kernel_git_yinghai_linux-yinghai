@@ -572,11 +572,9 @@ static const char * const table_sigs[] = {
 #define ACPI_OVERRIDE_TABLES 64
 static struct cpio_data __initdata acpi_initrd_files[ACPI_OVERRIDE_TABLES];
 
-#define MAP_CHUNK_SIZE   (NR_FIX_BTMAPS << PAGE_SHIFT)
-
-void __init acpi_initrd_override(void *data, size_t size)
+void __init acpi_initrd_override_find(void *data, size_t size)
 {
-	int sig, no, table_nr = 0, total_offset = 0;
+	int sig, no, table_nr = 0;
 	long offset = 0;
 	struct acpi_table_header *table;
 	char cpio_path[32] = "kernel/firmware/acpi/";
@@ -629,7 +627,15 @@ void __init acpi_initrd_override(void *data, size_t size)
 		acpi_initrd_files[table_nr].size = file.size;
 		table_nr++;
 	}
-	if (table_nr == 0)
+}
+
+#define MAP_CHUNK_SIZE   (NR_FIX_BTMAPS << PAGE_SHIFT)
+
+void __init acpi_initrd_override_copy(void)
+{
+	int no, total_offset = 0;
+
+	if (!all_tables_size)
 		return;
 
 	/* under 4G at first, then above 4G */
@@ -661,12 +667,15 @@ void __init acpi_initrd_override(void *data, size_t size)
 	 * tables one time, we will hit the limit. Need to map chunks
 	 * one by one during copying the same as that in relocate_initrd().
 	 */
-	for (no = 0; no < table_nr; no++) {
+	for (no = 0; no < ACPI_OVERRIDE_TABLES; no++) {
 		unsigned char *src_p = acpi_initrd_files[no].data;
 		phys_addr_t size = acpi_initrd_files[no].size;
 		phys_addr_t dest_addr = acpi_tables_addr + total_offset;
 		phys_addr_t slop, clen;
 		char *dest_p;
+
+		if (!size)
+			break;
 
 		total_offset += size;
 
