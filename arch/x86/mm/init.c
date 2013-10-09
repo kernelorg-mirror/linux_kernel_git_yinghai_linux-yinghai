@@ -481,6 +481,12 @@ void __init init_mem_mapping(void)
 	early_memtest(0, max_pfn_mapped << PAGE_SHIFT);
 }
 
+#ifndef CONFIG_NUMA
+void __init early_initmem_init(void)
+{
+}
+#endif
+
 /*
  * devmem_is_allowed() checks to see if /dev/mem access to a certain address
  * is valid. The argument is a physical page number.
