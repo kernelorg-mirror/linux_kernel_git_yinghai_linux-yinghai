@@ -535,7 +535,7 @@ static unsigned long __init node_map_pfn_alignment(struct numa_meminfo *mi)
 }
 #endif
 
-static int __init numa_check_memblks(struct numa_meminfo *mi)
+int __init numa_check_memblks(struct numa_meminfo *mi)
 {
 	nodemask_t nodes_parsed;
 	unsigned long pfn_align;
@@ -606,8 +606,6 @@ static int __init numa_init(int (*init_func)(void))
 	if (ret < 0)
 		return ret;
 
-	numa_emulation(&numa_meminfo, numa_distance_cnt);
-
 	ret = numa_check_memblks(&numa_meminfo);
 	if (ret < 0)
 		return ret;
@@ -670,6 +668,8 @@ void __init x86_numa_init(void)
 	struct numa_meminfo *mi = &numa_meminfo;
 
 	early_x86_numa_init();
+
+	numa_emulation(&numa_meminfo, numa_distance_cnt);
 
 	node_possible_map = numa_nodes_parsed;
 	numa_nodemask_from_meminfo(&node_possible_map, mi);
