@@ -807,6 +807,48 @@ static int pci_bridge_probe_busn_res(struct pci_bus *bus,
 	return ret;
 }
 
+static int pci_bridge_check_busn_broken_with_unscaned(
+				struct pci_bus *bus,
+				struct pci_dev *dev,
+				int secondary, int subordinate)
+{
+	u32 buses2;
+	int broken = 0;
+	struct pci_dev *dev2;
+	int secondary2, subordinate2;
+	int common_start, common_end;
+
+	/* need to check with not scaned sibling bridges */
+	list_for_each_entry(dev2, &bus->devices, bus_list) {
+		if (dev2->hdr_type != PCI_HEADER_TYPE_BRIDGE &&
+		    dev2->hdr_type != PCI_HEADER_TYPE_CARDBUS)
+			continue;
+		if (dev2->subordinate)
+			continue;
+		if (dev2 == dev)
+			continue;
+
+		pci_read_config_dword(dev2, PCI_PRIMARY_BUS, &buses2);
+		secondary2 = (buses2 >> 8) & 0xFF;
+		subordinate2 = (buses2 >> 16) & 0xFF;
+
+		/* overlapping between them ? */
+		common_start = max(secondary, secondary2);
+		common_end = min(subordinate, subordinate2);
+		if (common_start <= common_end) {
+			/*
+			 * Temporarily disable forwarding of the
+			 * configuration cycles on this sibling bridge
+			 */
+			pci_write_config_dword(dev2, PCI_PRIMARY_BUS,
+					       buses2 & ~0xffffff);
+			broken = 1;
+		}
+	}
+
+	return broken;
+}
+
 static int pci_bridge_check_busn_broken(struct pci_bus *bus,
 				struct pci_dev *dev,
 				int secondary, int subordinate)
@@ -827,7 +869,8 @@ static int pci_bridge_check_busn_broken(struct pci_bus *bus,
 
 	release_resource(&busn_res);
 
-	return 0;
+	return pci_bridge_check_busn_broken_with_unscaned(bus, dev,
+					secondary, subordinate);
 }
 
 static unsigned int __pci_scan_child_bus(struct pci_bus *bus,
