@@ -98,6 +98,25 @@ void pci_bus_remove_resources(struct pci_bus *bus)
 	}
 }
 
+static struct pci_bus_region pci_mem_32 = {0, 0xffffffff};
+
+static void pci_clip_resource(struct resource *res, struct pci_bus *bus,
+			      struct pci_bus_region *region)
+{
+	struct pci_bus_region r;
+
+	pcibios_resource_to_bus(bus, &r, res);
+	if (r.start < region->start)
+		r.start = region->start;
+	if (r.end > region->end)
+		r.end = region->end;
+
+	if (r.end < r.start)
+		res->end = res->start - 1;
+	else
+		pcibios_bus_to_resource(bus, res, &r);
+}
+
 /**
  * pci_bus_alloc_resource - allocate a resource from a parent bus
  * @bus: PCI bus
@@ -125,15 +144,12 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 {
 	int i, ret = -ENOMEM;
 	struct resource *r;
-	resource_size_t max = -1;
 
 	type_mask |= IORESOURCE_IO | IORESOURCE_MEM;
 
-	/* don't allocate too high if the pref mem doesn't support 64bit*/
-	if (!(res->flags & IORESOURCE_MEM_64))
-		max = PCIBIOS_MAX_MEM_32;
-
 	pci_bus_for_each_resource(bus, r, i) {
+		struct resource avail;
+
 		if (!r)
 			continue;
 
@@ -147,10 +163,21 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 		    !(res->flags & IORESOURCE_PREFETCH))
 			continue;
 
+		/*
+		 * don't allocate too high if the pref mem doesn't
+		 * support 64bit.
+		 */
+		avail = *r;
+		if (!(res->flags & IORESOURCE_MEM_64)) {
+			pci_clip_resource(&avail, bus, &pci_mem_32);
+			if (!resource_size(&avail))
+				continue;
+		}
+
 		/* Ok, try it out.. */
 		ret = allocate_resource(r, res, size,
-					r->start ? : min,
-					max, align,
+					max(avail.start, r->start ? : min),
+					avail.end, align,
 					alignf, alignf_data);
 		if (ret == 0)
 			break;
