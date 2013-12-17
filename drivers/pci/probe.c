@@ -920,6 +920,7 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 		broken = pci_bridge_check_busn_broken(bus, dev,
 						   secondary, subordinate);
 
+start_broken:
 	if (broken)
 		dev_info(&dev->dev, "bridge configuration invalid ([bus %02x-%02x]), reconfiguring\n",
 			 secondary, subordinate);
@@ -957,6 +958,12 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 		}
 
 		cmax = __pci_scan_child_bus(child, pass);
+		if (!pass && cmax > child->busn_res.end) {
+			/* we don't have enough bus range for sriov */
+			pci_stop_and_remove_pci_bus(child);
+			broken = 1;
+			goto start_broken;
+		}
 		if (cmax > max)
 			max = cmax;
 		if (child->busn_res.end > max)
