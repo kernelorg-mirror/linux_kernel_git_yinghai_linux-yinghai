@@ -979,6 +979,116 @@ int resource_shrink_parents_top(struct resource *b_res,
 	return ret;
 }
 
+static resource_size_t __find_res_under_top_free_size(struct resource *res,
+							 int skip_nr)
+{
+	resource_size_t n_size;
+
+	/*
+	 *   find out free number below res->end that we can use.
+	 *	res->start to res->start + skip_nr - 1 can not be used.
+	 */
+	if (res->child) {
+		struct resource *child = res->child;
+
+		while (child->sibling)
+			child = child->sibling;
+
+		/* check if children cover skip_nr */
+		if (child->end - res->start + 1 >= skip_nr)
+			return res->end - child->end;
+	}
+
+	n_size = resource_size(res);
+	if (n_size <= skip_nr)
+		return 0;
+	return n_size - skip_nr;
+}
+
+/**
+ * probe_resource - Probe resource in parent resource.
+ * @b_res: parent resource descriptor
+ * @busn_res: return probed resource
+ * @needed_size: target size
+ * @p: pointer to farest parent that we extend the top
+ * @skip_nr: number in b_res start that we need to skip.
+ * @stop_flags: flags for stopping extend parent res
+ *
+ * will try to allocate resource in b_res, if can not find the range
+ *  will try to extend parent resources' top.
+ */
+int probe_resource(struct resource *b_res,
+			 struct resource *busn_res,
+			 resource_size_t needed_size, struct resource **p,
+			 int skip_nr, int stop_flags)
+{
+	int ret;
+	resource_size_t n_size;
+	struct resource *parent_res;
+
+	write_lock(&resource_lock);
+	/*
+	 * We first try to allocate range in b_res that
+	 *  we can use in b_res directly.
+	 *  we also need to skip skip_nr from start of b_res.
+	 */
+	memset(busn_res, 0, sizeof(struct resource));
+	ret = __allocate_resource(b_res, busn_res, needed_size,
+				b_res->start + skip_nr, b_res->end,
+				1, NULL, NULL);
+	if (!ret) {
+		*p = NULL;
+		goto out;
+	}
+
+	/* Try to extend the top of parent resources to meet needed_size */
+
+	/* b_res could be root bus resource and can not be extended */
+	if (b_res->flags & stop_flags)
+		goto out;
+
+	/* find out free range under top at first */
+	n_size = __find_res_under_top_free_size(b_res, skip_nr);
+
+	/* Probe extended range above top */
+	memset(busn_res, 0, sizeof(struct resource));
+	parent_res = b_res;
+	while (!(parent_res->flags & stop_flags)) {
+		struct resource *up_parent_res;
+
+		ret = __adjust_resource(parent_res, parent_res->start,
+			resource_size(parent_res) + (needed_size - n_size));
+		if (!ret) {
+			struct resource *res = b_res;
+
+			/* save parent_res, we need it as stopper later */
+			*p = parent_res->parent;
+
+			/* extend parent resources top */
+			while (res && res != parent_res) {
+				res->end += needed_size - n_size;
+				res = res->parent;
+			}
+
+			ret = __allocate_resource(b_res, busn_res, needed_size,
+					b_res->start + skip_nr, b_res->end,
+					1, NULL, NULL);
+			/* ret must be 0 here*/
+			goto out;
+		}
+		/* before go up, need to make sure at the same end */
+		up_parent_res = parent_res->parent;
+		if (!up_parent_res || up_parent_res->end != parent_res->end)
+			goto out;
+		parent_res = up_parent_res;
+	}
+
+out:
+	write_unlock(&resource_lock);
+
+	return ret;
+}
+
 /*
  * This is compatibility stuff for IO resources.
  *
