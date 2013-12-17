@@ -21,7 +21,8 @@
 void pci_add_resource_offset(struct list_head *resources, struct resource *res,
 			     resource_size_t offset)
 {
-	struct pci_host_bridge_window *window;
+	struct pci_host_bridge_window *window, *tmp;
+	struct list_head *n;
 
 	window = kzalloc(sizeof(struct pci_host_bridge_window), GFP_KERNEL);
 	if (!window) {
@@ -31,7 +32,17 @@ void pci_add_resource_offset(struct list_head *resources, struct resource *res,
 
 	window->res = res;
 	window->offset = offset;
-	list_add_tail(&window->list, resources);
+
+	/* Keep list sorted according to res end */
+	n = resources;
+	list_for_each_entry(tmp, resources, list)
+		if (window->res->end > tmp->res->end) {
+			n = &tmp->list;
+			break;
+		}
+
+	/* Insert it just before n */
+	list_add_tail(&window->list, n);
 }
 EXPORT_SYMBOL(pci_add_resource_offset);
 
