@@ -875,6 +875,7 @@ static int pci_bridge_check_busn_broken(struct pci_bus *bus,
 
 static unsigned int __pci_scan_child_bus(struct pci_bus *bus,
 						 int pass);
+#define HOTPLUG_BRIDGE_RESERVE_BUSNR 8
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
@@ -1043,6 +1044,11 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 		/*
 		 * Set the subordinate bus number to its real value.
 		 */
+		if (dev->is_hotplug_bridge && child->busn_res.end > max &&
+		   (max - child->busn_res.start) < HOTPLUG_BRIDGE_RESERVE_BUSNR)
+			max = min_t(int, child->busn_res.start +
+					 HOTPLUG_BRIDGE_RESERVE_BUSNR,
+				    child->busn_res.end);
 		shrink_size = (int)child->busn_res.end - max;
 		pci_write_config_byte(dev, PCI_SUBORDINATE_BUS, max);
 		pci_bus_update_busn_res_end(child, max);
