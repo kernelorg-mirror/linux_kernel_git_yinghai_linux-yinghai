@@ -609,8 +609,10 @@ static bool intel_gtt_can_wc(void)
 static int intel_gtt_init(void)
 {
 	u32 gma_addr;
+	u32 addr_hi = 0;
 	u32 gtt_map_size;
 	int ret;
+	int pos;
 
 	ret = intel_private.driver->setup();
 	if (ret != 0)
@@ -660,13 +662,17 @@ static int intel_gtt_init(void)
 	}
 
 	if (INTEL_GTT_GEN <= 2)
-		pci_read_config_dword(intel_private.pcidev, I810_GMADDR,
-				      &gma_addr);
+		pos = I810_GMADDR;
 	else
-		pci_read_config_dword(intel_private.pcidev, I915_GMADDR,
-				      &gma_addr);
+		pos = I915_GMADDR;
+
+	pci_read_config_dword(intel_private.pcidev, pos, &gma_addr);
+
+	if (gma_addr & PCI_BASE_ADDRESS_MEM_TYPE_64)
+		pci_read_config_dword(intel_private.pcidev, pos + 4, &addr_hi);
 
 	intel_private.gma_bus_addr = (gma_addr & PCI_BASE_ADDRESS_MEM_MASK);
+	intel_private.gma_bus_addr |= (u64)addr_hi << 32;
 
 	return 0;
 }
