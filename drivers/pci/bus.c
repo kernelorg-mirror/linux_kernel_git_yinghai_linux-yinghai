@@ -99,6 +99,8 @@ void pci_bus_remove_resources(struct pci_bus *bus)
 }
 
 static struct pci_bus_region pci_mem_32 = {0, 0xffffffff};
+static struct pci_bus_region pci_mem_64 = {(resource_size_t)(1ULL<<32),
+					   (resource_size_t)(-1ULL)};
 
 static void pci_clip_resource(struct resource *res, struct pci_bus *bus,
 			      struct pci_bus_region *region)
@@ -149,6 +151,7 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 
 	pci_bus_for_each_resource(bus, r, i) {
 		struct resource avail;
+		int try_again = 0;
 
 		if (!r)
 			continue;
@@ -165,15 +168,23 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 
 		/*
 		 * don't allocate too high if the pref mem doesn't
-		 * support 64bit.
+		 * support 64bit, also if this is a 64-bit mem
+		 * resource, try above 4GB first
 		 */
 		avail = *r;
-		if (!(res->flags & IORESOURCE_MEM_64)) {
+		if (res->flags & IORESOURCE_MEM_64) {
+			pci_clip_resource(&avail, bus, &pci_mem_64);
+			if (!resource_size(&avail))
+				avail = *r;
+			else
+				try_again = 1;
+		} else {
 			pci_clip_resource(&avail, bus, &pci_mem_32);
 			if (!resource_size(&avail))
 				continue;
 		}
 
+again:
 		/* Ok, try it out.. */
 		ret = allocate_resource(r, res, size,
 					max(avail.start, r->start ? : min),
@@ -181,6 +192,12 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 					alignf, alignf_data);
 		if (ret == 0)
 			break;
+
+		if (try_again) {
+			avail = *r;
+			try_again = 0;
+			goto again;
+		}
 	}
 	return ret;
 }
