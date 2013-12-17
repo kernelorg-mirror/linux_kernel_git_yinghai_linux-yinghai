@@ -938,6 +938,47 @@ resource_size_t resource_alignment(struct resource *res)
 	}
 }
 
+static int __resource_shrink_parents_top(struct resource *b_res,
+		 long size, struct resource *parent_res)
+{
+	struct resource *res = b_res;
+
+	if (size <= 0)
+		return 0;
+
+	while (res && res != parent_res) {
+		if (__adjust_resource(res, res->start,
+			 resource_size(res) - size)) {
+			struct resource *tmp = b_res;
+
+			/* roll back */
+			while (tmp != res) {
+				__adjust_resource(tmp, tmp->start,
+					resource_size(tmp) + size);
+				tmp = tmp->parent;
+			}
+
+			return -EBUSY;
+
+		}
+		res = res->parent;
+	}
+
+	return 0;
+}
+
+int resource_shrink_parents_top(struct resource *b_res,
+		 long size, struct resource *parent_res)
+{
+	int ret;
+
+	write_lock(&resource_lock);
+	ret = __resource_shrink_parents_top(b_res, size, parent_res);
+	write_unlock(&resource_lock);
+
+	return ret;
+}
+
 /*
  * This is compatibility stuff for IO resources.
  *
