@@ -775,6 +775,39 @@ static void pci_bus_shrink_top(struct pci_bus *parent,
 	pci_bus_extend_top(parent, -size, parent_res);
 }
 
+static int pci_bridge_probe_busn_res(struct pci_bus *bus,
+			 struct pci_dev *dev, struct resource *busn_res,
+			 resource_size_t needed_size, struct resource **p)
+{
+	int ret = -ENOMEM;
+	int old_size = resource_size(&bus->busn_res);
+	int skip_nr = 1;
+	int stop_flags = IORESOURCE_PCI_FIXED;
+	int i;
+
+	for (i = needed_size; i > 0; i--) {
+		ret = probe_resource(&bus->busn_res, busn_res, i,
+			p, skip_nr, stop_flags);
+
+		if (!ret)
+			break;
+	}
+
+	if (!i)
+		return ret;
+
+	busn_res->flags = IORESOURCE_BUS;
+
+	if (*p) {
+		/* extend parent bus top*/
+		int new_size = resource_size(&bus->busn_res);
+
+		pci_bus_extend_top(bus, new_size - old_size, *p);
+	}
+
+	return ret;
+}
+
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
