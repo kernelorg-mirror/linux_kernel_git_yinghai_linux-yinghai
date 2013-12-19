@@ -100,6 +100,9 @@ void pci_bus_remove_resources(struct pci_bus *bus)
 
 /* The region that can be mapped by a 32-bit BAR. */
 static struct pci_bus_region pci_32_bit = {0, 0xffffffff};
+/* The region that can be mapped by a 64-bit BAR above 4G */
+static struct pci_bus_region pci_64_bit = {(resource_size_t)(1ULL<<32),
+					   (resource_size_t)(-1ULL)};
 
 /*
  * @res contains CPU addresses.  Clip it so the corresponding bus addresses
@@ -150,10 +153,11 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 {
 	int i, ret = -ENOMEM;
 	struct resource *r;
-	resource_size_t max;
+	bool try_again = !!(res->flags & IORESOURCE_MEM_64);
 
 	type_mask |= IORESOURCE_IO | IORESOURCE_MEM;
 
+again:
 	pci_bus_for_each_resource(bus, r, i) {
 		struct resource avail;
 
@@ -170,13 +174,21 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 		    !(res->flags & IORESOURCE_PREFETCH))
 			continue;
 
+		/* If this is a 64-bit BAR, try above 4G first. */
+		avail = *r;
+		if (try_again) {
+			/* res->flags has IORESOURCE_MEM_64 set */
+			pci_clip_resource_to_bus(bus, &avail, &pci_64_bit);
+			if (!resource_size(&avail))
+				continue;
+		}
+
 		/*
 		 * Unless this is a 64-bit BAR, we have to clip the
 		 * available space to the part that maps to the region of
 		 * 32-bit bus addresses.
 		 */
-		avail = *r;
-		if (!(res->flags & IORESOURCE_MEM_64)) {
+		if (!try_again && !(res->flags & IORESOURCE_MEM_64)) {
 			pci_clip_resource_to_bus(bus, &avail, &pci_32_bit);
 			if (!resource_size(&avail))
 				continue;
@@ -188,17 +200,19 @@ pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 		 * this is an already-configured bridge window, its start
 		 * overrides "min".
 		 */
-		if (avail.start)
-			min = avail.start;
-
-		max = avail.end;
 
 		/* Ok, try it out.. */
-		ret = allocate_resource(r, res, size, min, max,
-					align, alignf, alignf_data);
+		ret = allocate_resource(r, res, size, avail.start ? : min,
+					avail.end, align, alignf, alignf_data);
 		if (ret == 0)
-			break;
+			return 0;
 	}
+
+	if (try_again) {
+		try_again = false;
+		goto again;
+	}
+
 	return ret;
 }
 
