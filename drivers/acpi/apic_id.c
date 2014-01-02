@@ -1,5 +1,7 @@
 /*
  * acpi_get_cpuid
+ * acpi_get_ioapic_id for ioapic hotplug support
+ *
  */
 #include <linux/export.h>
 #include <linux/slab.h>
@@ -59,11 +61,11 @@ static int map_lsapic_id(struct acpi_subtable_header *entry,
 	return 1;
 }
 
+static struct acpi_table_madt *madt;
+static int read_madt;
 static int map_madt_entry(int type, u32 acpi_id)
 {
 	unsigned long madt_end, entry;
-	static struct acpi_table_madt *madt;
-	static int read_madt;
 	int apic_id = -1;
 
 	if (!read_madt) {
@@ -199,3 +201,94 @@ int acpi_get_cpuid(acpi_handle handle, int type, u32 acpi_id)
 	return acpi_map_cpuid(apic_id, acpi_id);
 }
 EXPORT_SYMBOL_GPL(acpi_get_cpuid);
+
+#ifdef CONFIG_PCI_IOAPIC
+static int map_ioapic_id(struct acpi_subtable_header *entry, u32 gsi_base,
+		  u64 *phys_addr, int *ioapic_id)
+{
+	struct acpi_madt_io_apic *ioapic =
+		(struct acpi_madt_io_apic *)entry;
+
+	if (ioapic->global_irq_base != gsi_base)
+		return 0;
+
+	*phys_addr = ioapic->address;
+	*ioapic_id = ioapic->id;
+	return 1;
+}
+
+static int map_madt_ioapic_entry(u32 gsi_base, u64 *phys_addr)
+{
+	unsigned long madt_end, entry;
+	int apic_id = -1;
+
+	if (!read_madt) {
+		if (ACPI_FAILURE(acpi_get_table(ACPI_SIG_MADT, 0,
+					(struct acpi_table_header **)&madt)))
+			madt = NULL;
+		read_madt++;
+	}
+
+	if (!madt)
+		return apic_id;
+
+	entry = (unsigned long)madt;
+	madt_end = entry + madt->header.length;
+
+	/* Parse all entries looking for a match. */
+
+	entry += sizeof(struct acpi_table_madt);
+	while (entry + sizeof(struct acpi_subtable_header) < madt_end) {
+		struct acpi_subtable_header *header =
+			(struct acpi_subtable_header *)entry;
+		if (header->type == ACPI_MADT_TYPE_IO_APIC) {
+			if (map_ioapic_id(header, gsi_base, phys_addr,
+						 &apic_id))
+				break;
+		}
+		entry += header->length;
+	}
+	return apic_id;
+}
+
+static int map_mat_ioapic_entry(acpi_handle handle, u32 gsi_base,
+				u64 *phys_addr)
+{
+	struct acpi_buffer buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+	union acpi_object *obj;
+	struct acpi_subtable_header *header;
+	int apic_id = -1;
+
+	if (ACPI_FAILURE(acpi_evaluate_object(handle, "_MAT", NULL, &buffer)))
+		goto exit;
+
+	if (!buffer.length || !buffer.pointer)
+		goto exit;
+
+	obj = buffer.pointer;
+	if (obj->type != ACPI_TYPE_BUFFER ||
+	    obj->buffer.length < sizeof(struct acpi_subtable_header)) {
+		goto exit;
+	}
+
+	header = (struct acpi_subtable_header *)obj->buffer.pointer;
+	if (header->type == ACPI_MADT_TYPE_IO_APIC)
+		map_ioapic_id(header, gsi_base, phys_addr, &apic_id);
+
+exit:
+	kfree(buffer.pointer);
+	return apic_id;
+}
+
+int acpi_get_ioapic_id(acpi_handle handle, u32 gsi_base, u64 *phys_addr)
+{
+	int apic_id = -1;
+
+	apic_id = map_mat_ioapic_entry(handle, gsi_base, phys_addr);
+	if (apic_id == -1)
+		apic_id = map_madt_ioapic_entry(gsi_base, phys_addr);
+
+	return apic_id;
+}
+
+#endif /* CONFIG_PCI_IOAPIC */

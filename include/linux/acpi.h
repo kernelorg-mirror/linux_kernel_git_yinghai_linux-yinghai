@@ -137,6 +137,15 @@ int acpi_unmap_lsapic(int cpu);
 int acpi_get_apicid(acpi_handle, int type, u32 acpi_id);
 int acpi_map_cpuid(int apic_id, u32 acpi_id);
 int acpi_get_cpuid(acpi_handle, int type, u32 acpi_id);
+#ifdef CONFIG_PCI_IOAPIC
+int acpi_get_ioapic_id(acpi_handle handle, u32 gsi_base, u64 *phys_addr);
+#else
+static inline int acpi_get_ioapic_id(acpi_handle handle, u32 gsi_base,
+					 u64 *phys_addr)
+{
+	return -1;
+}
+#endif
 
 int acpi_register_ioapic(acpi_handle handle, u64 phys_addr, u32 gsi_base);
 int acpi_unregister_ioapic(acpi_handle handle, u32 gsi_base);
