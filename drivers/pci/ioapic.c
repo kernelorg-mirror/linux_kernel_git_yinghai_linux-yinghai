@@ -32,6 +32,36 @@ struct acpi_pci_ioapic {
 static LIST_HEAD(ioapic_list);
 static DEFINE_MUTEX(ioapic_list_lock);
 
+static acpi_status setup_res(struct acpi_resource *acpi_res, void *data)
+{
+	struct resource *res;
+	struct acpi_resource_address64 addr;
+	acpi_status status;
+	unsigned long flags;
+	u64 start, end;
+
+	status = acpi_mem_addr_resource_to_address64(acpi_res, &addr);
+	if (!ACPI_SUCCESS(status))
+		return AE_OK;
+
+	if (addr.resource_type == ACPI_MEMORY_RANGE) {
+		if (addr.info.mem.caching == ACPI_PREFETCHABLE_MEMORY)
+			return AE_OK;
+		flags = IORESOURCE_MEM;
+	} else
+		return AE_OK;
+
+	start = addr.minimum + addr.translation_offset;
+	end = addr.maximum + addr.translation_offset;
+
+	res = data;
+	res->flags = flags;
+	res->start = start;
+	res->end = end;
+
+	return AE_OK;
+}
+
 static void handle_ioapic_add(acpi_handle handle, struct pci_dev **pdev,
 				 u32 *pgsi_base)
 {
@@ -54,33 +84,56 @@ static void handle_ioapic_add(acpi_handle handle, struct pci_dev **pdev,
 		return;
 
 	dev = acpi_get_pci_dev(handle);
-	if (!dev)
-		return;
+	if (!dev || !pci_resource_len(dev, 0)) {
+		struct acpi_device_info *info;
+		char *hid = NULL;
+
+		status = acpi_get_object_info(handle, &info);
+		if (ACPI_FAILURE(status))
+			goto exit_put;
+		if (info->valid & ACPI_VALID_HID)
+			hid = info->hardware_id.string;
+		if (!hid || strcmp(hid, "ACPI0009")) {
+			kfree(info);
+			goto exit_put;
+		}
+		kfree(info);
+		memset(res, 0, sizeof(*res));
+		acpi_walk_resources(handle, METHOD_NAME__CRS, setup_res, res);
+		if (!res->flags)
+			goto exit_put;
+	}
 
 	acpi_get_name(handle, ACPI_FULL_PATHNAME, &buffer);
 
 	gsi_base = gsb;
 	type = "IOxAPIC";
+	if (dev) {
+		ret = pci_enable_device(dev);
+		if (ret < 0)
+			goto exit_put;
 
-	ret = pci_enable_device(dev);
-	if (ret < 0)
-		goto exit_put;
+		pci_set_master(dev);
 
-	pci_set_master(dev);
+		if (dev->class == PCI_CLASS_SYSTEM_PIC_IOAPIC)
+			type = "IOAPIC";
 
-	if (dev->class == PCI_CLASS_SYSTEM_PIC_IOAPIC)
-		type = "IOAPIC";
+		if (pci_resource_len(dev, 0)) {
+			if (pci_request_region(dev, 0, type))
+				goto exit_disable;
 
-	if (pci_request_region(dev, 0, type))
-		goto exit_disable;
+			res = &dev->resource[0];
+		}
+	}
 
-	res = &dev->resource[0];
-
-	if (acpi_register_ioapic(handle, res->start, gsi_base))
-		goto exit_release;
+	if (acpi_register_ioapic(handle, res->start, gsi_base)) {
+		if (dev)
+			goto exit_release;
+		return;
+	}
 
 	pr_info("%s %s %s at %pR, GSI %u\n",
-		dev_name(&dev->dev), objname, type,
+		dev ? dev_name(&dev->dev) : "", objname, type,
 		res, gsi_base);
 
 	*pdev = dev;
@@ -99,6 +152,9 @@ static void handle_ioapic_remove(acpi_handle handle, struct pci_dev *dev,
 				  u32 gsi_base)
 {
 	acpi_unregister_ioapic(handle, gsi_base);
+
+	if (!dev)
+		return;
 
 	pci_release_region(dev, 0);
 	pci_disable_device(dev);
