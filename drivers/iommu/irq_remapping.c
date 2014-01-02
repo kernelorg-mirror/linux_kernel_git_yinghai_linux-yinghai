@@ -375,19 +375,26 @@ static void ir_print_prefix(struct irq_data *data, struct seq_file *p)
 	seq_printf(p, " IR-%s", data->chip->name);
 }
 
-static void irq_remap_modify_chip_defaults(struct irq_chip *chip)
+static void __init irq_remap_modify_chip_defaults(struct irq_chip *chip)
 {
+	printk(KERN_DEBUG "irq_chip: %s ==> IR-%s\n", chip->name, chip->name);
 	chip->irq_print_chip = ir_print_prefix;
 	chip->irq_ack = ir_ack_apic_edge;
 	chip->irq_eoi = ir_ack_apic_level;
 	chip->irq_set_affinity = x86_io_apic_ops.set_affinity;
 }
 
-bool setup_remapped_irq(int irq, struct irq_cfg *cfg, struct irq_chip *chip)
+void __init irq_remap_modify_chips(void)
+{
+	irq_remap_modify_chip_defaults(&ioapic_chip);
+	irq_remap_modify_chip_defaults(&msi_chip);
+	irq_remap_modify_chip_defaults(&hpet_msi_type);
+}
+
+bool setup_remapped_irq(int irq, struct irq_cfg *cfg)
 {
 	if (!irq_remapped(cfg))
 		return false;
 	irq_set_status_flags(irq, IRQ_MOVE_PCNTXT);
-	irq_remap_modify_chip_defaults(chip);
 	return true;
 }
