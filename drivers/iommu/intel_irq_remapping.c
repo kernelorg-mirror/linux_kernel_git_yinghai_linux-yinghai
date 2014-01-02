@@ -218,7 +218,7 @@ static struct intel_iommu *map_ioapic_to_ir(int apic)
 {
 	int i;
 
-	for (i = 0; i < MAX_IO_APICS; i++)
+	for (i = 0; i < ir_ioapic_num; i++)
 		if (ir_ioapic[i].id == apic)
 			return ir_ioapic[i].iommu;
 	return NULL;
@@ -324,7 +324,7 @@ static int set_ioapic_sid(struct irte *irte, int apic)
 	if (!irte)
 		return -1;
 
-	for (i = 0; i < MAX_IO_APICS; i++) {
+	for (i = 0; i < ir_ioapic_num; i++) {
 		if (ir_ioapic[i].id == apic) {
 			sid = (ir_ioapic[i].bus << 8) | ir_ioapic[i].devfn;
 			break;
@@ -704,6 +704,7 @@ static void ir_parse_one_ioapic_scope(struct acpi_dmar_device_scope *scope,
 	struct acpi_dmar_pci_path *path;
 	u8 bus;
 	int count;
+	int i;
 
 	bus = scope->bus;
 	path = (struct acpi_dmar_pci_path *)(scope + 1);
@@ -720,11 +721,16 @@ static void ir_parse_one_ioapic_scope(struct acpi_dmar_device_scope *scope,
 		path++;
 	}
 
-	ir_ioapic[ir_ioapic_num].bus   = bus;
-	ir_ioapic[ir_ioapic_num].devfn = PCI_DEVFN(path->device, path->function);
-	ir_ioapic[ir_ioapic_num].iommu = iommu;
-	ir_ioapic[ir_ioapic_num].id    = scope->enumeration_id;
-	ir_ioapic_num++;
+	for (i = 0; i < ir_ioapic_num; i++)
+		if (!ir_ioapic[i].iommu)
+			break;
+
+	ir_ioapic[i].bus   = bus;
+	ir_ioapic[i].devfn = PCI_DEVFN(path->device, path->function);
+	ir_ioapic[i].iommu = iommu;
+	ir_ioapic[i].id    = scope->enumeration_id;
+	if (i == ir_ioapic_num)
+		ir_ioapic_num++;
 }
 
 static int ir_parse_ioapic_hpet_scope(struct acpi_dmar_header *header,
@@ -1137,6 +1143,120 @@ static int intel_setup_hpet_msi(unsigned int irq, unsigned int id)
 		return -1;
 
 	return 0;
+}
+
+void disable_irq_remapping_one(struct dmar_drhd_unit *drhd)
+{
+	struct intel_iommu *iommu = drhd->iommu;
+	int i;
+
+	/*
+	 * Disable Interrupt-remapping for the DRHD's now.
+	 */
+	if (!ecap_ir_support(iommu->ecap))
+		return;
+
+	iommu_disable_irq_remapping(iommu);
+
+	/* remove it from ir_ioapic */
+	for (i = 0; i < ir_ioapic_num; i++)
+		if (ir_ioapic[i].iommu == iommu) {
+			ir_ioapic[i].iommu = NULL;
+			ir_ioapic[i].id	= 0xff;
+		}
+}
+
+static int parse_ioapics_under_ir_one(struct dmar_drhd_unit *drhd)
+{
+	int ir_supported = 0;
+
+	struct intel_iommu *iommu = drhd->iommu;
+
+	if (ecap_ir_support(iommu->ecap)) {
+		if (ir_parse_ioapic_hpet_scope(drhd->hdr, iommu))
+			return -1;
+
+		ir_supported = 1;
+	}
+
+	return ir_supported;
+}
+
+int intel_enable_irq_remapping_one(struct dmar_drhd_unit *drhd)
+{
+	int setup = 0;
+	int eim = 1;
+	int ret;
+	struct intel_iommu *iommu = drhd->iommu;
+
+	if (parse_ioapics_under_ir_one(drhd) != 1) {
+		pr_info("Not enable interrupt remapping\n");
+		return -1;
+	}
+
+	/*
+	 * If the queued invalidation is already initialized,
+	 * shouldn't disable it.
+	 */
+	if (!iommu->qi) {
+		/*
+		 * Clear previous faults.
+		 */
+		dmar_fault(-1, iommu);
+
+		/*
+		 * Disable intr remapping and queued invalidation, if already
+		 * enabled prior to OS handover.
+		 */
+		iommu_disable_irq_remapping(iommu);
+
+		dmar_disable_qi(iommu);
+	}
+
+	/*
+	 * check for the Interrupt-remapping support
+	 */
+
+	if (ecap_ir_support(iommu->ecap))
+		if (eim && !ecap_eim_support(iommu->ecap)) {
+			pr_info("DRHD %Lx: EIM not supported by DRHD, ecap %Lx\n",
+				drhd->reg_base_addr, iommu->ecap);
+			return -1;
+		}
+
+	/*
+	 * Enable queued invalidation for the DRHD's.
+	 */
+	ret = dmar_enable_qi(iommu);
+
+	if (ret) {
+		pr_err("DRHD %Lx: failed to enable queued, invalidation, ecap %Lx, ret %d\n",
+		       drhd->reg_base_addr, iommu->ecap, ret);
+		return -1;
+	}
+
+	/*
+	 * Setup Interrupt-remapping for the DRHD's now.
+	 */
+	if (ecap_ir_support(iommu->ecap)) {
+		if (intel_setup_irq_remapping(iommu, eim))
+			goto error;
+
+		setup = 1;
+	}
+
+	if (!setup)
+		goto error;
+
+	pr_info("Enabled IRQ remapping in %s mode\n", eim ? "x2apic" : "xapic");
+
+	return eim ? IRQ_REMAP_X2APIC_MODE : IRQ_REMAP_XAPIC_MODE;
+
+error:
+	/*
+	 * handle error condition gracefully here!
+	 */
+	return -1;
 }
 
 struct irq_remap_ops intel_irq_remap_ops = {
