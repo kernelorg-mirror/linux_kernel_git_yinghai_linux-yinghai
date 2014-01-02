@@ -2462,19 +2462,12 @@ static int __init init_dmars(void)
 	 *    initialize and program root entry to not present
 	 * endfor
 	 */
-	for_each_drhd_unit(drhd) {
 		/*
 		 * lock not needed as this is only incremented in the single
 		 * threaded kernel __init code path all other access are read
 		 * only
 		 */
-		if (g_num_of_iommus < IOMMU_UNITS_SUPPORTED) {
-			g_num_of_iommus++;
-			continue;
-		}
-		printk_once(KERN_ERR "intel-iommu: exceeded %d IOMMUs\n",
-			  IOMMU_UNITS_SUPPORTED);
-	}
+	g_num_of_iommus = IOMMU_UNITS_SUPPORTED;
 
 	g_iommus = kcalloc(g_num_of_iommus, sizeof(struct intel_iommu *),
 			GFP_KERNEL);
@@ -2674,6 +2667,108 @@ error:
 	kfree(g_iommus);
 	return ret;
 }
+
+int init_dmar_one(struct dmar_drhd_unit *drhd)
+{
+	struct intel_iommu *iommu;
+	int ret;
+
+	/*
+	 * for each drhd
+	 *    allocate root
+	 *    initialize and program root entry to not present
+	 * endfor
+	 */
+
+	if (drhd->ignored)
+		return 0;
+
+	iommu = drhd->iommu;
+	g_iommus[iommu->seq_id] = iommu;
+
+	ret = iommu_init_domains(iommu);
+	if (ret)
+		goto error;
+
+	/*
+	 * TBD:
+	 * we could share the same root & context tables
+	 * among all IOMMU's. Need to Split it later.
+	 */
+	ret = iommu_alloc_root_entry(iommu);
+	if (ret) {
+		pr_err("IOMMU: allocate root entry failed\n");
+		goto error;
+	}
+
+	/*
+	 * Start from the sane iommu hardware state.
+	 */
+	/*
+	 * If the queued invalidation is already initialized by us
+	 * (for example, while enabling interrupt-remapping) then
+	 * we got the things already rolling from a sane state.
+	 */
+	if (!iommu->qi) {
+		/*
+		 * Clear any previous faults.
+		 */
+		dmar_fault(-1, iommu);
+		/*
+		 * Disable queued invalidation if supported and already enabled
+		 * before OS handover.
+		 */
+		dmar_disable_qi(iommu);
+	}
+
+	if (dmar_enable_qi(iommu)) {
+		/*
+		 * Queued Invalidate not enabled, use Register Based
+		 * Invalidate
+		 */
+		iommu->flush.flush_context = __iommu_flush_context;
+		iommu->flush.flush_iotlb = __iommu_flush_iotlb;
+		pr_info("IOMMU %d 0x%Lx: using Register based invalidation\n",
+		       iommu->seq_id, (unsigned long long)drhd->reg_base_addr);
+	} else {
+		iommu->flush.flush_context = qi_flush_context;
+		iommu->flush.flush_iotlb = qi_flush_iotlb;
+		pr_info("IOMMU %d 0x%Lx: using Queued invalidation\n",
+		       iommu->seq_id, (unsigned long long)drhd->reg_base_addr);
+	}
+
+	/*
+	 * for each drhd
+	 *   enable fault log
+	 *   global invalidate context cache
+	 *   global invalidate iotlb
+	 *   enable translation
+	 */
+	iommu_flush_write_buffer(iommu);
+
+	ret = dmar_set_interrupt(iommu);
+	if (ret)
+		goto error;
+
+	iommu_set_root_entry(iommu);
+
+	iommu->flush.flush_context(iommu, 0, 0, 0, DMA_CCMD_GLOBAL_INVL);
+	iommu->flush.flush_iotlb(iommu, 0, 0, 0, DMA_TLB_GLOBAL_FLUSH);
+
+	ret = iommu_enable_translation(iommu);
+	if (ret)
+		goto error;
+
+	iommu_disable_protect_mem_regions(iommu);
+
+	return 0;
+error:
+	free_dmar_iommu(iommu);
+	free_iommu(iommu);
+	drhd->iommu = NULL;
+	return ret;
+}
+
 
 /* This takes a number of _MM_ pages, not VTD pages */
 static struct iova *intel_alloc_iova(struct device *dev,
@@ -3530,7 +3625,8 @@ rmrr_parse_dev(struct dmar_rmrr_unit *rmrru)
 
 LIST_HEAD(dmar_atsr_units);
 
-int __init dmar_parse_one_atsr(struct acpi_dmar_header *hdr)
+int __dmar_parse_one_atsr(struct acpi_dmar_header *hdr,
+			  struct dmar_atsr_unit **patsru)
 {
 	struct acpi_dmar_atsr *atsr;
 	struct dmar_atsr_unit *atsru;
@@ -3545,11 +3641,17 @@ int __init dmar_parse_one_atsr(struct acpi_dmar_header *hdr)
 	atsru->segment = atsr->segment;
 
 	list_add(&atsru->list, &dmar_atsr_units);
+	if (patsru)
+		*patsru = atsru;
 
 	return 0;
 }
+int __init dmar_parse_one_atsr(struct acpi_dmar_header *hdr)
+{
+	return __dmar_parse_one_atsr(hdr, NULL);
+}
 
-static int __init atsr_parse_dev(struct dmar_atsr_unit *atsru)
+int atsr_parse_dev(struct dmar_atsr_unit *atsru)
 {
 	int rc;
 	struct acpi_dmar_atsr *atsr;

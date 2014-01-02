@@ -64,7 +64,7 @@ static void __init dmar_register_drhd_unit(struct dmar_drhd_unit *drhd)
 		list_add(&drhd->list, &dmar_drhd_units);
 }
 
-static int __init dmar_parse_one_dev_scope(struct acpi_dmar_device_scope *scope,
+static int dmar_parse_one_dev_scope(struct acpi_dmar_device_scope *scope,
 					   struct pci_dev **dev, u16 segment)
 {
 	struct pci_bus *bus;
@@ -115,7 +115,7 @@ static int __init dmar_parse_one_dev_scope(struct acpi_dmar_device_scope *scope,
 	return 0;
 }
 
-int __init dmar_parse_dev_scope(void *start, void *end, int *cnt,
+int dmar_parse_dev_scope(void *start, void *end, int *cnt,
 				struct pci_dev ***devices, u16 segment)
 {
 	struct acpi_dmar_device_scope *scope;
