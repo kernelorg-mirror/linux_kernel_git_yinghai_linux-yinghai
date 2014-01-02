@@ -86,4 +86,12 @@ extern bool aer_acpi_firmware_first(void);
 static inline bool aer_acpi_firmware_first(void) { return false; }
 #endif
 
+#ifdef CONFIG_DMAR_TABLE
+void acpi_pci_iommu_add(struct acpi_pci_root *root);
+void acpi_pci_iommu_remove(struct acpi_pci_root *root);
+#else
+static inline void acpi_pci_iommu_add(struct acpi_pci_root *root) { }
+static inline void acpi_pci_iommu_remove(struct acpi_pci_root *root) { }
+#endif
+
 #endif	/* _PCI_ACPI_H_ */
