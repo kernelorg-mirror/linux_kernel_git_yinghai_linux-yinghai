@@ -33,6 +33,7 @@ struct acpi_dmar_header;
 #define DMAR_X2APIC_OPT_OUT	0x2
 
 struct intel_iommu;
+struct dmar_drhd_unit;
 #ifdef CONFIG_DMAR_TABLE
 extern struct acpi_table_header *dmar_tbl;
 struct dmar_drhd_unit {
@@ -136,6 +137,15 @@ void restore_dev_to_drhd(struct pci_dev *dev);
 void remove_dev_from_atsr(struct pci_dev *dev);
 void restore_dev_to_atsr(struct pci_dev *dev);
 
+struct dmar_atsr_unit {
+	struct list_head list;		/* list of ATSR units */
+	struct acpi_dmar_header *hdr;	/* ACPI header */
+	struct pci_dev **devices;	/* target devices */
+	int devices_cnt;		/* target device count */
+	u16 segment;			/* PCI domain */
+	u8 include_all:1;		/* include all ports */
+};
+
 #ifdef CONFIG_INTEL_IOMMU
 extern int iommu_detected, no_iommu;
 extern struct list_head dmar_rmrr_units;
@@ -152,24 +162,19 @@ struct dmar_rmrr_unit {
 	list_for_each_entry(rmrr, &dmar_rmrr_units, list)
 
 extern struct list_head dmar_atsr_units;
-struct dmar_atsr_unit {
-	struct list_head list;		/* list of ATSR units */
-	struct acpi_dmar_header *hdr;	/* ACPI header */
-	struct pci_dev **devices;	/* target devices */
-	int devices_cnt;		/* target device count */
-	u16 segment;			/* PCI domain */
-	u8 include_all:1;		/* include all ports */
-};
-
 #define for_each_atsr_unit(atsr) \
 	list_for_each_entry(atsr, &dmar_atsr_units, list)
 
 int dmar_parse_rmrr_atsr_dev(void);
 extern int dmar_parse_one_rmrr(struct acpi_dmar_header *header);
 extern int dmar_parse_one_atsr(struct acpi_dmar_header *header);
+int __dmar_parse_one_atsr(struct acpi_dmar_header *header,
+			  struct dmar_atsr_unit **patsru);
+int atsr_parse_dev(struct dmar_atsr_unit *atsru);
 extern int dmar_parse_dev_scope(void *start, void *end, int *cnt,
 				struct pci_dev ***devices, u16 segment);
 extern int intel_iommu_init(void);
+int init_dmar_one(struct dmar_drhd_unit *drhd);
 #else /* !CONFIG_INTEL_IOMMU: */
 static inline int intel_iommu_init(void) { return -ENODEV; }
 static inline int dmar_parse_one_rmrr(struct acpi_dmar_header *header)
@@ -180,10 +185,34 @@ static inline int dmar_parse_one_atsr(struct acpi_dmar_header *header)
 {
 	return 0;
 }
+static inline int __dmar_parse_one_atsr(struct acpi_dmar_header *header,
+			  struct dmar_atsr_unit **patsru)
+{
+	return 0;
+}
+static inline int atsr_parse_dev(struct dmar_atsr_unit *atsru)
+{
+	return 0;
+}
 static inline int dmar_parse_rmrr_atsr_dev(void)
 {
 	return 0;
 }
+static inline int init_dmar_one(struct dmar_drhd_unit *drhd)
+{
+	return 0;
+}
 #endif /* CONFIG_INTEL_IOMMU */
+
+#ifdef CONFIG_IRQ_REMAP
+void disable_irq_remapping_one(struct dmar_drhd_unit *drhd);
+int intel_enable_irq_remapping_one(struct dmar_drhd_unit *drhd);
+#else
+static inline void disable_irq_remapping_one(struct dmar_drhd_unit *drhd) { }
+static inline int intel_enable_irq_remapping_one(struct dmar_drhd_unit *drhd)
+{
+	return 0;
+}
+#endif
 
 #endif /* __DMAR_H__ */

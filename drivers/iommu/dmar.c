@@ -167,8 +167,9 @@ int dmar_parse_dev_scope(void *start, void *end, int *cnt,
  * structure which uniquely represent one DMA remapping hardware unit
  * present in the platform
  */
-static int __init
-dmar_parse_one_drhd(struct acpi_dmar_header *header)
+static int
+__dmar_parse_one_drhd(struct acpi_dmar_header *header,
+		      struct dmar_drhd_unit **pdmaru)
 {
 	struct acpi_dmar_hardware_unit *drhd;
 	struct dmar_drhd_unit *dmaru;
@@ -190,10 +191,18 @@ dmar_parse_one_drhd(struct acpi_dmar_header *header)
 		return ret;
 	}
 	dmar_register_drhd_unit(dmaru);
+	if (pdmaru)
+		*pdmaru = dmaru;
 	return 0;
 }
 
-static int __init dmar_parse_dev(struct dmar_drhd_unit *dmaru)
+static int __init
+dmar_parse_one_drhd(struct acpi_dmar_header *header)
+{
+	return __dmar_parse_one_drhd(header, NULL);
+}
+
+static int dmar_parse_dev(struct dmar_drhd_unit *dmaru)
 {
 	struct acpi_dmar_hardware_unit *drhd;
 	int ret = 0;
@@ -214,10 +223,10 @@ static int __init dmar_parse_dev(struct dmar_drhd_unit *dmaru)
 	return ret;
 }
 
-#ifdef CONFIG_ACPI_NUMA
-static int __init
+static int
 dmar_parse_one_rhsa(struct acpi_dmar_header *header)
 {
+#ifdef CONFIG_ACPI_NUMA
 	struct acpi_dmar_rhsa *rhsa;
 	struct dmar_drhd_unit *drhd;
 
@@ -241,12 +250,11 @@ dmar_parse_one_rhsa(struct acpi_dmar_header *header)
 		dmi_get_system_info(DMI_BIOS_VERSION),
 		dmi_get_system_info(DMI_PRODUCT_VERSION));
 
+#endif
 	return 0;
 }
-#endif
 
-static void __init
-dmar_table_print_dmar_entry(struct acpi_dmar_header *header)
+static void dmar_table_print_dmar_entry(struct acpi_dmar_header *header)
 {
 	struct acpi_dmar_hardware_unit *drhd;
 	struct acpi_dmar_reserved_memory *rmrr;
@@ -358,9 +366,7 @@ parse_dmar_table(void)
 			ret = dmar_parse_one_atsr(entry_header);
 			break;
 		case ACPI_DMAR_HARDWARE_AFFINITY:
-#ifdef CONFIG_ACPI_NUMA
 			ret = dmar_parse_one_rhsa(entry_header);
-#endif
 			break;
 		default:
 			pr_warn("Unknown DMAR structure type %d\n",
@@ -545,6 +551,23 @@ void restore_dev_to_drhd(struct pci_dev *dev)
 		drhd->devices[i] = pci_dev_get(dev);
 }
 
+static void remove_dmaru_from_saved_list(void *drhd,
+				  struct list_head *lh)
+{
+	struct dev_dmaru *m, *n;
+
+	list_for_each_entry_safe(m, n, lh, list) {
+		if (m->dmaru == drhd) {
+			list_del(&m->list);
+			kfree(m);
+		}
+	}
+}
+static void remove_dmaru_from_saved_dev_drhd_list(void *drhd)
+{
+	remove_dmaru_from_saved_list(drhd, &saved_dev_drhd_list);
+}
+
 #ifdef CONFIG_INTEL_IOMMU
 static LIST_HEAD(saved_dev_atsr_list);
 void remove_dev_from_atsr(struct pci_dev *dev)
@@ -586,6 +609,14 @@ void restore_dev_to_atsr(struct pci_dev *dev)
 	/* restore that into atsr */
 	if (atsr)
 		atsr->devices[i] = pci_dev_get(dev);
+}
+static void remove_atsru_from_saved_dev_atsru_list(void *atsr)
+{
+	remove_dmaru_from_saved_list(atsr, &saved_dev_atsr_list);
+}
+#else
+static void remove_atsru_from_saved_dev_atsru_list(struct dmar_atsr_unit *atsr)
+{
 }
 #endif  /* CONFIG_INTEL_IOMMU */
 
