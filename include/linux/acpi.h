@@ -323,6 +323,16 @@ void __init acpi_nvs_nosave(void);
 void __init acpi_nvs_nosave_s3(void);
 #endif /* CONFIG_PM_SLEEP */
 
+struct acpi_dsm_context {
+	char *uuid_str; /* uuid string */
+	int rev;
+	int func_idx;	/* function index */
+	int func_argc;
+	union acpi_object *func_argv;
+	struct acpi_buffer ret; /* free by caller if success */
+};
+acpi_status acpi_run_dsm(acpi_handle handle, struct acpi_dsm_context *context);
+
 struct acpi_osc_context {
 	char *uuid_str;			/* UUID string */
 	int rev;

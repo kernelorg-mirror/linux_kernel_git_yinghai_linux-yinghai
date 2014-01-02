@@ -283,6 +283,83 @@ out_kfree:
 }
 EXPORT_SYMBOL(acpi_run_osc);
 
+static void acpi_print_dsm_error(acpi_handle handle,
+	struct acpi_dsm_context *context, char *error)
+{
+	struct acpi_buffer buffer = {ACPI_ALLOCATE_BUFFER};
+
+	if (ACPI_FAILURE(acpi_get_name(handle, ACPI_FULL_PATHNAME, &buffer)))
+		printk(KERN_DEBUG "%s for idx %x\n", error, context->func_idx);
+	else {
+		printk(KERN_DEBUG "%s:%s for idx %x\n",
+			(char *)buffer.pointer, error, context->func_idx);
+		kfree(buffer.pointer);
+	}
+}
+
+acpi_status acpi_run_dsm(acpi_handle handle, struct acpi_dsm_context *context)
+{
+	acpi_status status;
+	struct acpi_object_list input;
+	union acpi_object in_params[4];
+	union acpi_object *out_obj;
+	u8 uuid[16];
+	struct acpi_buffer output = {ACPI_ALLOCATE_BUFFER, NULL};
+
+	if (!context)
+		return AE_ERROR;
+	if (ACPI_FAILURE(acpi_str_to_uuid(context->uuid_str, uuid)))
+		return AE_ERROR;
+	context->ret.length = ACPI_ALLOCATE_BUFFER;
+	context->ret.pointer = NULL;
+
+	/* Setting up input parameters */
+	input.count = 4;
+	input.pointer = in_params;
+	in_params[0].type		= ACPI_TYPE_BUFFER;
+	in_params[0].buffer.length	= 16;
+	in_params[0].buffer.pointer	= uuid;
+	in_params[1].type		= ACPI_TYPE_INTEGER;
+	in_params[1].integer.value	= context->rev;
+	in_params[2].type		= ACPI_TYPE_INTEGER;
+	in_params[2].integer.value	= context->func_idx;
+	in_params[3].type		= ACPI_TYPE_PACKAGE;
+	in_params[3].package.count	= context->func_argc;
+	in_params[3].package.elements	= context->func_argv;
+
+	status = acpi_evaluate_object(handle, "_DSM", &input, &output);
+	if (ACPI_FAILURE(status))
+		return status;
+
+	if (!output.length)
+		return AE_NULL_OBJECT;
+
+	out_obj = output.pointer;
+	if (out_obj->type != ACPI_TYPE_BUFFER) {
+		acpi_print_dsm_error(handle, context,
+			"_DSM evaluation returned wrong type");
+		status = AE_TYPE;
+		goto out_kfree;
+	}
+
+	context->ret.length = out_obj->buffer.length;
+	context->ret.pointer = kmalloc(context->ret.length, GFP_KERNEL);
+	if (!context->ret.pointer) {
+		status =  AE_NO_MEMORY;
+		goto out_kfree;
+	}
+	memcpy(context->ret.pointer, out_obj->buffer.pointer,
+		context->ret.length);
+	status =  AE_OK;
+
+out_kfree:
+	kfree(output.pointer);
+	if (status != AE_OK)
+		context->ret.pointer = NULL;
+	return status;
+}
+EXPORT_SYMBOL(acpi_run_dsm);
+
 bool osc_sb_apei_support_acked;
 static u8 sb_uuid_str[] = "0811B06E-4A27-44F9-8D60-3CBBC22E7B48";
 static void acpi_bus_osc_support(void)
