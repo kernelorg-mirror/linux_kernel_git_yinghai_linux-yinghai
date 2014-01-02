@@ -113,6 +113,10 @@ static unsigned int gsi_to_irq(unsigned int gsi)
 		}
 	}
 
+#ifdef CONFIG_X86_IO_APIC
+	if (acpi_irq_model == ACPI_IRQ_MODEL_IOAPIC)
+		return ioapic_gsi_to_irq(gsi);
+#endif
 	/* Provide an identity mapping of gsi == irq
 	 * except on truly weird platforms that have
 	 * non isa irqs in the first 16 gsis.
@@ -123,22 +127,6 @@ static unsigned int gsi_to_irq(unsigned int gsi)
 		irq = gsi_top + gsi;
 
 	return irq;
-}
-
-static u32 irq_to_gsi(int irq)
-{
-	unsigned int gsi;
-
-	if (irq < NR_IRQS_LEGACY)
-		gsi = isa_irq_to_gsi[irq];
-	else if (irq < gsi_top)
-		gsi = irq;
-	else if (irq < (gsi_top + NR_IRQS_LEGACY))
-		gsi = irq - gsi_top;
-	else
-		gsi = 0xffffffff;
-
-	return gsi;
 }
 
 /*
@@ -530,7 +518,7 @@ int acpi_isa_irq_to_gsi(unsigned isa_irq, u32 *gsi)
 {
 	if (isa_irq >= 16)
 		return -1;
-	*gsi = irq_to_gsi(isa_irq);
+	*gsi = isa_irq_to_gsi[isa_irq];
 	return 0;
 }
 
