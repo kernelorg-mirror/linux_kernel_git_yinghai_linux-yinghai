@@ -595,10 +595,13 @@ static inline u32 irq_get_trigger_type(unsigned int irq)
 
 int __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 		struct module *owner);
+int __irq_alloc_reserved_desc(int at, int node, struct module *owner);
 
 /* use macros to avoid needing export.h for THIS_MODULE */
 #define irq_alloc_descs(irq, from, cnt, node)	\
 	__irq_alloc_descs(irq, from, cnt, node, THIS_MODULE)
+#define irq_alloc_reserved_desc_at(at, node)	\
+	__irq_alloc_reserved_desc(at, node, THIS_MODULE)
 
 #define irq_alloc_desc(node)			\
 	irq_alloc_descs(-1, 0, 1, node)
