@@ -176,6 +176,7 @@ extern void setup_ioapic_ids_from_mpc_nocheck(void);
 struct mp_ioapic_gsi{
 	u32 gsi_base;
 	u32 gsi_end;
+	u32 irq_base;
 };
 extern struct mp_ioapic_gsi  mp_gsi_routing[];
 extern u32 gsi_top;
