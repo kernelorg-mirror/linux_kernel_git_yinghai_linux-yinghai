@@ -56,8 +56,6 @@ extern bool setup_remapped_irq(int irq,
 			       struct irq_cfg *cfg,
 			       struct irq_chip *chip);
 
-void irq_remap_modify_chip_defaults(struct irq_chip *chip);
-
 #else  /* CONFIG_IRQ_REMAP */
 
 static inline void setup_irq_remapping_ops(void) { }
@@ -88,10 +86,6 @@ static inline int setup_hpet_msi_remapped(unsigned int irq, unsigned int id)
 }
 
 static inline void panic_if_irq_remap(const char *msg)
-{
-}
-
-static inline void irq_remap_modify_chip_defaults(struct irq_chip *chip)
 {
 }
 
