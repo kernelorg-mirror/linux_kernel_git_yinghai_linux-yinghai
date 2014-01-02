@@ -807,12 +807,43 @@ int __init parse_ioapics_under_ir(void)
 	return 1;
 }
 
+static int device_notifier(struct notifier_block *nb,
+				  unsigned long action, void *data)
+{
+	struct device *dev = data;
+	struct pci_dev *pdev = to_pci_dev(dev);
+
+	switch (action) {
+	case BUS_NOTIFY_DEL_DEVICE:
+		remove_dev_from_drhd(pdev);
+		break;
+	case BUS_NOTIFY_ADD_DEVICE:
+		restore_dev_to_drhd(pdev);
+		break;
+	}
+
+	return 0;
+}
+
+static struct notifier_block device_nb = {
+	.notifier_call = device_notifier,
+};
+
 int __init ir_dev_scope_init(void)
 {
+	int ret;
+
 	if (!irq_remapping_enabled)
 		return 0;
 
-	return dmar_dev_scope_init();
+	ret = dmar_dev_scope_init();
+	if (ret < 0)
+		return ret;
+
+	if (intel_iommu_enabled != 1)
+		bus_register_notifier(&pci_bus_type, &device_nb);
+
+	return ret;
 }
 rootfs_initcall(ir_dev_scope_init);
 

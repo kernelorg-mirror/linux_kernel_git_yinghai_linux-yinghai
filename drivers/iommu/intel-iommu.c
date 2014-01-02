@@ -3528,7 +3528,7 @@ rmrr_parse_dev(struct dmar_rmrr_unit *rmrru)
 	return ret;
 }
 
-static LIST_HEAD(dmar_atsr_units);
+LIST_HEAD(dmar_atsr_units);
 
 int __init dmar_parse_one_atsr(struct acpi_dmar_header *hdr)
 {
@@ -3542,6 +3542,7 @@ int __init dmar_parse_one_atsr(struct acpi_dmar_header *hdr)
 
 	atsru->hdr = hdr;
 	atsru->include_all = atsr->flags & 0x1;
+	atsru->segment = atsr->segment;
 
 	list_add(&atsru->list, &dmar_atsr_units);
 
@@ -3573,16 +3574,13 @@ int dmar_find_matched_atsr_unit(struct pci_dev *dev)
 {
 	int i;
 	struct pci_bus *bus;
-	struct acpi_dmar_atsr *atsr;
 	struct dmar_atsr_unit *atsru;
 
 	dev = pci_physfn(dev);
 
-	list_for_each_entry(atsru, &dmar_atsr_units, list) {
-		atsr = container_of(atsru->hdr, struct acpi_dmar_atsr, header);
-		if (atsr->segment == pci_domain_nr(dev->bus))
+	list_for_each_entry(atsru, &dmar_atsr_units, list)
+		if (atsru->segment == pci_domain_nr(dev->bus))
 			goto found;
-	}
 
 	return 0;
 
@@ -3642,20 +3640,30 @@ static int device_notifier(struct notifier_block *nb,
 	struct pci_dev *pdev = to_pci_dev(dev);
 	struct dmar_domain *domain;
 
-	if (iommu_no_mapping(dev))
-		return 0;
+	switch (action) {
+	case BUS_NOTIFY_UNBOUND_DRIVER:
+		if (iommu_no_mapping(dev) || iommu_pass_through)
+			break;
 
-	domain = find_domain(pdev);
-	if (!domain)
-		return 0;
+		domain = find_domain(pdev);
+		if (!domain)
+			break;
 
-	if (action == BUS_NOTIFY_UNBOUND_DRIVER && !iommu_pass_through) {
 		domain_remove_one_dev_info(domain, pdev);
 
 		if (!(domain->flags & DOMAIN_FLAG_VIRTUAL_MACHINE) &&
 		    !(domain->flags & DOMAIN_FLAG_STATIC_IDENTITY) &&
 		    list_empty(&domain->devices))
 			domain_exit(domain);
+		break;
+	case BUS_NOTIFY_DEL_DEVICE:
+		remove_dev_from_drhd(pdev);
+		remove_dev_from_atsr(pdev);
+		break;
+	case BUS_NOTIFY_ADD_DEVICE:
+		restore_dev_to_drhd(pdev);
+		restore_dev_to_atsr(pdev);
+		break;
 	}
 
 	return 0;
