@@ -876,8 +876,6 @@ void free_iommu(struct intel_iommu *iommu)
 	if (!iommu)
 		return;
 
-	free_dmar_iommu(iommu);
-
 	if (iommu->reg)
 		unmap_iommu(iommu);
 

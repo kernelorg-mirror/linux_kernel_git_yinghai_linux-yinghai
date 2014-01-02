@@ -2668,6 +2668,7 @@ error:
 		if (drhd->ignored)
 			continue;
 		iommu = drhd->iommu;
+		free_dmar_iommu(iommu);
 		free_iommu(iommu);
 	}
 	kfree(g_iommus);
