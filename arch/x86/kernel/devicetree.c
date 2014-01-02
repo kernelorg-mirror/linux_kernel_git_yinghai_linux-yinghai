@@ -361,7 +361,7 @@ static void __init ioapic_add_ofnode(struct device_node *np)
 		return;
 	}
 
-	for (i = 0; i < nr_ioapics; i++) {
+	for_each_ioapic(i) {
 		if (r.start == mpc_ioapic_addr(i)) {
 			dt_add_ioapic_domain(i, np);
 			return;

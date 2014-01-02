@@ -794,7 +794,7 @@ int __init parse_ioapics_under_ir(void)
 	if (!ir_supported)
 		return 0;
 
-	for (ioapic_idx = 0; ioapic_idx < nr_ioapics; ioapic_idx++) {
+	for_each_ioapic(ioapic_idx) {
 		int ioapic_id = mpc_ioapic_id(ioapic_idx);
 		if (!map_ioapic_to_ir(ioapic_id)) {
 			pr_err(FW_BUG "ioapic %d has no mapping iommu, "

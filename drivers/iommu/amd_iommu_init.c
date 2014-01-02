@@ -1743,7 +1743,7 @@ static bool __init check_ioapic_information(void)
 	if (cmdline_maps)
 		fw_bug = "";
 
-	for (idx = 0; idx < nr_ioapics; idx++) {
+	for_each_ioapic(idx) {
 		int devid, id = mpc_ioapic_id(idx);
 
 		devid = get_ioapic_devid(id);
