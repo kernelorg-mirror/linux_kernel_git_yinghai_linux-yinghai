@@ -293,6 +293,9 @@ unsigned long acpi_dev_irq_flags(u8 triggering, u8 polarity, u8 shareable);
 bool acpi_dev_resource_interrupt(struct acpi_resource *ares, int index,
 				 struct resource *res);
 
+acpi_status acpi_mem_addr_resource_to_address64(struct acpi_resource *resource,
+			struct acpi_resource_address64 *addr);
+
 struct resource_list_entry {
 	struct list_head node;
 	struct resource res;
