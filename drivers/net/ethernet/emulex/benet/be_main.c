@@ -4381,6 +4381,7 @@ static int lancer_recover_func(struct be_adapter *adapter)
 	if (status)
 		goto err;
 
+	pci_bus_add_device_vfs(adapter->pdev);
 	if (netif_running(adapter->netdev)) {
 		status = be_open(adapter->netdev);
 		if (status)
@@ -4594,6 +4595,8 @@ static int be_probe(struct pci_dev *pdev, const struct pci_device_id *pdev_id)
 	dev_info(&pdev->dev, "%s: %s %s port %c\n", nic_name(pdev),
 		 func_name(adapter), mc_name(adapter), port_name);
 
+	pci_bus_add_device_vfs(pdev);
+
 	return 0;
 
 unsetup:
@@ -4670,6 +4673,7 @@ static int be_resume(struct pci_dev *pdev)
 		rtnl_unlock();
 	}
 
+	pci_bus_add_device_vfs(adapter->pdev);
 	schedule_delayed_work(&adapter->func_recovery_work,
 			      msecs_to_jiffies(1000));
 	netif_device_attach(netdev);

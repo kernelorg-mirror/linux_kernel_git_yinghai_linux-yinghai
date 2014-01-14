@@ -2403,6 +2403,9 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 
 	pm_runtime_put_noidle(&pdev->dev);
+
+	pci_bus_add_device_vfs(pdev);
+
 	return 0;
 
 err_register:
@@ -7324,8 +7327,12 @@ static int igb_pci_sriov_configure(struct pci_dev *dev, int num_vfs)
 #ifdef CONFIG_PCI_IOV
 	if (num_vfs == 0)
 		return igb_pci_disable_sriov(dev);
-	else
-		return igb_pci_enable_sriov(dev, num_vfs);
+	else {
+		int ret = igb_pci_enable_sriov(dev, num_vfs);
+		if (ret > 0)
+			pci_bus_add_device_vfs(dev);
+		return ret;
+	}
 #endif
 	return 0;
 }

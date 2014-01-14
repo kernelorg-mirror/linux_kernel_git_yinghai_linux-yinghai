@@ -2285,6 +2285,8 @@ static int enic_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		goto err_out_dev_deinit;
 	}
 
+	pci_bus_add_device_vfs(pdev);
+
 	return 0;
 
 err_out_dev_deinit:

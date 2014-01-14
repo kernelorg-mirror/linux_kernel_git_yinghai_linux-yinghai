@@ -10581,6 +10581,8 @@ lpfc_pci_probe_one(struct pci_dev *pdev, const struct pci_device_id *pid)
 	else
 		rc = lpfc_pci_probe_one_s3(pdev, pid);
 
+	pci_bus_add_device_vfs(pdev);
+
 	return rc;
 }
 

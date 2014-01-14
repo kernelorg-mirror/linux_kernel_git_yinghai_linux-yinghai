@@ -6079,10 +6079,12 @@ static int init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 sriov:
 #ifdef CONFIG_PCI_IOV
 	if (func < ARRAY_SIZE(num_vf) && num_vf[func] > 0)
-		if (pci_enable_sriov(pdev, num_vf[func]) == 0)
+		if (pci_enable_sriov(pdev, num_vf[func]) == 0) {
 			dev_info(&pdev->dev,
 				 "instantiated %u virtual functions\n",
 				 num_vf[func]);
+			pci_bus_add_device_vfs(pdev);
+		}
 #endif
 	return 0;
 

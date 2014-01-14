@@ -310,8 +310,13 @@ int ixgbe_pci_sriov_configure(struct pci_dev *dev, int num_vfs)
 {
 	if (num_vfs == 0)
 		return ixgbe_pci_sriov_disable(dev);
-	else
-		return ixgbe_pci_sriov_enable(dev, num_vfs);
+	else {
+		int ret = ixgbe_pci_sriov_enable(dev, num_vfs);
+
+		if (ret > 0)
+			pci_bus_add_device_vfs(dev);
+		return ret;
+	}
 }
 
 static int ixgbe_set_vf_multicasts(struct ixgbe_adapter *adapter,

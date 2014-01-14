@@ -4735,6 +4735,9 @@ vxge_probe(struct pci_dev *pdev, const struct pci_device_id *pre)
 		vxge_hw_device_trace_level_get(hldev));
 
 	kfree(ll_config);
+
+	pci_bus_add_device_vfs(pdev);
+
 	return 0;
 
 _exit6:

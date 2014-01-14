@@ -1571,6 +1571,7 @@ void __iomem *pci_ioremap_bar(struct pci_dev *pdev, int bar);
 
 #ifdef CONFIG_PCI_IOV
 int pci_enable_sriov(struct pci_dev *dev, int nr_virtfn);
+void pci_bus_add_device_vfs(struct pci_dev *dev);
 void pci_disable_sriov(struct pci_dev *dev);
 irqreturn_t pci_sriov_migration(struct pci_dev *dev);
 int pci_num_vf(struct pci_dev *dev);
@@ -1580,6 +1581,7 @@ int pci_sriov_get_totalvfs(struct pci_dev *dev);
 #else
 static inline int pci_enable_sriov(struct pci_dev *dev, int nr_virtfn)
 { return -ENODEV; }
+static inline void pci_bus_add_device_vfs(struct pci_dev *dev) { }
 static inline void pci_disable_sriov(struct pci_dev *dev) { }
 static inline irqreturn_t pci_sriov_migration(struct pci_dev *dev)
 { return IRQ_NONE; }

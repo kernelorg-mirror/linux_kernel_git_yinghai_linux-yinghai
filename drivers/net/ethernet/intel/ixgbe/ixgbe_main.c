@@ -8174,6 +8174,8 @@ skip_sriov:
 			IXGBE_LINK_SPEED_10GB_FULL | IXGBE_LINK_SPEED_1GB_FULL,
 			true);
 
+	pci_bus_add_device_vfs(pdev);
+
 	return 0;
 
 err_register:

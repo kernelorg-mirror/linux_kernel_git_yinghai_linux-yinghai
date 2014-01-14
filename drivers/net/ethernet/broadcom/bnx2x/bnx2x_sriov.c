@@ -3149,7 +3149,12 @@ int bnx2x_sriov_configure(struct pci_dev *dev, int num_vfs_param)
 		pci_disable_sriov(dev);
 		return 0;
 	} else {
-		return bnx2x_enable_sriov(bp);
+		int ret = bnx2x_enable_sriov(bp);
+
+		if (ret > 0)
+			pci_bus_add_device_vfs(dev);
+
+		return 0;
 	}
 }
 #define IGU_ENTRY_SIZE 4

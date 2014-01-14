@@ -2353,6 +2353,9 @@ slave_start:
 	priv->pci_dev_data = pci_dev_data;
 	pci_set_drvdata(pdev, dev);
 
+	if (dev->flags & MLX4_FLAG_SRIOV)
+		pci_bus_add_device_vfs(pdev);
+
 	return 0;
 
 err_port:

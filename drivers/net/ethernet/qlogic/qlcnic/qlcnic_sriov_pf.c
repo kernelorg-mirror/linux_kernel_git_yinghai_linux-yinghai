@@ -575,8 +575,11 @@ int qlcnic_pci_sriov_configure(struct pci_dev *dev, int num_vfs)
 
 	if (num_vfs == 0)
 		err = qlcnic_pci_sriov_disable(adapter);
-	else
+	else {
 		err = qlcnic_pci_sriov_enable(adapter, num_vfs);
+		if (err > 0)
+			pci_bus_add_device_vfs(dev);
+	}
 
 	clear_bit(__QLCNIC_RESETTING, &adapter->state);
 	return err;

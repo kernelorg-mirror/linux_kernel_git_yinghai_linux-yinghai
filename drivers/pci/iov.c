@@ -57,7 +57,8 @@ static void virtfn_remove_bus(struct pci_bus *physbus, struct pci_bus *virtbus)
 		pci_remove_bus(virtbus);
 }
 
-static int virtfn_add(struct pci_dev *dev, int id, int reset)
+static int virtfn_add(struct pci_dev *dev, int id, int reset,
+			struct pci_dev **ret)
 {
 	int i;
 	int rc = -ENOMEM;
@@ -105,7 +106,6 @@ static int virtfn_add(struct pci_dev *dev, int id, int reset)
 	pci_device_add(virtfn, virtfn->bus);
 	mutex_unlock(&iov->dev->sriov->lock);
 
-	rc = pci_bus_add_device(virtfn);
 	sprintf(buf, "virtfn%u", id);
 	rc = sysfs_create_link(&dev->dev.kobj, &virtfn->dev.kobj, buf);
 	if (rc)
@@ -116,6 +116,8 @@ static int virtfn_add(struct pci_dev *dev, int id, int reset)
 
 	kobject_uevent(&virtfn->dev.kobj, KOBJ_CHANGE);
 
+	if (ret)
+		*ret = virtfn;
 	return 0;
 
 failed2:
@@ -160,6 +162,26 @@ void virtfn_release(struct pci_dev *virtfn)
 	virtfn_remove_bus(dev->bus, virtfn->bus);
 	pci_dev_put(dev);
 }
+
+void pci_bus_add_device_vfs(struct pci_dev *pdev)
+{
+	int rc;
+	struct pci_dev *dev;
+
+       /* only search if it is a PF */
+	if (!pdev->is_physfn)
+		return;
+
+	/* loop through all the VFs to see if we own and is not added yet*/
+	dev = pci_get_device(pdev->vendor, PCI_ANY_ID, NULL);
+	while (dev) {
+		if (dev->is_virtfn && dev->physfn == pdev && !dev->is_added)
+			rc = pci_bus_add_device(dev);
+
+		dev = pci_get_device(pdev->vendor, PCI_ANY_ID, dev);
+	}
+}
+EXPORT_SYMBOL_GPL(pci_bus_add_device_vfs);
 
 static void virtfn_remove(struct pci_dev *dev, int id, int reset)
 {
@@ -216,6 +238,7 @@ static int sriov_migration(struct pci_dev *dev)
 static void sriov_migration_task(struct work_struct *work)
 {
 	int i;
+	int rc;
 	u8 state;
 	u16 status;
 	struct pci_sriov *iov = container_of(work, struct pci_sriov, mtask);
@@ -225,14 +248,24 @@ static void sriov_migration_task(struct work_struct *work)
 		if (state == PCI_SRIOV_VFM_MI) {
 			writeb(PCI_SRIOV_VFM_AV, iov->mstate + i);
 			state = readb(iov->mstate + i);
-			if (state == PCI_SRIOV_VFM_AV)
-				virtfn_add(iov->self, i, 1);
+			if (state == PCI_SRIOV_VFM_AV) {
+				struct pci_dev *virtfn = NULL;
+
+				virtfn_add(iov->self, i, 1, &virtfn);
+				if (virtfn)
+					rc = pci_bus_add_device(virtfn);
+			}
 		} else if (state == PCI_SRIOV_VFM_MO) {
 			virtfn_remove(iov->self, i, 1);
 			writeb(PCI_SRIOV_VFM_UA, iov->mstate + i);
 			state = readb(iov->mstate + i);
-			if (state == PCI_SRIOV_VFM_AV)
-				virtfn_add(iov->self, i, 0);
+			if (state == PCI_SRIOV_VFM_AV) {
+				struct pci_dev *virtfn = NULL;
+
+				virtfn_add(iov->self, i, 0, &virtfn);
+				if (virtfn)
+					rc = pci_bus_add_device(virtfn);
+			}
 		}
 	}
 
@@ -369,7 +402,7 @@ static int sriov_enable(struct pci_dev *dev, int nr_virtfn)
 		initial = nr_virtfn;
 
 	for (i = 0; i < initial; i++) {
-		rc = virtfn_add(dev, i, 0);
+		rc = virtfn_add(dev, i, 0, NULL);
 		if (rc)
 			goto failed;
 	}
