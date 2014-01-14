@@ -92,11 +92,28 @@ static void pci_remove_bus_device(struct pci_dev *dev)
  */
 void pci_stop_and_remove_bus_device(struct pci_dev *dev)
 {
+#ifdef CONFIG_PCI_ATS
+	struct pci_sriov *iov = NULL;
+	int locked = 0;
+#endif
+
 	if (dev->is_removed)
 		return;
 
+#ifdef CONFIG_PCI_ATS
+	if (dev->is_virtfn) {
+		iov = dev->physfn->sriov;
+		locked = mutex_trylock(&iov->dev->sriov->lock);
+	}
+#endif
+
 	pci_stop_bus_device(dev);
 	pci_remove_bus_device(dev);
+
+#ifdef CONFIG_PCI_ATS
+	if (locked)
+		mutex_unlock(&iov->dev->sriov->lock);
+#endif
 }
 EXPORT_SYMBOL(pci_stop_and_remove_bus_device);
 

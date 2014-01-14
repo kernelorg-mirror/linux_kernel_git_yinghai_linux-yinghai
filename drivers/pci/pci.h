@@ -260,6 +260,7 @@ int pci_iov_resource_bar(struct pci_dev *dev, int resno,
 resource_size_t pci_sriov_resource_alignment(struct pci_dev *dev, int resno);
 void pci_restore_iov_state(struct pci_dev *dev);
 int pci_iov_bus_range(struct pci_bus *bus);
+void virtfn_release(struct pci_dev *dev);
 
 #else
 static inline int pci_iov_init(struct pci_dev *dev)
@@ -281,6 +282,9 @@ static inline void pci_restore_iov_state(struct pci_dev *dev)
 static inline int pci_iov_bus_range(struct pci_bus *bus)
 {
 	return 0;
+}
+static inline void virtfn_release(struct pci_dev *dev)
+{
 }
 
 #endif /* CONFIG_PCI_IOV */

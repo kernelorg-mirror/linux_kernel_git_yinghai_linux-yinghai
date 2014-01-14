@@ -1235,6 +1235,8 @@ static void pci_release_dev(struct device *dev)
 	list_del(&pci_dev->bus_list);
 	up_write(&pci_bus_sem);
 
+	virtfn_release(pci_dev);
+
 	pci_free_resources(pci_dev);
 
 	pci_release_capabilities(pci_dev);

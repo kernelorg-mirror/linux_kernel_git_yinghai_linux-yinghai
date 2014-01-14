@@ -132,9 +132,37 @@ failed:
 	return rc;
 }
 
+void virtfn_release(struct pci_dev *virtfn)
+{
+	int i;
+	struct pci_dev *dev;
+	char buf[VIRTFN_ID_LEN];
+
+	if (!virtfn->is_virtfn)
+		return;
+
+	dev = virtfn->physfn;
+
+	/*
+	 * Remove link to virtfn for PF.
+	 * pci_disable_sriov() could be called after pci_stop_dev() is
+	 * called for PF. So check sd to avoid spurious sfsfs warning.
+	 */
+	if (dev->dev.kobj.sd)
+		for (i = 0; i < dev->sriov->num_VFs; i++)
+			if ((virtfn_bus(dev, i) == virtfn->bus->number) &&
+			    (virtfn_devfn(dev, i) == virtfn->devfn)) {
+				sprintf(buf, "virtfn%u", i);
+				sysfs_remove_link(&dev->dev.kobj, buf);
+				break;
+			}
+
+	virtfn_remove_bus(dev->bus, virtfn->bus);
+	pci_dev_put(dev);
+}
+
 static void virtfn_remove(struct pci_dev *dev, int id, int reset)
 {
-	char buf[VIRTFN_ID_LEN];
 	struct pci_dev *virtfn;
 	struct pci_sriov *iov = dev->sriov;
 
@@ -149,8 +177,6 @@ static void virtfn_remove(struct pci_dev *dev, int id, int reset)
 		__pci_reset_function(virtfn);
 	}
 
-	sprintf(buf, "virtfn%u", id);
-	sysfs_remove_link(&dev->dev.kobj, buf);
 	/*
 	 * pci_stop_dev() could have been called for this virtfn already,
 	 * so the directory for the virtfn may have been removed before.
@@ -161,12 +187,10 @@ static void virtfn_remove(struct pci_dev *dev, int id, int reset)
 
 	mutex_lock(&iov->dev->sriov->lock);
 	pci_stop_and_remove_bus_device(virtfn);
-	virtfn_remove_bus(dev->bus, virtfn->bus);
 	mutex_unlock(&iov->dev->sriov->lock);
 
 	/* balance pci_get_domain_bus_and_slot() */
 	pci_dev_put(virtfn);
-	pci_dev_put(dev);
 }
 
 static int sriov_migration(struct pci_dev *dev)
