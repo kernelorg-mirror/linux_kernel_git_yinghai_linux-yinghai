@@ -12,6 +12,8 @@ static void pci_stop_dev(struct pci_dev *dev)
 		pci_remove_sysfs_dev_files(dev);
 		device_release_driver(&dev->dev);
 		dev->match_driver = false;
+		/* remove VF, if PF driver skip that */
+		pci_disable_sriov(dev);
 		dev->is_added = 0;
 	}
 
