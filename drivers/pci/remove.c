@@ -11,6 +11,7 @@ static void pci_stop_dev(struct pci_dev *dev)
 		pci_proc_detach_device(dev);
 		pci_remove_sysfs_dev_files(dev);
 		device_release_driver(&dev->dev);
+		dev->match_driver = false;
 		dev->is_added = 0;
 	}
 
