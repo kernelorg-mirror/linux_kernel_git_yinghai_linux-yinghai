@@ -137,7 +137,7 @@ static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
 					  const struct resource *,
 					  resource_size_t,
 					  resource_size_t),
-		void *alignf_data,
+		void *alignf_data, bool fit,
 		struct pci_bus_region *region)
 {
 	int i, ret;
@@ -177,8 +177,8 @@ static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
 		max = avail.end;
 
 		/* Ok, try it out.. */
-		ret = allocate_resource(r, res, size, min, max,
-					align, alignf, alignf_data);
+		ret = allocate_resource_fit(r, res, size, min, max,
+					align, alignf, alignf_data, fit);
 		if (ret == 0)
 			return 0;
 	}
@@ -186,7 +186,7 @@ static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
 }
 
 /**
- * pci_bus_alloc_resource - allocate a resource from a parent bus
+ * pci_bus_alloc_resource_fit - allocate a resource from a parent bus
  * @bus: PCI bus
  * @res: resource to allocate
  * @size: size of resource to allocate
@@ -195,12 +195,46 @@ static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
  * @type_mask: IORESOURCE_* type flags
  * @alignf: resource alignment function
  * @alignf_data: data argument for resource alignment function
+ * @fit: allocation fit one
  *
  * Given the PCI bus a device resides on, the size, minimum address,
  * alignment and type, try to find an acceptable resource allocation
  * for a specific device resource.
  */
-int pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
+int pci_bus_alloc_resource_fit(struct pci_bus *bus, struct resource *res,
+		resource_size_t size, resource_size_t align,
+		resource_size_t min, unsigned int type_mask,
+		resource_size_t (*alignf)(void *,
+					  const struct resource *,
+					  resource_size_t,
+					  resource_size_t),
+		void *alignf_data, bool fit)
+{
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	int rc;
+
+	if (res->flags & IORESOURCE_MEM_64) {
+		rc = pci_bus_alloc_from_region(bus, res, size, align, min,
+					       type_mask, alignf, alignf_data,
+					       fit, &pci_high);
+		if (rc == 0)
+			return 0;
+
+		return pci_bus_alloc_from_region(bus, res, size, align, min,
+						 type_mask, alignf, alignf_data,
+						 fit, &pci_64_bit);
+	}
+#endif
+
+	return pci_bus_alloc_from_region(bus, res, size, align, min,
+					 type_mask, alignf, alignf_data, fit,
+					 &pci_32_bit);
+}
+
+void __weak pcibios_resource_survey_bus(struct pci_bus *bus) { }
+
+int
+pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 		resource_size_t size, resource_size_t align,
 		resource_size_t min, unsigned int type_mask,
 		resource_size_t (*alignf)(void *,
@@ -209,28 +243,9 @@ int pci_bus_alloc_resource(struct pci_bus *bus, struct resource *res,
 					  resource_size_t),
 		void *alignf_data)
 {
-#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
-	int rc;
-
-	if (res->flags & IORESOURCE_MEM_64) {
-		rc = pci_bus_alloc_from_region(bus, res, size, align, min,
-					       type_mask, alignf, alignf_data,
-					       &pci_high);
-		if (rc == 0)
-			return 0;
-
-		return pci_bus_alloc_from_region(bus, res, size, align, min,
-						 type_mask, alignf, alignf_data,
-						 &pci_64_bit);
-	}
-#endif
-
-	return pci_bus_alloc_from_region(bus, res, size, align, min,
-					 type_mask, alignf, alignf_data,
-					 &pci_32_bit);
+	return pci_bus_alloc_resource_fit(bus, res, size, align, min, type_mask,
+					alignf, alignf_data, false);
 }
-
-void __weak pcibios_resource_survey_bus(struct pci_bus *bus) { }
 
 /**
  * pci_bus_add_device - start driver for a single device

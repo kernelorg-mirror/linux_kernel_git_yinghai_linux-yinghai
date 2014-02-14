@@ -960,6 +960,7 @@ int pci_try_reset_bus(struct pci_bus *bus);
 void pci_reset_bridge_secondary_bus(struct pci_dev *dev);
 void pci_update_resource(struct pci_dev *dev, int resno);
 int __must_check pci_assign_resource(struct pci_dev *dev, int i);
+int __must_check pci_assign_resource_fit(struct pci_dev *dev, int i, bool fit);
 int __must_check pci_reassign_resource(struct pci_dev *dev, int i, resource_size_t add_size, resource_size_t align);
 int pci_select_bars(struct pci_dev *dev, unsigned long flags);
 bool pci_device_is_present(struct pci_dev *pdev);
@@ -1073,6 +1074,15 @@ int __must_check pci_bus_alloc_resource(struct pci_bus *bus,
 						  resource_size_t,
 						  resource_size_t),
 			void *alignf_data);
+int __must_check pci_bus_alloc_resource_fit(struct pci_bus *bus,
+			struct resource *res, resource_size_t size,
+			resource_size_t align, resource_size_t min,
+			unsigned int type_mask,
+			resource_size_t (*alignf)(void *,
+						  const struct resource *,
+						  resource_size_t,
+						  resource_size_t),
+			void *alignf_data, bool fit);
 
 static inline dma_addr_t pci_bus_address(struct pci_dev *pdev, int bar)
 {
