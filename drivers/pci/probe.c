@@ -823,6 +823,28 @@ static int pci_bridge_probe_busn_res(struct pci_bus *bus,
 	return ret;
 }
 
+static int pci_bridge_check_busn_broken(struct pci_bus *bus,
+				struct pci_dev *dev,
+				int secondary, int subordinate)
+{
+	int ret;
+	struct resource busn_res;
+
+	memset(&busn_res, 0, sizeof(struct resource));
+	dev_printk(KERN_DEBUG, &dev->dev,
+		 "check if busn %02x-%02x is in busn_res: %pR\n",
+		 secondary, subordinate, &bus->busn_res);
+	ret = allocate_resource(&bus->busn_res, &busn_res,
+			 (subordinate - secondary + 1),
+			 secondary, subordinate,
+			 1, NULL, NULL);
+	if (ret)
+		return 1;
+
+	release_resource(&busn_res);
+
+	return 0;
+}
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
@@ -859,11 +881,17 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 	/* Check if setup is sensible at all */
 	if (!pass &&
 	    (primary != bus->number || secondary <= bus->number ||
-	     secondary > subordinate)) {
+	     secondary > subordinate))
+		broken = 1;
+
+	/* more strict checking */
+	if (!pass && !broken && !dev->subordinate)
+		broken = pci_bridge_check_busn_broken(bus, dev,
+						   secondary, subordinate);
+
+	if (broken)
 		dev_info(&dev->dev, "bridge configuration invalid ([bus %02x-%02x]), reconfiguring\n",
 			 secondary, subordinate);
-		broken = 1;
-	}
 
 	/* Disable MasterAbortMode during probing to avoid reporting
 	   of bus errors (in some architectures) */
