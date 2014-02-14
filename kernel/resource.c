@@ -1089,6 +1089,31 @@ out:
 	return ret;
 }
 
+/* replace old with new in the resource tree */
+void replace_resource(struct resource *old, struct resource *new)
+{
+	struct resource *parent, *tmp, *p;
+
+	write_lock(&resource_lock);
+	new->start = old->start;
+	new->end = old->end;
+	new->flags = old->flags;
+
+	p = old->child;
+	while (p) {
+		tmp = p;
+		p = p->sibling;
+		__release_resource(tmp);
+		__request_resource(new, tmp);
+	}
+	parent = old->parent;
+	if (parent) {
+		__release_resource(old);
+		__request_resource(parent, new);
+	}
+	write_unlock(&resource_lock);
+}
+
 /*
  * This is compatibility stuff for IO resources.
  *
