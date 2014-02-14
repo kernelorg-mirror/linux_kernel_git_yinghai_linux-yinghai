@@ -552,8 +552,20 @@ out:
 	}
 
 	if (!ret) {
-		new->start = avail_start;
+		/* compare which one have max order */
+		new->start = round_down(avail_start + avail_size - size,
+					 constraint->align);
+		new->end = avail_start + avail_size - 1;
+		new->start = constraint->alignf(constraint->alignf_data, new,
+					size, constraint->align);
 		new->end = new->start + size - 1;
+
+		if (new->start < avail_start ||
+		    new->end > (avail_start + avail_size - 1) ||
+		    __ffs64(new->start) >= __ffs64(avail_start)) {
+			new->start = avail_start;
+			new->end = new->start + size - 1;
+		}
 	}
 	return ret;
 }
