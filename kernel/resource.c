@@ -47,6 +47,7 @@ struct resource_constraint {
 	resource_size_t (*alignf)(void *, const struct resource *,
 			resource_size_t, resource_size_t);
 	void *alignf_data;
+	bool fit;
 };
 
 static DEFINE_RWLOCK(resource_lock);
@@ -480,7 +481,7 @@ static int __find_resource(struct resource *root, struct resource *old,
 			alloc.end = alloc.start + size - 1;
 			if (resource_contains(&avail, &alloc)) {
 				new->start = alloc.start;
-				new->end = alloc.end;
+				new->end = !old ? avail.end : alloc.end;
 				return 0;
 			}
 		}
@@ -495,6 +496,10 @@ next:		if (!this || this->end == root->end)
 	return -EBUSY;
 }
 
+struct avail_resource {
+	struct list_head list;
+	struct resource res;
+};
 /*
  * Find empty slot in the resource tree given range and alignment.
  */
@@ -502,7 +507,55 @@ static int find_resource(struct resource *root, struct resource *new,
 			resource_size_t size,
 			struct resource_constraint  *constraint)
 {
-	return  __find_resource(root, NULL, new, size, constraint);
+	int ret = -1;
+	LIST_HEAD(head);
+	struct avail_resource *avail, *tmp;
+	resource_size_t avail_start = 0, avail_size = (resource_size_t)-1ULL;
+
+	if (!constraint->fit) {
+		ret = __find_resource(root, NULL, new, size, constraint);
+		if (!ret)
+			new->end = new->start + size - 1;
+		return ret;
+	}
+
+again:
+	/* find all suitable ones */
+	avail = kzalloc(sizeof(*avail), GFP_KERNEL);
+	if (!avail)
+		goto out;
+
+	avail->res.start = new->start;
+	avail->res.end = new->end;
+	avail->res.flags = new->flags;
+	ret = __find_resource(root, NULL, &avail->res, size, constraint);
+	if (ret || __request_resource(root, &avail->res)) {
+		ret = -EBUSY;
+		kfree(avail);
+		goto out;
+	}
+	/* add to the list */
+	list_add(&avail->list, &head);
+	goto again;
+
+out:
+	/* pick up the smallest one and delete the list */
+	list_for_each_entry_safe(avail, tmp, &head, list) {
+		if (resource_size(&avail->res) < avail_size) {
+			avail_size = resource_size(&avail->res);
+			avail_start = avail->res.start;
+			ret = 0;
+		}
+		list_del(&avail->list);
+		__release_resource(&avail->res);
+		kfree(avail);
+	}
+
+	if (!ret) {
+		new->start = avail_start;
+		new->end = new->start + size - 1;
+	}
+	return ret;
 }
 
 /**
@@ -594,6 +647,7 @@ static int __allocate_resource(struct resource *root, struct resource *new,
 	constraint.align = align;
 	constraint.alignf = alignf;
 	constraint.alignf_data = alignf_data;
+	constraint.fit = false;
 
 	if (new->parent) {
 		/* resource is already allocated, try reallocating with
