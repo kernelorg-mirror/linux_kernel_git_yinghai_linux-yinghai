@@ -622,17 +622,11 @@ int __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 	irq_alloc_descs(-1, from, cnt, node)
 
 void irq_free_descs(unsigned int irq, unsigned int cnt);
-int irq_reserve_irqs(unsigned int from, unsigned int cnt);
 int arch_probe_early_allocate_nr_irqs(void);
 
 static inline void irq_free_desc(unsigned int irq)
 {
 	irq_free_descs(irq, 1);
-}
-
-static inline int irq_reserve_irq(unsigned int irq)
-{
-	return irq_reserve_irqs(irq, 1);
 }
 
 #ifndef irq_reg_writel
