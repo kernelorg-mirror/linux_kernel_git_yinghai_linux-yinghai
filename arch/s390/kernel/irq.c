@@ -90,9 +90,13 @@ static const struct irq_class irqclass_sub_desc[NR_ARCH_IRQS] = {
 	[CPU_RST]    = {.name = "RST", .desc = "[CPU] CPU Restart"},
 };
 
+int arch_probe_early_allocate_nr_irqs(void)
+{
+	return THIN_INTERRUPT;
+}
+
 void __init init_IRQ(void)
 {
-	irq_reserve_irqs(0, THIN_INTERRUPT);
 	init_cio_interrupts();
 	init_airq_interrupts();
 	init_ext_interrupts();

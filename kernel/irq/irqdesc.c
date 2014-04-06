@@ -248,10 +248,16 @@ struct irq_desc irq_desc[NR_IRQS] __cacheline_aligned_in_smp = {
 	}
 };
 
+int __weak arch_probe_early_allocate_nr_irqs(void)
+{
+	return 0;
+}
+
 int __init early_irq_init(void)
 {
 	int count, i, node = first_online_node;
 	struct irq_desc *desc;
+	int nr = arch_probe_early_allocate_nr_irqs();
 
 	init_irq_default_affinity();
 
@@ -267,6 +273,10 @@ int __init early_irq_init(void)
 		lockdep_set_class(&desc[i].lock, &irq_desc_lock_class);
 		desc_set_defaults(i, &desc[i], node, NULL);
 	}
+
+	for (i = 0; i < nr; i++)
+		set_bit(i, allocated_irqs);
+
 	return arch_early_irq_init();
 }
 
