@@ -28,8 +28,13 @@
 int irq_set_chip(unsigned int irq, struct irq_chip *chip)
 {
 	unsigned long flags;
-	struct irq_desc *desc = irq_get_desc_lock(irq, &flags, 0);
+	struct irq_desc *desc;
 
+#ifndef CONFIG_SPARSE_IRQ
+	irq_alloc_desc_at(irq, 0);
+#endif
+
+	desc = irq_get_desc_lock(irq, &flags, 0);
 	if (!desc)
 		return -EINVAL;
 
@@ -38,12 +43,7 @@ int irq_set_chip(unsigned int irq, struct irq_chip *chip)
 
 	desc->irq_data.chip = chip;
 	irq_put_desc_unlock(desc, flags);
-	/*
-	 * For !CONFIG_SPARSE_IRQ make the irq show up in
-	 * allocated_irqs. For the CONFIG_SPARSE_IRQ case, it is
-	 * already marked, and this call is harmless.
-	 */
-	irq_reserve_irq(irq);
+
 	return 0;
 }
 EXPORT_SYMBOL(irq_set_chip);
