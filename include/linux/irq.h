@@ -603,6 +603,9 @@ static inline u32 irq_get_trigger_type(unsigned int irq)
 	return d ? irqd_get_trigger_type(d) : 0;
 }
 
+int irq_clear_reserved_irqs(unsigned int from, unsigned int cnt);
+int irq_mark_reserved_irqs(int irq, unsigned int from, unsigned int cnt);
+
 int __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 		struct module *owner);
 

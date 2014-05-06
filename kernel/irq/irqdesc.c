@@ -98,6 +98,8 @@ EXPORT_SYMBOL_GPL(nr_irqs);
 
 static DEFINE_MUTEX(sparse_irq_lock);
 static DECLARE_BITMAP(allocated_irqs, IRQ_BITMAP_BITS);
+static DECLARE_BITMAP(reserved_irqs, IRQ_BITMAP_BITS);
+static DECLARE_BITMAP(reserved_or_allocated_irqs, IRQ_BITMAP_BITS);
 
 #ifdef CONFIG_SPARSE_IRQ
 
@@ -398,6 +400,69 @@ err:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(__irq_alloc_descs);
+
+/**
+ * irq_clear_reserved_irqs - clear irqs reserved
+ * @from:	clear from irq number
+ * @cnt:	number of irqs to clear
+ *
+ * Returns 0 on success or an appropriate error code
+ */
+int irq_clear_reserved_irqs(unsigned int from, unsigned int cnt)
+{
+	if (!cnt || (from + cnt) > nr_irqs)
+		return -EINVAL;
+
+	mutex_lock(&sparse_irq_lock);
+	bitmap_clear(reserved_irqs, from, cnt);
+	mutex_unlock(&sparse_irq_lock);
+
+	return 0;
+}
+
+/**
+ * irq_mark_reserved_irqs - mark irqs reserved
+ * @irq:	Reserve for specific irq number if irq >= 0
+ * @from:	mark from irq number
+ * @cnt:	number of irqs to mark
+ *
+ * Returns the first irq number or error code
+ */
+int irq_mark_reserved_irqs(int irq, unsigned int from, unsigned int cnt)
+{
+	int start, ret;
+
+	if (!cnt)
+		return -EINVAL;
+
+	if (irq >= 0) {
+		if (from > irq)
+			return -EINVAL;
+		from = irq;
+	}
+
+	mutex_lock(&sparse_irq_lock);
+	bitmap_or(reserved_or_allocated_irqs, reserved_irqs, allocated_irqs,
+			 IRQ_BITMAP_BITS);
+	start = bitmap_find_next_zero_area(reserved_or_allocated_irqs,
+					   IRQ_BITMAP_BITS, from, cnt, 0);
+	ret = -EEXIST;
+	if (irq >= 0 && start != irq)
+		goto err;
+
+	if (start + cnt > nr_irqs) {
+		ret = irq_expand_nr_irqs(start + cnt);
+		if (ret < 0)
+			goto err;
+	}
+
+	bitmap_set(reserved_irqs, start, cnt);
+	ret = start;
+
+err:
+	mutex_unlock(&sparse_irq_lock);
+	return ret;
+}
 
 /**
  * irq_get_next_irq - get next allocated irq number
