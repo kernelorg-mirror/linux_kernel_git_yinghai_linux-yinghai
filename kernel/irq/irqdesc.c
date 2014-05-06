@@ -352,6 +352,48 @@ void irq_free_descs(unsigned int from, unsigned int cnt)
 }
 EXPORT_SYMBOL_GPL(irq_free_descs);
 
+/* Should be used with sparse_irq_lock */
+static int __irq_mark_allocated_irqs(int irq, unsigned int from,
+				     unsigned int cnt, int avoid_reserved)
+{
+	int start;
+
+	if (!cnt)
+		return -EINVAL;
+
+	if (irq >= 0) {
+		if (from > irq)
+			return -EINVAL;
+		from = irq;
+	}
+
+	if (avoid_reserved) {
+		bitmap_or(reserved_or_allocated_irqs, reserved_irqs,
+			  allocated_irqs, IRQ_BITMAP_BITS);
+
+		start = bitmap_find_next_zero_area(reserved_or_allocated_irqs,
+							IRQ_BITMAP_BITS,
+							from, cnt, 0);
+	} else
+		start = bitmap_find_next_zero_area(allocated_irqs,
+							IRQ_BITMAP_BITS,
+							from, cnt, 0);
+
+	if (irq >= 0 && start != irq)
+		return -EEXIST;
+
+	if (start + cnt > nr_irqs) {
+		int ret = irq_expand_nr_irqs(start + cnt);
+
+		if (ret < 0)
+			return ret;
+	}
+
+	bitmap_set(allocated_irqs, start, cnt);
+
+	return start;
+}
+
 /**
  * irq_alloc_descs - allocate and initialize a range of irq descriptors
  * @irq:	Allocate for specific irq number if irq >= 0
@@ -365,38 +407,15 @@ EXPORT_SYMBOL_GPL(irq_free_descs);
 int __ref
 __irq_alloc_descs(int irq, unsigned int from, unsigned int cnt, int node,
 		  struct module *owner)
-{
-	int start, ret;
-
-	if (!cnt)
-		return -EINVAL;
-
-	if (irq >= 0) {
-		if (from > irq)
-			return -EINVAL;
-		from = irq;
-	}
+{	int ret;
 
 	mutex_lock(&sparse_irq_lock);
-
-	start = bitmap_find_next_zero_area(allocated_irqs, IRQ_BITMAP_BITS,
-					   from, cnt, 0);
-	ret = -EEXIST;
-	if (irq >=0 && start != irq)
-		goto err;
-
-	if (start + cnt > nr_irqs) {
-		ret = irq_expand_nr_irqs(start + cnt);
-		if (ret)
-			goto err;
-	}
-
-	bitmap_set(allocated_irqs, start, cnt);
+	ret = __irq_mark_allocated_irqs(irq, from, cnt, 1);
 	mutex_unlock(&sparse_irq_lock);
-	return alloc_descs(start, cnt, node, owner);
 
-err:
-	mutex_unlock(&sparse_irq_lock);
+	if (ret >= 0)
+		return alloc_descs(ret, cnt, node, owner);
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(__irq_alloc_descs);
@@ -461,6 +480,32 @@ int irq_mark_reserved_irqs(int irq, unsigned int from, unsigned int cnt)
 
 err:
 	mutex_unlock(&sparse_irq_lock);
+	return ret;
+}
+
+ /**
+ * __irq_alloc_reserved_desc - allocate irq descriptor for irq that is already reserved
+ * @irq:	Allocate for specific irq number if irq >= 0
+ * @node:	Preferred node on which the irq descriptor should be allocated
+ * @owner:	Owning module (can be NULL)
+ *
+ * Returns the irq number or error code
+ */
+int __ref __irq_alloc_reserved_desc(int irq, int node, struct module *owner)
+{
+	int ret = -EINVAL;
+
+	if (irq < 0 || irq >= nr_irqs)
+		return -EINVAL;
+
+	mutex_lock(&sparse_irq_lock);
+	if (test_bit(irq, reserved_irqs))
+		ret = __irq_mark_allocated_irqs(irq, irq, 1, 0);
+	mutex_unlock(&sparse_irq_lock);
+
+	if (ret >= 0)
+		return alloc_descs(ret, 1, node, owner);
+
 	return ret;
 }
 
