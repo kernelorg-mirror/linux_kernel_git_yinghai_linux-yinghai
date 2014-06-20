@@ -19,6 +19,26 @@
 #include <linux/syscalls.h>
 #include <linux/utime.h>
 
+static long __init xwrite(unsigned int fd, char *p,
+				   size_t count)
+{
+	ssize_t left = count;
+	long written;
+
+	/* sys_write only can write MAX_RW_COUNT aka 2G-4K bytes at most */
+	while (left > 0) {
+		written = sys_write(fd, p, left);
+
+		if (written <= 0)
+			break;
+
+		left -= written;
+		p += written;
+	}
+
+	return (written < 0) ? written : count;
+}
+
 static __initdata char *message;
 static void __init error(char *x)
 {
@@ -346,7 +366,7 @@ static int __init do_name(void)
 static int __init do_copy(void)
 {
 	if (count >= body_len) {
-		sys_write(wfd, victim, body_len);
+		xwrite(wfd, victim, body_len);
 		sys_close(wfd);
 		do_utime(vcollected, mtime);
 		kfree(vcollected);
@@ -354,7 +374,7 @@ static int __init do_copy(void)
 		state = SkipIt;
 		return 0;
 	} else {
-		sys_write(wfd, victim, count);
+		xwrite(wfd, victim, count);
 		body_len -= count;
 		eat(count);
 		return 1;
@@ -603,8 +623,13 @@ static int __init populate_rootfs(void)
 		fd = sys_open("/initrd.image",
 			      O_WRONLY|O_CREAT, 0700);
 		if (fd >= 0) {
-			sys_write(fd, (char *)initrd_start,
-					initrd_end - initrd_start);
+			long written = xwrite(fd, (char *)initrd_start,
+						initrd_end - initrd_start);
+
+			if (written != initrd_end - initrd_start)
+				pr_err("/initrd.image: incomplete write (%ld != %ld)\n",
+				       written, initrd_end - initrd_start);
+
 			sys_close(fd);
 			free_initrd();
 		}
