@@ -155,11 +155,7 @@ static loff_t zisofs_uncompress_block(struct inode *inode, loff_t block_start,
 					*errp = -ENOMEM;
 				else {
 					printk(KERN_DEBUG
-					       "zisofs: zisofs_inflate returned"
-					       " %d, inode = %lu,"
-					       " page idx = %d, bh idx = %d,"
-					       " avail_in = %d,"
-					       " avail_out = %d\n",
+					       "zisofs: zisofs_inflate returned %d, inode = %lu, page idx = %d, bh idx = %d, avail_in = %ld, avail_out = %ld\n",
 					       zerr, inode->i_ino, curpage,
 					       curbh, stream.avail_in,
 					       stream.avail_out);
