@@ -4,6 +4,9 @@
 #ifdef CONFIG_PCI
 void uhci_reset_hc(struct pci_dev *pdev, unsigned long base);
 int uhci_check_and_reset_hc(struct pci_dev *pdev, unsigned long base);
+void usb_handoff_ohci(struct pci_dev *pdev, void __iomem *base);
+void usb_handoff_ehci(struct pci_dev *pdev, void __iomem *base);
+void usb_handoff_xhci(struct pci_dev *pdev, void __iomem *base, int len);
 int usb_amd_find_chipset_info(void);
 int usb_hcd_amd_remote_wakeup_quirk(struct pci_dev *pdev);
 bool usb_amd_hang_symptom_quirk(void);
