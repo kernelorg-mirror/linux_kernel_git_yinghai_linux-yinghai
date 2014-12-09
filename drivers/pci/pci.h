@@ -208,6 +208,16 @@ void __pci_bus_size_bridges(struct pci_bus *bus,
 void __pci_bus_assign_resources(const struct pci_bus *bus,
 				struct list_head *realloc_head,
 				struct list_head *fail_head);
+int __must_check pci_assign_resource_fit(struct pci_dev *dev, int i, bool fit);
+int __must_check pci_bus_alloc_resource_fit(struct pci_bus *bus,
+			struct resource *res, resource_size_t size,
+			resource_size_t align, resource_size_t min,
+			unsigned long type_mask,
+			resource_size_t (*alignf)(void *,
+						  const struct resource *,
+						  resource_size_t,
+						  resource_size_t),
+			void *alignf_data, bool fit);
 
 /**
  * pci_ari_enabled - query ARI forwarding status
