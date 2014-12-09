@@ -47,6 +47,7 @@ struct resource_constraint {
 	resource_size_t (*alignf)(void *, const struct resource *,
 			resource_size_t, resource_size_t);
 	void *alignf_data;
+	bool fit;
 };
 
 static DEFINE_RWLOCK(resource_lock);
@@ -553,12 +554,15 @@ static void resource_clip(struct resource *res, resource_size_t min,
  * alignment constraints
  */
 static int __find_resource(struct resource *root, struct resource *old,
-			 struct resource *new,
+			 struct resource *new, struct resource *avail,
 			 resource_size_t  size,
 			 struct resource_constraint *constraint)
 {
 	struct resource *this = root->child;
-	struct resource tmp = *new, avail, alloc;
+	struct resource tmp = *new, availx, alloc;
+
+	if (!avail || avail == new)
+		avail = &availx;
 
 	tmp.start = root->start;
 	/*
@@ -582,15 +586,16 @@ static int __find_resource(struct resource *root, struct resource *old,
 		arch_remove_reservations(&tmp);
 
 		/* Check for overflow after ALIGN() */
-		avail.start = ALIGN(tmp.start, constraint->align);
-		avail.end = tmp.end;
-		avail.flags = new->flags & ~IORESOURCE_UNSET;
-		if (avail.start >= tmp.start) {
-			alloc.flags = avail.flags;
-			alloc.start = constraint->alignf(constraint->alignf_data, &avail,
+		avail->start = ALIGN(tmp.start, constraint->align);
+		avail->end = tmp.end;
+		avail->flags = new->flags & ~IORESOURCE_UNSET;
+		if (avail->start >= tmp.start) {
+			alloc.flags = avail->flags;
+			alloc.start = constraint->alignf(
+					constraint->alignf_data, avail,
 					size, constraint->align);
 			alloc.end = alloc.start + size - 1;
-			if (resource_contains(&avail, &alloc)) {
+			if (resource_contains(avail, &alloc)) {
 				new->start = alloc.start;
 				new->end = alloc.end;
 				return 0;
@@ -607,6 +612,11 @@ next:		if (!this || this->end == root->end)
 	return -EBUSY;
 }
 
+struct good_resource {
+	struct list_head list;
+	struct resource avail;
+	struct resource new;
+};
 /*
  * Find empty slot in the resource tree given range and alignment.
  */
@@ -614,7 +624,49 @@ static int find_resource(struct resource *root, struct resource *new,
 			resource_size_t size,
 			struct resource_constraint  *constraint)
 {
-	return  __find_resource(root, NULL, new, size, constraint);
+	int ret = -1;
+	LIST_HEAD(head);
+	struct good_resource *good, *tmp;
+	resource_size_t avail_size = (resource_size_t)-1ULL;
+
+	if (!constraint->fit)
+		return __find_resource(root, NULL, new, NULL, size,
+					constraint);
+
+	/* find all suitable ones and add to the list */
+	for (;;) {
+		good = kzalloc(sizeof(*good), GFP_KERNEL);
+		if (!good)
+			break;
+
+		good->new.start = new->start;
+		good->new.end = new->end;
+		good->new.flags = new->flags;
+		ret = __find_resource(root, NULL, &good->new, &good->avail,
+					size, constraint);
+		if (ret || __request_resource(root, &good->avail)) {
+			ret = -EBUSY;
+			kfree(good);
+			break;
+		}
+
+		list_add(&good->list, &head);
+	}
+
+	/* pick up the smallest one and delete the list */
+	list_for_each_entry_safe(good, tmp, &head, list) {
+		if (resource_size(&good->avail) < avail_size) {
+			avail_size = resource_size(&good->avail);
+			new->start = good->new.start;
+			new->end = good->new.end;
+			ret = 0;
+		}
+		list_del(&good->list);
+		__release_resource(&good->avail);
+		kfree(good);
+	}
+
+	return ret;
 }
 
 /**
@@ -635,7 +687,8 @@ static int __reallocate_resource(struct resource *root, struct resource *old,
 	struct resource new = *old;
 	struct resource *conflict;
 
-	if ((err = __find_resource(root, old, &new, newsize, constraint)))
+	err = __find_resource(root, old, &new, NULL, newsize, constraint);
+	if (err)
 		goto out;
 
 	if (resource_contains(&new, old)) {
@@ -694,6 +747,7 @@ static int __allocate_resource(struct resource *root, struct resource *new,
 	constraint.align = align;
 	constraint.alignf = alignf;
 	constraint.alignf_data = alignf_data;
+	constraint.fit = false;
 
 	if (new->parent) {
 		/* resource is already allocated, try reallocating with
