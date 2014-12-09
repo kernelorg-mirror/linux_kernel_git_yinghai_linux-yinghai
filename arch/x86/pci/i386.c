@@ -163,6 +163,15 @@ pcibios_align_resource(void *data, const struct resource *res,
 		if (start & 0x300)
 			start = (start + 0x3ff) & ~0x3ff;
 	} else if (res->flags & IORESOURCE_MEM) {
+		/* Take near end to save bigger align for needed */
+		if (res->end + 1 > size) {
+			resource_size_t start2;
+
+			start2 = round_down(res->end + 1 - size, align);
+			if (__ffs64(start2) <= __ffs64(start))
+				start = start2;
+		}
+
 		/* The low 1MB range is reserved for ISA cards */
 		if (start < BIOS_END)
 			start = BIOS_END;
