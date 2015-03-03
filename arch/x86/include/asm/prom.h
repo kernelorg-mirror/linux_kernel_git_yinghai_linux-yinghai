@@ -24,15 +24,18 @@
 
 #ifdef CONFIG_OF
 extern int of_ioapic;
-extern u64 initial_dtb;
-extern void add_dtb(u64 data);
 void x86_of_pci_init(void);
 void x86_dtb_init(void);
 #else
-static inline void add_dtb(u64 data) { }
 static inline void x86_of_pci_init(void) { }
 static inline void x86_dtb_init(void) { }
 #define of_ioapic 0
+#endif
+
+#ifdef CONFIG_OF_FLATTREE
+extern void add_dtb(u64 data);
+#else
+static inline void add_dtb(u64 data) { }
 #endif
 
 extern char cmd_line[COMMAND_LINE_SIZE];
