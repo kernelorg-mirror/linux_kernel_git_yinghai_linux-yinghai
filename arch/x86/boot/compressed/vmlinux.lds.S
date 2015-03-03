@@ -35,6 +35,7 @@ SECTIONS
 		*(.text.*)
 		_etext = . ;
 	}
+        . = ALIGN(PAGE_SIZE); /* keep ADDON_ZO_SIZE page aligned */
 	.rodata : {
 		_rodata = . ;
 		*(.rodata)	 /* read-only data */
@@ -70,5 +71,6 @@ SECTIONS
 		_epgtable = . ;
 	}
 #endif
+        . = ALIGN(PAGE_SIZE);  /* keep ADDON_ZO_SIZE page aligned */
 	_end = .;
 }
