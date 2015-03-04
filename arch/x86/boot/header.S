@@ -440,12 +440,15 @@ setup_data:		.quad 0			# 64-bit physical pointer to
 
 pref_address:		.quad LOAD_PHYSICAL_ADDR	# preferred load addr
 
+# don't overlap data area of ZO with VO
+#define ADDON_ZO_SIZE (ZO__end - ZO__rodata)
+
 #define ZO_INIT_SIZE	(ZO__end - ZO_startup_32 + ZO_z_extract_offset)
 #define VO_INIT_SIZE	(VO__end - VO__text)
 #if ZO_INIT_SIZE > VO_INIT_SIZE
-#define INIT_SIZE ZO_INIT_SIZE
+#define INIT_SIZE (ZO_INIT_SIZE + ADDON_ZO_SIZE)
 #else
-#define INIT_SIZE VO_INIT_SIZE
+#define INIT_SIZE (VO_INIT_SIZE + ADDON_ZO_SIZE)
 #endif
 init_size:		.long INIT_SIZE		# kernel initialization size
 handover_offset:	.long 0			# Filled in by build.c
