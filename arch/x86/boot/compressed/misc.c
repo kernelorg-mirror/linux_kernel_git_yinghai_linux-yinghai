@@ -370,10 +370,10 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 				  unsigned char *input_data,
 				  unsigned long input_len,
 				  unsigned char *output,
-				  unsigned long output_len,
-				  unsigned long run_size)
+				  unsigned long output_len)
 {
 	unsigned char *output_orig = output;
+	unsigned long init_size;
 
 	real_mode = rmode;
 
@@ -396,15 +396,14 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 	free_mem_ptr     = heap;	/* Heap */
 	free_mem_end_ptr = heap + BOOT_HEAP_SIZE;
 
+	init_size = real_mode->hdr.init_size;
+
 	/*
-	 * The memory hole needed for the kernel is the larger of either
-	 * the entire decompressed kernel plus relocation table, or the
-	 * entire decompressed kernel plus .bss and .brk sections.
+	 * The memory hole needed for the kernel is init_size for running
+	 * and init_size is bigger than output_len always.
 	 */
 	output = choose_kernel_location(real_mode, input_data, input_len,
-					output,
-					output_len > run_size ? output_len
-							      : run_size);
+					output, init_size);
 
 	/* Validate memory location choices. */
 	if ((unsigned long)output & (MIN_KERNEL_ALIGN - 1))
