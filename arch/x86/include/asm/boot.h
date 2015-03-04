@@ -32,7 +32,20 @@
 #endif /* !CONFIG_KERNEL_BZIP2 */
 
 #ifdef CONFIG_X86_64
+
 #define BOOT_STACK_SIZE	0x4000
+
+#define BOOT_INIT_PGT_SIZE (6*4096)
+#ifdef CONFIG_RANDOMIZE_BASE
+/*
+ * 17 pages to cover for kernel, param, cmd_line, random kernel
+ * if all cross 512G boundary.
+ */
+#define BOOT_PGT_SIZE (BOOT_INIT_PGT_SIZE + (11*4096))
+#else
+#define BOOT_PGT_SIZE BOOT_INIT_PGT_SIZE
+#endif
+
 #else
 #define BOOT_STACK_SIZE	0x1000
 #endif
