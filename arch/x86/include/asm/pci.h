@@ -88,9 +88,11 @@ static inline void pci_dma_burst_advice(struct pci_dev *pdev,
 	*strategy_parameter = ~0UL;
 }
 void add_pci(u64 pa_data);
+int fill_setup_pci_entries(void);
 #else
 static inline void early_quirks(void) { }
 static inline void add_pci(u64 pa_data) { }
+static inline int fill_setup_pci_entries(void) { }
 #endif
 
 extern void pci_iommu_alloc(void);
