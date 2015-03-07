@@ -134,7 +134,6 @@ static void __init e820_print_type(u32 type)
 {
 	switch (type) {
 	case E820_RAM:
-	case E820_RESERVED_KERN:
 		printk(KERN_CONT "usable");
 		break;
 	case E820_RESERVED:
@@ -688,7 +687,7 @@ void __init e820_mark_nosave_regions(unsigned long limit_pfn)
 			register_nosave_region(pfn, PFN_UP(ei->addr));
 
 		pfn = PFN_DOWN(ei->addr + ei->size);
-		if (ei->type != E820_RAM && ei->type != E820_RESERVED_KERN)
+		if (ei->type != E820_RAM)
 			register_nosave_region(PFN_UP(ei->addr), pfn);
 
 		if (pfn >= limit_pfn)
@@ -902,7 +901,6 @@ void __init finish_e820_parsing(void)
 static inline const char *e820_type_to_string(int e820_type)
 {
 	switch (e820_type) {
-	case E820_RESERVED_KERN:
 	case E820_RAM:	return "System RAM";
 	case E820_ACPI:	return "ACPI Tables";
 	case E820_NVS:	return "ACPI Non-volatile Storage";
@@ -1077,7 +1075,7 @@ void __init memblock_x86_fill(void)
 		if (end != (resource_size_t)end)
 			continue;
 
-		if (ei->type != E820_RAM && ei->type != E820_RESERVED_KERN)
+		if (ei->type != E820_RAM)
 			continue;
 
 		memblock_add(ei->addr, ei->size);
