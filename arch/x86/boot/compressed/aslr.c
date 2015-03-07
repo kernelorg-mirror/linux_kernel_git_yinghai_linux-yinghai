@@ -1,3 +1,8 @@
+#ifdef CONFIG_X86_64
+#define __pa(x)  ((unsigned long)(x))
+#define __va(x)  ((void *)((unsigned long)(x)))
+#endif
+
 #include "misc.h"
 
 #include <asm/msr.h>
@@ -20,6 +25,8 @@ struct kaslr_setup_data {
 	__u32 len;
 	__u8 data[1];
 } kaslr_setup_data;
+
+#include "misc_pgt.c"
 
 #define I8254_PORT_CONTROL	0x43
 #define I8254_PORT_COUNTER0	0x40
@@ -160,6 +167,7 @@ static void mem_avoid_init(unsigned long input, unsigned long input_size,
 	unsafe = (unsigned long)input + input_size;
 	mem_avoid[0].start = unsafe;
 	mem_avoid[0].size = unsafe_len;
+	fill_pagetable(output, init_size);
 
 	/* Avoid initrd. */
 	initrd_start  = (u64)real_mode->ext_ramdisk_image << 32;
@@ -168,6 +176,7 @@ static void mem_avoid_init(unsigned long input, unsigned long input_size,
 	initrd_size |= real_mode->hdr.ramdisk_size;
 	mem_avoid[1].start = initrd_start;
 	mem_avoid[1].size = initrd_size;
+	/* don't need to set mapping for initrd */
 
 	/* Avoid kernel command line. */
 	cmd_line  = (u64)real_mode->ext_cmd_line_ptr << 32;
@@ -178,10 +187,19 @@ static void mem_avoid_init(unsigned long input, unsigned long input_size,
 		;
 	mem_avoid[2].start = cmd_line;
 	mem_avoid[2].size = cmd_line_size;
+	fill_pagetable(cmd_line, cmd_line_size);
 
 	/* Avoid params */
 	mem_avoid[3].start = (unsigned long)real_mode;
 	mem_avoid[3].size = sizeof(*real_mode);
+	fill_pagetable((unsigned long)real_mode, sizeof(*real_mode));
+
+	/* don't need to set mapping for setup_data */
+
+#ifdef CONFIG_X86_VERBOSE_BOOTUP
+	/* for video ram */
+	fill_pagetable(0, PMD_SIZE);
+#endif
 }
 
 /* Does this memory vector overlap a known avoided area? */
@@ -362,6 +380,9 @@ unsigned char *choose_kernel_location(struct boot_params *params,
 		goto out;
 
 	choice = random;
+
+	fill_pagetable(choice, init_size);
+	switch_pagetable();
 out:
 	return (unsigned char *)choice;
 }
