@@ -61,7 +61,7 @@ unsigned char *choose_kernel_location(struct boot_params *params,
 				      unsigned char *input,
 				      unsigned long input_size,
 				      unsigned char *output,
-				      unsigned long output_size);
+				      unsigned long output_run_size);
 /* cpuflags.c */
 bool has_cpuflag(int flag);
 #else
@@ -70,7 +70,7 @@ unsigned char *choose_kernel_location(struct boot_params *params,
 				      unsigned char *input,
 				      unsigned long input_size,
 				      unsigned char *output,
-				      unsigned long output_size)
+				      unsigned long output_run_size)
 {
 	return output;
 }

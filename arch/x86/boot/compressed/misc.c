@@ -375,6 +375,7 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 {
 	unsigned long run_size = VO__end - VO__text;
 	unsigned char *output_orig = output;
+	unsigned long output_run_size;
 
 	real_mode = rmode;
 
@@ -402,10 +403,9 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 	 * the entire decompressed kernel plus relocation table, or the
 	 * entire decompressed kernel plus .bss and .brk sections.
 	 */
+	output_run_size = output_len > run_size ? output_len : run_size;
 	output = choose_kernel_location(real_mode, input_data, input_len,
-					output,
-					output_len > run_size ? output_len
-							      : run_size);
+					output, output_run_size);
 
 	/* Validate memory location choices. */
 	if ((unsigned long)output & (MIN_KERNEL_ALIGN - 1))

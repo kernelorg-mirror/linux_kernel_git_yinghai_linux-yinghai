@@ -142,7 +142,7 @@ static bool mem_overlaps(struct mem_vector *one, struct mem_vector *two)
 }
 
 static void mem_avoid_init(unsigned long input, unsigned long input_size,
-			   unsigned long output, unsigned long output_size)
+			   unsigned long output, unsigned long output_run_size)
 {
 	u64 initrd_start, initrd_size;
 	u64 cmd_line, cmd_line_size;
@@ -153,7 +153,7 @@ static void mem_avoid_init(unsigned long input, unsigned long input_size,
 	 * Avoid the region that is unsafe to overlap during
 	 * decompression (see calculations at top of misc.c).
 	 */
-	unsafe_len = (output_size >> 12) + 32768 + 18;
+	unsafe_len = (output_run_size >> 12) + 32768 + 18;
 	unsafe = (unsigned long)input + input_size - unsafe_len;
 	mem_avoid[0].start = unsafe;
 	mem_avoid[0].size = unsafe_len;
@@ -327,7 +327,7 @@ unsigned char *choose_kernel_location(struct boot_params *params,
 				      unsigned char *input,
 				      unsigned long input_size,
 				      unsigned char *output,
-				      unsigned long output_size)
+				      unsigned long output_run_size)
 {
 	unsigned long choice = (unsigned long)output;
 	unsigned long random;
@@ -349,10 +349,10 @@ unsigned char *choose_kernel_location(struct boot_params *params,
 
 	/* Record the various known unsafe memory ranges. */
 	mem_avoid_init((unsigned long)input, input_size,
-		       (unsigned long)output, output_size);
+		       (unsigned long)output, output_run_size);
 
 	/* Walk e820 and find a random address. */
-	random = find_random_addr(choice, output_size);
+	random = find_random_addr(choice, output_run_size);
 	if (!random) {
 		debug_putstr("KASLR could not find suitable E820 region...\n");
 		goto out;
