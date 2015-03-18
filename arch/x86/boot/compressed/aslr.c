@@ -352,7 +352,7 @@ static void process_e820_entry(struct e820entry *entry,
 	}
 }
 
-static unsigned long find_random_addr(unsigned long minimum,
+static unsigned long find_random_phy_addr(unsigned long minimum,
 				      unsigned long size)
 {
 	int i;
@@ -410,48 +410,50 @@ static void add_kaslr_setup_data(__u8 enabled)
 		real_mode->hdr.setup_data = (unsigned long)&kaslr_setup_data;
 }
 
-unsigned char *choose_kernel_location(unsigned char *input,
-				      unsigned long input_size,
-				      unsigned char *output,
-				      unsigned long output_run_size)
+void choose_kernel_location(unsigned char *input,
+				unsigned long input_size,
+				unsigned char **output,
+				unsigned long output_run_size,
+				unsigned char **virt_offset)
 {
-	unsigned long choice = (unsigned long)output;
 	unsigned long random;
+	*virt_offset = (unsigned char *)LOAD_PHYSICAL_ADDR;
 
 #ifdef CONFIG_HIBERNATION
 	if (!cmdline_find_option_bool("kaslr")) {
 		debug_putstr("KASLR disabled by default...\n");
 		add_kaslr_setup_data(0);
-		goto out;
+		return;
 	}
 #else
 	if (cmdline_find_option_bool("nokaslr")) {
 		debug_putstr("KASLR disabled by cmdline...\n");
 		add_kaslr_setup_data(0);
-		goto out;
+		return;
 	}
 #endif
 	add_kaslr_setup_data(1);
 
 	/* Record the various known unsafe memory ranges. */
 	mem_avoid_init((unsigned long)input, input_size,
-		       (unsigned long)output);
+		       (unsigned long)*output);
 
 	/* Walk e820 and find a random address. */
-	random = find_random_addr(choice, output_run_size);
-	if (!random) {
+	random = find_random_phy_addr((unsigned long)*output, output_run_size);
+	if (!random)
 		debug_putstr("KASLR could not find suitable E820 region...\n");
-		goto out;
+	else {
+		if ((unsigned long)*output != random) {
+			fill_pagetable(random, output_run_size);
+			switch_pagetable();
+			*output = (unsigned char *)random;
+		}
 	}
 
-	/* Always enforce the minimum. */
-	if (random < choice)
-		goto out;
-
-	choice = random;
-
-	fill_pagetable(choice, output_run_size);
-	switch_pagetable();
-out:
-	return (unsigned char *)choice;
+	/*
+	 * Get a random address between LOAD_PHYSICAL_ADDR and
+	 * CONFIG_RANDOMIZE_BASE_MAX_OFFSET
+	 */
+	random = find_random_virt_offset(LOAD_PHYSICAL_ADDR, output_run_size);
+	*virt_offset = (unsigned char *)random;
 }
