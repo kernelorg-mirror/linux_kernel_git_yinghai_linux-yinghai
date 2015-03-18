@@ -3,6 +3,7 @@
 #include <asm/msr.h>
 #include <asm/archrandom.h>
 #include <asm/e820.h>
+#include <asm/aslr.h>
 
 #include <generated/compile.h>
 #include <linux/module.h>
@@ -13,6 +14,8 @@
 /* Simplified build-specific string for starting entropy. */
 static const char build_str[] = UTS_RELEASE " (" LINUX_COMPILE_BY "@"
 		LINUX_COMPILE_HOST ") (" LINUX_COMPILER ") " UTS_VERSION;
+
+static struct kaslr_setup_data kaslr_setup_data;
 
 #define I8254_PORT_CONTROL	0x43
 #define I8254_PORT_COUNTER0	0x40
@@ -295,6 +298,26 @@ static unsigned long find_random_addr(unsigned long minimum,
 	return slots_fetch_random();
 }
 
+static void add_kaslr_setup_data(__u8 enabled)
+{
+	struct setup_data *data;
+
+	kaslr_setup_data.type = SETUP_KASLR;
+	kaslr_setup_data.len = 1;
+	kaslr_setup_data.next = 0;
+	kaslr_setup_data.data[0] = enabled;
+
+	data = (struct setup_data *)(unsigned long)real_mode->hdr.setup_data;
+
+	while (data && data->next)
+		data = (struct setup_data *)(unsigned long)data->next;
+
+	if (data)
+		data->next = (unsigned long)&kaslr_setup_data;
+	else
+		real_mode->hdr.setup_data = (unsigned long)&kaslr_setup_data;
+}
+
 unsigned char *choose_kernel_location(unsigned char *input,
 				      unsigned long input_size,
 				      unsigned char *output,
@@ -306,14 +329,17 @@ unsigned char *choose_kernel_location(unsigned char *input,
 #ifdef CONFIG_HIBERNATION
 	if (!cmdline_find_option_bool("kaslr")) {
 		debug_putstr("KASLR disabled by default...\n");
+		add_kaslr_setup_data(0);
 		goto out;
 	}
 #else
 	if (cmdline_find_option_bool("nokaslr")) {
 		debug_putstr("KASLR disabled by cmdline...\n");
+		add_kaslr_setup_data(0);
 		goto out;
 	}
 #endif
+	add_kaslr_setup_data(1);
 
 	/* Record the various known unsafe memory ranges. */
 	mem_avoid_init((unsigned long)input, input_size,
