@@ -106,9 +106,6 @@
 #undef memset
 #define memzero(s, n)	memset((s), 0, (n))
 
-
-static void error(char *m);
-
 /*
  * This is set up by the setup-routine at boot-time
  */
@@ -218,7 +215,7 @@ void __putstr(const char *s)
 	outb(0xff & (pos >> 1), vidport+1);
 }
 
-static void error(char *x)
+void error(char *x)
 {
 	error_putstr("\n\n");
 	error_putstr(x);
@@ -353,9 +350,12 @@ static void parse_elf(void *output)
 #else
 			dest = (void *)(phdr->p_paddr);
 #endif
-			memcpy(dest,
-			       output + phdr->p_offset,
-			       phdr->p_filesz);
+			/*
+			 * simple version memcpy only can work when dest is
+			 *   smaller than src or no overlapping.
+			 * Here dest is smaller than src always.
+			 */
+			memcpy(dest, output + phdr->p_offset, phdr->p_filesz);
 			break;
 		default: /* Ignore other PT_* */ break;
 		}
