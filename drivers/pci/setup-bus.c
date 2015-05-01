@@ -1048,9 +1048,17 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 	resource_size_t add_align = 0;
 	resource_size_t max_align = 0, size0_max;
 	int count = 0;
+	unsigned int mem64_mask;
 
 	if (!b_res)
 		return -ENOSPC;
+
+	mem64_mask = b_res->flags & IORESOURCE_MEM_64;
+
+	/* kernel does not support 64bit res */
+	if (sizeof(resource_size_t) == 4)
+		mem64_mask &= ~IORESOURCE_MEM_64;
+
 
 	memset(aligns, 0, sizeof(aligns));
 	max_order = 0;
@@ -1090,7 +1098,8 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 			order = __ffs(align) - 20;
 			if (order < 0)
 				order = 0;
-			if (order >= ARRAY_SIZE(aligns)) {
+			if (order >= ARRAY_SIZE(aligns) ||
+			    (!mem64_mask && order > 11 /* 2Gb */)) {
 				dev_warn(&dev->dev, "disabling BAR %d: %pR (bad alignment %#llx)\n",
 					 i, r, (unsigned long long) align);
 				r->flags = 0;
