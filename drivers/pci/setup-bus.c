@@ -937,12 +937,14 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 	}
 
 	size0 = calculate_iosize(size, min_size, size1,
-			resource_size(b_res), min_align);
+				 resource_size(b_res),
+				 window_alignment(bus, IORESOURCE_IO));
 	if (children_add_size > add_size)
 		add_size = children_add_size;
 	size1 = (!realloc_head || (realloc_head && !add_size)) ? size0 :
 		calculate_iosize(size, min_size, add_size + size1,
-			resource_size(b_res), min_align);
+				 resource_size(b_res),
+				 window_alignment(bus, IORESOURCE_IO));
 	if (!size0 && !size1) {
 		if (b_res->start || b_res->end)
 			dev_info(&bus->self->dev, "disabling bridge window %pR to %pR (unused)\n",
@@ -1019,6 +1021,8 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 	resource_size_t children_add_size = 0;
 	resource_size_t children_add_align = 0;
 	resource_size_t add_align = 0;
+	resource_size_t max_align = 0, size0_max;
+	int count = 0;
 
 	if (!b_res)
 		return -ENOSPC;
@@ -1075,6 +1079,10 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 			if (order > max_order)
 				max_order = order;
 
+			count++;
+			if (align > max_align)
+				max_align = align;
+
 			if (realloc_head) {
 				children_add_size += get_res_add_size(realloc_head, r);
 				children_add_align = get_res_add_align(realloc_head, r);
@@ -1083,15 +1091,49 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 		}
 	}
 
+	/*
+	 * New rule: Prefer to small size instead of small align,
+	 * when we have align/size: 1M/1M, 2M/2M,
+	 *  min_align/size0: 1M/3M, max_align/size0_max: 2M/3M
+	 *  pick 1M/3M.
+	 * when we have align/size: 1M/1M, 64M/64M,
+	 *  min_align/size0: 32M/96M, max_align/size0_max: 64M/65M
+	 *  pick 64M/65M.
+	 * when we have align/size: 1M/1M, 16M/64M,
+	 *  min_align/size0: 8M/72M, max_align/size0_max: 16M/65M
+	 *  pick 16M/65M.
+	 * when we have align/size: 32M/64M, 128M/512M
+	 *  min_align/size0: 64M/576M, max_align/size0_max: 128M/576M
+	 *  pick 64M/576M.
+	 * when we have align/size: 16M/32M, 128M/512M
+	 *  min_align/size0: 64M/576M, max_align/size0_max: 128M/554M
+	 *  pick 128M/554M.
+	 * when we have align/size: 16M/64M
+	 *  min_align/size0: 8M/64M, max_align/size0_max: 16M/64M
+	 *  have to use 16M/64M.
+	 */
 	min_align = calculate_mem_align(aligns, max_order);
 	min_align = max(min_align, window_alignment(bus, b_res->flags));
+	max_align = max(max_align, window_alignment(bus, b_res->flags));
+	if (count == 1)
+		min_align = max_align;
+
 	size0 = calculate_memsize(size, min_size, 0, resource_size(b_res), min_align);
+	size0_max = calculate_memsize(size, min_size, 0, resource_size(b_res),
+					window_alignment(bus, b_res->flags));
+
+	if (size0_max < size0) {
+		size0 = size0_max;
+		min_align = max_align;
+	}
+
 	add_align = max(min_align, add_align);
 	if (children_add_size > add_size)
 		add_size = children_add_size;
 	size1 = (!realloc_head || (realloc_head && !add_size)) ? size0 :
 		calculate_memsize(size, min_size, add_size,
-				resource_size(b_res), add_align);
+				resource_size(b_res),
+				window_alignment(bus, b_res->flags));
 	if (!size0 && !size1) {
 		if (b_res->start || b_res->end)
 			dev_info(&bus->self->dev, "disabling bridge window %pR to %pR (unused)\n",
