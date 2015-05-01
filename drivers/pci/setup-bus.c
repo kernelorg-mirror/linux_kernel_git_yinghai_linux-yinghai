@@ -1077,6 +1077,16 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 					  (flags & mask) != type3))
 				continue;
 			r_size = resource_size(r);
+
+			/* reject oversize early */
+			if (!mem64_mask &&
+			    ((unsigned long long)size + r_size > (1ULL<<31))) {
+				dev_warn(&dev->dev, "disabling BAR %d: %pR size %#llx overflow bridge's)\n",
+					i, r, (unsigned long long)size);
+				r->flags = 0;
+				continue;
+			}
+
 #ifdef CONFIG_PCI_IOV
 			/* put SRIOV requested res to the optional list */
 			if (realloc_head && i >= PCI_IOV_RESOURCES &&
