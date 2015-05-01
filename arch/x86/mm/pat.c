@@ -304,6 +304,9 @@ static int pat_pagerange_is_ram(resource_size_t start, resource_size_t end)
 	unsigned long end_pfn = (end + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	struct pagerange_state state = {start_pfn, 0, 0};
 
+	/* pfn overflow, don't need to check */
+	if (pfn_overflow(end + PAGE_SIZE - 1))
+		return 0;
 	/*
 	 * For legacy reasons, physical address range in the legacy ISA
 	 * region is tracked as non-RAM. This will allow users of

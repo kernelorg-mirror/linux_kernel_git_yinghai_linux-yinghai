@@ -15,6 +15,14 @@
 
 #ifndef __ASSEMBLY__
 
+static inline int pfn_overflow(dma_addr_t phy_addr)
+{
+	dma_addr_t real_pfn = phy_addr >> PAGE_SHIFT;
+	unsigned long pfn = (unsigned long)real_pfn;
+
+	return pfn != real_pfn;
+}
+
 struct page;
 
 #include <linux/range.h>

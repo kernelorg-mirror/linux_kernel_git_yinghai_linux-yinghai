@@ -334,9 +334,9 @@ static inline pgprotval_t massage_pgprot(pgprot_t pgprot)
 	return protval;
 }
 
-static inline pte_t pfn_pte(unsigned long page_nr, pgprot_t pgprot)
+static inline pte_t pfn_pte(phys_addr_t page_nr, pgprot_t pgprot)
 {
-	return __pte(((phys_addr_t)page_nr << PAGE_SHIFT) |
+	return __pte((page_nr << PAGE_SHIFT) |
 		     massage_pgprot(pgprot));
 }
 
