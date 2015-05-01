@@ -216,6 +216,17 @@ void __pci_bus_assign_resources(const struct pci_bus *bus,
 				struct list_head *fail_head);
 bool pci_bus_clip_resource(struct pci_dev *dev, int idx);
 
+static inline int pci_resource_pref_compatible(const struct pci_dev *dev,
+					       struct resource *res)
+{
+	if ((res->flags & IORESOURCE_MEM) &&
+	    (res->flags & IORESOURCE_MEM_64) &&
+	    dev->on_all_pcie_path)
+		return res->flags | IORESOURCE_PREFETCH;
+
+	return res->flags;
+}
+
 /**
  * pci_ari_enabled - query ARI forwarding status
  * @bus: the PCI bus
