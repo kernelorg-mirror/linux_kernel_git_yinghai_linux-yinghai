@@ -751,6 +751,22 @@ static void pci_enable_crs(struct pci_dev *pdev)
 					 PCI_EXP_RTCTL_CRSSVE);
 }
 
+static void pci_fixup_parent_subordinate_busnr(struct pci_bus *child, int max)
+{
+	struct pci_bus *parent = child->parent;
+
+	/* Attempts to fix that up are really dangerous unless
+	   we're going to re-assign all bus numbers. */
+	if (!pcibios_assign_all_busses())
+		return;
+
+	while (parent->parent && parent->busn_res.end < max) {
+		parent->busn_res.end = max;
+		pci_write_config_byte(parent->self, PCI_SUBORDINATE_BUS, max);
+		parent = parent->parent;
+	}
+}
+
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
@@ -811,10 +827,11 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 			goto out;
 
 		/*
-		 * The bus might already exist for two reasons: Either we are
-		 * rescanning the bus or the bus is reachable through more than
-		 * one bridge. The second case can happen with the i450NX
-		 * chipset.
+		 * If we already got to this bus through a different bridge,
+		 * don't re-add it. This can happen with the i450NX chipset.
+		 *
+		 * However, we continue to descend down the hierarchy and
+		 * scan remaining child buses.
 		 */
 		child = pci_find_bus(pci_domain_nr(bus), secondary);
 		if (!child) {
@@ -827,19 +844,17 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 		}
 
 		cmax = pci_scan_child_bus(child);
-		if (cmax > subordinate)
-			dev_warn(&dev->dev, "bridge has subordinate %02x but max busn %02x\n",
-				 subordinate, cmax);
-		/* subordinate should equal child->busn_res.end */
-		if (subordinate > max)
-			max = subordinate;
+		if (cmax > max)
+			max = cmax;
+		if (child->busn_res.end > max)
+			max = child->busn_res.end;
 	} else {
 		/*
 		 * We need to assign a number to this bus which we always
 		 * do in the second pass.
 		 */
 		if (!pass) {
-			if (pcibios_assign_all_busses() || broken || is_cardbus)
+			if (pcibios_assign_all_busses() || broken)
 				/* Temporarily disable forwarding of the
 				   configuration cycles on all bridges in
 				   this bus segment to avoid possible
@@ -859,12 +874,11 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 		 * this case we only re-scan this bus. */
 		child = pci_find_bus(pci_domain_nr(bus), max+1);
 		if (!child) {
-			child = pci_add_new_bus(bus, dev, max+1);
+			child = pci_add_new_bus(bus, dev, ++max);
 			if (!child)
 				goto out;
-			pci_bus_insert_busn_res(child, max+1, 0xff);
+			pci_bus_insert_busn_res(child, max, 0xff);
 		}
-		max++;
 		buses = (buses & 0xff000000)
 		      | ((unsigned int)(child->primary)     <<  0)
 		      | ((unsigned int)(child->busn_res.start)   <<  8)
@@ -886,7 +900,20 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 
 		if (!is_cardbus) {
 			child->bridge_ctl = bctl;
+			/*
+			 * Adjust subordinate busnr in parent buses.
+			 * We do this before scanning for children because
+			 * some devices may not be detected if the bios
+			 * was lazy.
+			 */
+			pci_fixup_parent_subordinate_busnr(child, max);
+			/* Now we can scan all subordinate buses... */
 			max = pci_scan_child_bus(child);
+			/*
+			 * now fix it up again since we have found
+			 * the real value of max.
+			 */
+			pci_fixup_parent_subordinate_busnr(child, max);
 		} else {
 			/*
 			 * For CardBus bridges, we leave 4 bus numbers
@@ -917,6 +944,7 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 				}
 			}
 			max += i;
+			pci_fixup_parent_subordinate_busnr(child, max);
 		}
 		/*
 		 * Set the subordinate bus number to its real value.
@@ -2046,7 +2074,7 @@ int pci_bus_insert_busn_res(struct pci_bus *b, int bus, int bus_max)
 		res->flags |= IORESOURCE_PCI_FIXED;
 	}
 
-	conflict = request_resource_conflict(parent_res, res);
+	conflict = insert_resource_conflict(parent_res, res);
 
 	if (conflict)
 		dev_printk(KERN_DEBUG, &b->dev,
