@@ -291,7 +291,7 @@ out:
  * requests that could not satisfied to the failed_list.
  */
 static void assign_requested_resources_sorted(struct list_head *head,
-				 struct list_head *fail_head)
+				 struct list_head *fail_head, bool fit)
 {
 	struct resource *res;
 	struct pci_dev_resource *dev_res;
@@ -301,7 +301,7 @@ static void assign_requested_resources_sorted(struct list_head *head,
 		res = dev_res->res;
 		idx = res - &dev_res->dev->resource[0];
 		if (resource_size(res) &&
-		    pci_assign_resource(dev_res->dev, idx)) {
+		    pci_assign_resource_fit(dev_res->dev, idx, fit)) {
 			if (fail_head) {
 				/*
 				 * if the failed res is for ROM BAR, and it will
@@ -385,6 +385,7 @@ static void __assign_resources_sorted(struct list_head *head,
 	 *	3. if there is non-pref mmio assign fail or pref mmio
 	 *	   assigned fail, will release assigned non-pref mmio.
 	 */
+	bool fit = true;
 	LIST_HEAD(save_head);
 	LIST_HEAD(local_fail_head);
 	struct pci_dev_resource *save_res;
@@ -400,6 +401,8 @@ static void __assign_resources_sorted(struct list_head *head,
 	list_for_each_entry(dev_res, head, list) {
 		if (add_to_list(&save_head, dev_res->dev, dev_res->res, 0, 0)) {
 			free_list(&save_head);
+			/* will need to expand later, so not use fit */
+			fit = false;
 			goto requested_and_reassign;
 		}
 	}
@@ -444,7 +447,7 @@ static void __assign_resources_sorted(struct list_head *head,
 	}
 
 	/* Try updated head list with add_size added */
-	assign_requested_resources_sorted(head, &local_fail_head);
+	assign_requested_resources_sorted(head, &local_fail_head, fit);
 
 	/* all assigned with add_size ? */
 	if (list_empty(&local_fail_head)) {
@@ -484,9 +487,12 @@ static void __assign_resources_sorted(struct list_head *head,
 	}
 	free_list(&save_head);
 
+	/* will need to expand later, so not use fit */
+	fit = false;
+
 requested_and_reassign:
 	/* Satisfy the must-have resource requests */
-	assign_requested_resources_sorted(head, fail_head);
+	assign_requested_resources_sorted(head, fail_head, fit);
 
 	/* Try to satisfy any additional optional resource
 		requests */
