@@ -1785,8 +1785,11 @@ again:
 		res->start = fail_res->start;
 		res->end = fail_res->end;
 		res->flags = fail_res->flags;
-		if (fail_res->dev->subordinate)
+		if (fail_res->dev->subordinate) {
 			res->flags = 0;
+			if (!list_empty(&fail_res->dev->subordinate->devices))
+				res->start = res->end = 0;
+		}
 	}
 	free_list(&fail_head);
 
@@ -1851,8 +1854,11 @@ again:
 		res->start = fail_res->start;
 		res->end = fail_res->end;
 		res->flags = fail_res->flags;
-		if (fail_res->dev->subordinate)
+		if (fail_res->dev->subordinate) {
 			res->flags = 0;
+			if (!list_empty(&fail_res->dev->subordinate->devices))
+				res->start = res->end = 0;
+		}
 	}
 	free_list(&fail_head);
 
