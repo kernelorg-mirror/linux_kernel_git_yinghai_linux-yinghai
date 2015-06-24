@@ -752,6 +752,7 @@ out:
  * @align: alignment requested, in bytes
  * @alignf: alignment function, optional, called if not NULL
  * @alignf_data: arbitrary data to pass to the @alignf function
+ * @fit: only allocate fit range.
  *
  * Caller need to hold resource_lock if needed.
  */
@@ -762,7 +763,7 @@ static int __allocate_resource(struct resource *root, struct resource *new,
 						  const struct resource *,
 						  resource_size_t,
 						  resource_size_t),
-				void *alignf_data)
+				void *alignf_data, bool fit)
 {
 	int err;
 	struct resource_constraint constraint;
@@ -775,7 +776,7 @@ static int __allocate_resource(struct resource *root, struct resource *new,
 	constraint.align = align;
 	constraint.alignf = alignf;
 	constraint.alignf_data = alignf_data;
-	constraint.fit = false;
+	constraint.fit = fit;
 
 	if (new->parent) {
 		/* resource is already allocated, try reallocating with
@@ -788,6 +789,39 @@ static int __allocate_resource(struct resource *root, struct resource *new,
 		err = -EBUSY;
 
 	return err;
+}
+
+/**
+ * allocate_resource_fit - allocate empty slot in the resource tree given range & alignment.
+ *	The resource will be reallocated with a new size if it was already
+ *	allocated
+ * @root: root resource descriptor
+ * @new: resource descriptor desired by caller
+ * @size: requested resource region size
+ * @min: minimum boundary to allocate
+ * @max: maximum boundary to allocate
+ * @align: alignment requested, in bytes
+ * @alignf: alignment function, optional, called if not NULL
+ * @alignf_data: arbitrary data to pass to the @alignf function
+ * @fit: only allocate fit range.
+ */
+int allocate_resource_fit(struct resource *root, struct resource *new,
+		      resource_size_t size, resource_size_t min,
+		      resource_size_t max, resource_size_t align,
+		      resource_size_t (*alignf)(void *,
+						const struct resource *,
+						resource_size_t,
+						resource_size_t),
+		      void *alignf_data, bool fit)
+{
+	int ret;
+
+	write_lock(&resource_lock);
+	ret = __allocate_resource(root, new, size, min, max, align,
+				   alignf, alignf_data, fit);
+	write_unlock(&resource_lock);
+
+	return ret;
 }
 
 /**
@@ -812,16 +846,9 @@ int allocate_resource(struct resource *root, struct resource *new,
 						resource_size_t),
 		      void *alignf_data)
 {
-	int ret;
-
-	write_lock(&resource_lock);
-	ret = __allocate_resource(root, new, size, min, max, align,
-				   alignf, alignf_data);
-	write_unlock(&resource_lock);
-
-	return ret;
+	return allocate_resource_fit(root, new, size, min, max,
+					align, alignf, alignf_data, false);
 }
-
 EXPORT_SYMBOL(allocate_resource);
 
 /**
