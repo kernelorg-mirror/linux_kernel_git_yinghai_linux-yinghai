@@ -376,6 +376,17 @@ int pci_enable_resources(struct pci_dev *dev, int mask)
 			continue;
 
 		if (r->flags & IORESOURCE_UNSET) {
+			/* bridge BAR could be disabled one by one */
+			if (dev->subordinate && i >= PCI_BRIDGE_RESOURCES &&
+						i <= PCI_BRIDGE_RESOURCE_END)
+				continue;
+
+#ifdef CONFIG_PCI_IOV
+			/* SRIOV ? */
+			if (i >= PCI_IOV_RESOURCES && i <= PCI_IOV_RESOURCE_END)
+				continue;
+#endif
+
 			dev_err(&dev->dev, "can't enable device: BAR %d %pR not assigned\n",
 				i, r);
 			return -EINVAL;
