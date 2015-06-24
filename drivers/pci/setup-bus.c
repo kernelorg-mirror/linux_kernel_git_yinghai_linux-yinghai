@@ -1866,25 +1866,34 @@ void __init pci_assign_unassigned_resources(void)
 void pci_assign_unassigned_bridge_resources(struct pci_dev *bridge)
 {
 	struct pci_bus *parent = bridge->subordinate;
-	LIST_HEAD(add_list); /* list of resources that
+	LIST_HEAD(realloc_head); /* list of resources that
 					want additional resources */
+	struct list_head *add_list = NULL;
 	int tried_times = 0;
 	LIST_HEAD(fail_head);
 	struct pci_dev_resource *fail_res;
 	int retval;
 	unsigned long type_mask = IORESOURCE_IO | IORESOURCE_MEM |
 				  IORESOURCE_PREFETCH | IORESOURCE_MEM_64;
+	int pci_try_num = 2;
 
 again:
-	__pci_bus_size_bridges(parent, &add_list);
-	__pci_bridge_assign_resources(bridge, &add_list, &fail_head);
-	BUG_ON(!list_empty(&add_list));
+	/*
+	 * last try will use add_list, otherwise will try good to have as
+	 * must have, so can realloc parent bridge resource
+	 */
+	if (tried_times + 1 == pci_try_num)
+		add_list = &realloc_head;
+	__pci_bus_size_bridges(parent, add_list);
+	__pci_bridge_assign_resources(bridge, add_list, &fail_head);
+	if (add_list)
+		BUG_ON(!list_empty(add_list));
 	tried_times++;
 
 	if (list_empty(&fail_head))
 		goto enable_all;
 
-	if (tried_times >= 2) {
+	if (tried_times >= pci_try_num) {
 		/* still fail, don't need to try more */
 		free_list(&fail_head);
 		goto enable_all;
