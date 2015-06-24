@@ -1136,9 +1136,16 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 					mask | IORESOURCE_PREFETCH, type);
 	LIST_HEAD(align_test_list);
 	LIST_HEAD(align_test_add_list);
+	unsigned int mem64_mask;
 
 	if (!b_res)
 		return -ENOSPC;
+
+	mem64_mask = b_res->flags & IORESOURCE_MEM_64;
+
+	/* kernel does not support 64bit res */
+	if (sizeof(pci_bus_addr_t) == 4)
+		mem64_mask &= ~IORESOURCE_MEM_64;
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
 		int i;
@@ -1169,7 +1176,8 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 				continue;
 			}
 #endif
-			if (align > (1ULL<<37)) { /*128 Gb*/
+			if (align > (1ULL<<37)  /*128 Gb*/ ||
+			    (!mem64_mask && align > (1<<31) /* 2Gb */)) {
 				dev_warn(&dev->dev, "disabling BAR %d: %pR (bad alignment %#llx)\n",
 					i, r, (unsigned long long) align);
 				r->flags = 0;
