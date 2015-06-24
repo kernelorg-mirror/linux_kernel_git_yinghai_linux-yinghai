@@ -1140,10 +1140,11 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 		for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 			struct resource *r = &dev->resource[i];
 			resource_size_t r_size, align;
+			int flags = pci_resource_pref_compatible(dev, r);
 
-			if (r->parent || ((r->flags & mask) != type &&
-					  (r->flags & mask) != type2 &&
-					  (r->flags & mask) != type3))
+			if (r->parent || ((flags & mask) != type &&
+					  (flags & mask) != type2 &&
+					  (flags & mask) != type3))
 				continue;
 
 			r_size = resource_size(r);

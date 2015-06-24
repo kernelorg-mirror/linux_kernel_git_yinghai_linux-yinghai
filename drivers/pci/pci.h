@@ -184,6 +184,17 @@ extern struct device_type pci_dev_type;
 extern const struct attribute_group *pci_bus_groups[];
 
 
+static inline int pci_resource_pref_compatible(const struct pci_dev *dev,
+					       struct resource *res)
+{
+	if ((res->flags & IORESOURCE_MEM) &&
+	    (res->flags & IORESOURCE_MEM_64) &&
+	    dev->on_all_pcie_path)
+		return res->flags | IORESOURCE_PREFETCH;
+
+	return res->flags;
+}
+
 /**
  * pci_match_one_device - Tell if a PCI device structure has a matching
  *                        PCI device id structure
