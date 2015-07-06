@@ -960,7 +960,7 @@ int pci_claim_bridge_resource(struct pci_dev *bridge, int i)
 static bool pci_up_path_over_pref_mem64(struct pci_bus *bus)
 {
 	if (pci_is_root_bus(bus))
-		return true;
+		return to_pci_host_bridge(bus->bridge)->has_mem64;
 
 	if (bus->self && !(bus->self->resource[PCI_BRIDGE_RESOURCES + 2].flags &
 			   IORESOURCE_MEM_64))
