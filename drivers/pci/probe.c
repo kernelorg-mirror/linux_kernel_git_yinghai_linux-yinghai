@@ -852,6 +852,9 @@ static int pci_bridge_check_busn_broken(struct pci_bus *bus,
 
 	return 0;
 }
+
+static unsigned int __pci_scan_child_bus(struct pci_bus *bus,
+						 int pass);
 /*
  * If it's a bridge, configure it and scan the bus behind it.
  * For CardBus bridges, we don't scan behind as the devices will
@@ -912,11 +915,10 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 	    !is_cardbus && !broken) {
 		unsigned int cmax;
 		/*
-		 * Bus already configured by firmware, process it in the first
-		 * pass and just note the configuration.
+		 * Bus already configured by firmware, still process it in two
+		 * passes in extreme case like two adjaced bridges have children
+		 * bridges that are not setup properly.
 		 */
-		if (pass)
-			goto out;
 
 		/*
 		 * If we already got to this bus through a different bridge,
@@ -935,7 +937,7 @@ int pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max, int pass)
 			child->bridge_ctl = bctl;
 		}
 
-		cmax = pci_scan_child_bus(child);
+		cmax = __pci_scan_child_bus(child, pass);
 		if (cmax > max)
 			max = cmax;
 		if (child->busn_res.end > max)
@@ -2018,12 +2020,14 @@ void pcie_bus_configure_settings(struct pci_bus *bus)
 }
 EXPORT_SYMBOL_GPL(pcie_bus_configure_settings);
 
-unsigned int pci_scan_child_bus(struct pci_bus *bus)
+static unsigned int __pci_scan_child_bus(struct pci_bus *bus,
+						 int pass)
 {
-	unsigned int devfn, pass, max = bus->busn_res.start;
+	unsigned int devfn, max = bus->busn_res.start;
 	struct pci_dev *dev;
 
-	dev_dbg(&bus->dev, "scanning bus\n");
+	if (!pass)
+		dev_dbg(&bus->dev, "scanning bus\n");
 
 	/* Go find them, Rover! */
 	for (devfn = 0; devfn < 0x100; devfn += 8)
@@ -2036,17 +2040,15 @@ unsigned int pci_scan_child_bus(struct pci_bus *bus)
 	 * After performing arch-dependent fixup of the bus, look behind
 	 * all PCI-to-PCI bridges on this bus.
 	 */
-	if (!bus->is_added) {
+	if (!bus->is_added && pass) {
 		dev_dbg(&bus->dev, "fixups for bus\n");
 		pcibios_fixup_bus(bus);
 		bus->is_added = 1;
 	}
 
-	for (pass = 0; pass < 2; pass++)
-		list_for_each_entry(dev, &bus->devices, bus_list) {
-			if (pci_is_bridge(dev))
-				max = pci_scan_bridge(bus, dev, max, pass);
-		}
+	list_for_each_entry(dev, &bus->devices, bus_list)
+		if (pci_is_bridge(dev))
+			max = pci_scan_bridge(bus, dev, max, pass);
 
 	/*
 	 * We've scanned the bus and so we know all about what's on
@@ -2055,7 +2057,24 @@ unsigned int pci_scan_child_bus(struct pci_bus *bus)
 	 *
 	 * Return how far we've got finding sub-buses.
 	 */
-	dev_dbg(&bus->dev, "bus scan returning with max=%02x\n", max);
+	if (pass)
+		dev_dbg(&bus->dev, "bus scan returning with max=%02x\n", max);
+
+	return max;
+}
+
+unsigned int pci_scan_child_bus(struct pci_bus *bus)
+{
+	int pass;
+	unsigned int max = 0, tmp;
+
+	for (pass = 0; pass < 2;  pass++) {
+		tmp = __pci_scan_child_bus(bus, pass);
+
+		if (tmp > max)
+			max = tmp;
+	}
+
 	return max;
 }
 EXPORT_SYMBOL_GPL(pci_scan_child_bus);
