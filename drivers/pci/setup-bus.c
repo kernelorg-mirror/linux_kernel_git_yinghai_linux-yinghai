@@ -345,6 +345,11 @@ out:
 	}
 }
 
+void __pci_bus_check_realloc(struct list_head *realloc_head)
+{
+	BUG_ON(!list_empty(realloc_head));
+}
+
 /**
  * assign_requested_resources_sorted() - satisfy resource requests
  *
@@ -1856,7 +1861,7 @@ again:
 	/* Depth last, allocate resources and update the hardware. */
 	__pci_bus_assign_resources(bus, add_list, &fail_head);
 	if (add_list)
-		BUG_ON(!list_empty(add_list));
+		__pci_bus_check_realloc(add_list);
 	tried_times++;
 
 	/* any device complain? */
@@ -1931,7 +1936,7 @@ void pci_assign_unassigned_bridge_resources(struct pci_dev *bridge)
 again:
 	__pci_bus_size_bridges(parent, &add_list);
 	__pci_bridge_assign_resources(bridge, &add_list, &fail_head);
-	BUG_ON(!list_empty(&add_list));
+	__pci_bus_check_realloc(&add_list);
 	tried_times++;
 
 	if (list_empty(&fail_head))
@@ -1990,6 +1995,6 @@ void pci_assign_unassigned_bus_resources(struct pci_bus *bus)
 							 &add_list);
 	up_read(&pci_bus_sem);
 	__pci_bus_assign_resources(bus, &add_list, NULL);
-	BUG_ON(!list_empty(&add_list));
+	__pci_bus_check_realloc(&add_list);
 }
 EXPORT_SYMBOL_GPL(pci_assign_unassigned_bus_resources);
