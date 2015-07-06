@@ -466,8 +466,21 @@ static bool __assign_resources_must_add_sorted(struct list_head *head,
 	struct pci_dev_resource *save_res;
 	struct pci_dev_resource *dev_res, *tmp_res;
 	unsigned long fail_type;
-	resource_size_t add_align;
+	resource_size_t add_align, add_size;
 	struct resource *res;
+	int add_count = 0;
+
+	/* check if we have add really */
+	list_for_each_entry(dev_res, head, list) {
+		res = dev_res->res;
+		tmp_res = res_to_dev_res(realloc_head, res);
+		if (!tmp_res || !tmp_res->add_size)
+			continue;
+
+		add_count++;
+	}
+	if (!add_count)
+		return false;
 
 	/* Save original start, end, flags etc at first */
 	list_for_each_entry(dev_res, head, list)
@@ -479,7 +492,12 @@ static bool __assign_resources_must_add_sorted(struct list_head *head,
 	/* Update res in head list with add_size in realloc_head list */
 	list_for_each_entry(dev_res, head, list) {
 		res = dev_res->res;
-		res->end += get_res_add_size(realloc_head, res);
+		add_size = get_res_add_size(realloc_head, res);
+
+		if (!add_size)
+			continue;
+
+		res->end += add_size;
 
 		/*
 		 * There are two kinds of additional resources in the list:
@@ -573,7 +591,7 @@ static void __assign_resources_sorted(struct list_head *head,
 	LIST_HEAD(local_fail_head);
 
 	/* Check must+optional add */
-	if (realloc_head && !list_empty(realloc_head) &&
+	if (realloc_head &&
 	    __assign_resources_must_add_sorted(head, realloc_head))
 		return;
 
