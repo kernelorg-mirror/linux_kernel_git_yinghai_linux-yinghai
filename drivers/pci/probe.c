@@ -2051,6 +2051,15 @@ struct pci_bus *pci_create_root_bus(struct device *parent, int bus,
 		dev_info(&b->dev, "root bus resource %pR%s\n", res, bus_addr);
 	}
 
+	resource_list_for_each_entry(window, &bridge->windows) {
+		res = window->res;
+		if (resource_type(res) == IORESOURCE_MEM &&
+		    (res->end - window->offset) > 0xffffffff) {
+			bridge->has_mem64 = 1;
+			break;
+		}
+	}
+
 	down_write(&pci_bus_sem);
 	list_add_tail(&b->node, &pci_root_buses);
 	up_write(&pci_bus_sem);
