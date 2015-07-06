@@ -282,6 +282,31 @@ static inline void reset_resource(struct resource *res)
 	res->flags = 0;
 }
 
+static void __sort_resources(struct list_head *head)
+{
+	struct pci_dev_resource *res1, *tmp_res, *res2;
+
+	list_for_each_entry_safe(res1, tmp_res, head, list) {
+		resource_size_t align1, size1, align2, size2;
+
+		align1 = pci_resource_alignment(res1->dev, res1->res);
+		size1 = resource_size(res1->res);
+
+		/* reorder it */
+		list_for_each_entry(res2, head, list) {
+			if (res2 == res1)
+				break;
+
+			align2 = pci_resource_alignment(res2->dev, res2->res);
+			size2 = resource_size(res2->res);
+			if (is_before(align1, size1, align2, size2)) {
+				list_move_tail(&res1->list, &res2->list);
+				break;
+			}
+		}
+	}
+}
+
 /**
  * reassign_resources_sorted() - satisfy any additional resource requests
  *
@@ -444,9 +469,9 @@ static void __assign_resources_sorted(struct list_head *head,
 	LIST_HEAD(save_head);
 	LIST_HEAD(local_fail_head);
 	struct pci_dev_resource *save_res;
-	struct pci_dev_resource *dev_res, *tmp_res, *dev_res2;
+	struct pci_dev_resource *dev_res, *tmp_res;
 	unsigned long fail_type;
-	resource_size_t add_align, align;
+	resource_size_t add_align;
 
 	/* Check if optional add_size is there */
 	if (!realloc_head || list_empty(realloc_head))
@@ -461,46 +486,31 @@ static void __assign_resources_sorted(struct list_head *head,
 	}
 
 	/* Update res in head list with add_size in realloc_head list */
-	list_for_each_entry_safe(dev_res, tmp_res, head, list) {
+	list_for_each_entry(dev_res, head, list) {
 		dev_res->res->end += get_res_add_size(realloc_head,
 							dev_res->res);
 
 		/*
 		 * There are two kinds of additional resources in the list:
-		 * 1. bridge resource  -- IORESOURCE_STARTALIGN
-		 * 2. SR-IOV resource   -- IORESOURCE_SIZEALIGN
-		 * Here just fix the additional alignment for bridge
+		 * 1. bridge resource with IORESOURCE_STARTALIGN
+		 *    need to update start to change alignment
+		 * 2. resource with IORESOURCE_SIZEALIGN
+		 *    update size above already change alignment.
 		 */
 		if (!(dev_res->res->flags & IORESOURCE_STARTALIGN))
 			continue;
 
 		add_align = get_res_add_align(realloc_head, dev_res->res);
 
-		/*
-		 * The "head" list is sorted by the alignment to make sure
-		 * resources with bigger alignment will be assigned first.
-		 * After we change the alignment of a dev_res in "head" list,
-		 * we need to reorder the list by alignment to make it
-		 * consistent.
-		 */
-		if (add_align > dev_res->res->start) {
+		if (add_align) {
 			resource_size_t r_size = resource_size(dev_res->res);
 
 			dev_res->res->start = add_align;
 			dev_res->res->end = add_align + r_size - 1;
-
-			list_for_each_entry(dev_res2, head, list) {
-				align = pci_resource_alignment(dev_res2->dev,
-							       dev_res2->res);
-				if (add_align > align) {
-					list_move_tail(&dev_res->list,
-						       &dev_res2->list);
-					break;
-				}
-			}
                }
-
 	}
+
+	__sort_resources(head);
 
 	/* Try updated head list with add_size added */
 	assign_requested_resources_sorted(head, &local_fail_head);
@@ -542,6 +552,8 @@ static void __assign_resources_sorted(struct list_head *head,
 		res->flags = save_res->flags;
 	}
 	free_list(&save_head);
+
+	__sort_resources(head);
 
 requested_and_reassign:
 	/* Satisfy the must-have resource requests */
