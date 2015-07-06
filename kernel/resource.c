@@ -728,6 +728,7 @@ out:
  * @align: alignment requested, in bytes
  * @alignf: alignment function, optional, called if not NULL
  * @alignf_data: arbitrary data to pass to the @alignf function
+ * @fit: only allocate fit range.
  *
  * Caller need to hold resource_lock if needed.
  */
@@ -738,7 +739,7 @@ static int __allocate_resource(struct resource *root, struct resource *new,
 						  const struct resource *,
 						  resource_size_t,
 						  resource_size_t),
-				void *alignf_data)
+				void *alignf_data, bool fit)
 {
 	int err;
 	struct resource_constraint constraint;
@@ -751,7 +752,7 @@ static int __allocate_resource(struct resource *root, struct resource *new,
 	constraint.align = align;
 	constraint.alignf = alignf;
 	constraint.alignf_data = alignf_data;
-	constraint.fit = false;
+	constraint.fit = fit;
 
 	if (new->parent) {
 		/* resource is already allocated, try reallocating with
@@ -792,7 +793,7 @@ int allocate_resource(struct resource *root, struct resource *new,
 
 	write_lock(&resource_lock);
 	ret = __allocate_resource(root, new, size, min, max, align,
-				   alignf, alignf_data);
+				   alignf, alignf_data, true);
 	write_unlock(&resource_lock);
 
 	return ret;
