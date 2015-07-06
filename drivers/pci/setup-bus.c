@@ -30,6 +30,34 @@
 
 unsigned int pci_flags;
 
+static inline bool is_before(resource_size_t align1, resource_size_t size1,
+			     resource_size_t align2, resource_size_t size2)
+{
+	resource_size_t size1_left, size2_left;
+
+	/* big align is before small align */
+	if (align1 > align2)
+		return true;
+
+	/*
+	 * for same align:
+	 *   aligned is before not aligned
+	 *   for not aligned, big remainder is before small remainder
+	 */
+	if (align1 == align2) {
+		size1_left = size1 & (align1 - 1);
+		if (!size1_left)
+			size1_left = align1;
+		size2_left = size2 & (align2 - 1);
+		if (!size2_left)
+			size2_left = align2;
+		if (size1_left > size2_left)
+			return true;
+	}
+
+	return false;
+}
+
 struct pci_dev_resource {
 	struct list_head list;
 	struct resource *res;
@@ -994,26 +1022,125 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 	}
 }
 
-static inline resource_size_t calculate_mem_align(resource_size_t *aligns,
-						  int max_order)
+struct align_test_res {
+	struct list_head list;
+	struct resource res;
+	resource_size_t size;
+	resource_size_t align;
+};
+
+static void free_align_test_list(struct list_head *head)
 {
-	resource_size_t align = 0;
-	resource_size_t min_align = 0;
-	int order;
+	struct align_test_res *p, *tmp;
 
-	for (order = 0; order <= max_order; order++) {
-		resource_size_t align1 = 1;
+	list_for_each_entry_safe(p, tmp, head, list) {
+		list_del(&p->list);
+		kfree(p);
+	}
+}
 
-		align1 <<= (order + 20);
+static int add_to_align_test_list(struct list_head *head,
+				  resource_size_t align, resource_size_t size)
+{
+	struct align_test_res *tmp;
 
-		if (!align)
-			min_align = align1;
-		else if (ALIGN(align + min_align, min_align) < align1)
-			min_align = align1 >> 1;
-		align += aligns[order];
+	tmp = kzalloc(sizeof(*tmp), GFP_KERNEL);
+	if (!tmp)
+		return -ENOMEM;
+
+	tmp->align = align;
+	tmp->size = size;
+
+	list_add_tail(&tmp->list, head);
+
+	return 0;
+}
+
+static void __sort_align_test(struct list_head *head)
+{
+	struct align_test_res *res1, *tmp_res, *res2;
+
+	list_for_each_entry_safe(res1, tmp_res, head, list) {
+		/* reorder it */
+		list_for_each_entry(res2, head, list) {
+			if (res2 == res1)
+				break;
+
+			if (is_before(res1->align, res1->size,
+				      res2->align, res2->size)) {
+				list_move_tail(&res1->list, &res2->list);
+				break;
+			}
+		}
+	}
+}
+
+static bool is_align_size_good(struct list_head *head,
+			resource_size_t min_align, resource_size_t size,
+			resource_size_t start)
+{
+	struct align_test_res *p;
+	struct resource root;
+
+	memset(&root, 0, sizeof(root));
+	root.start = start;
+	root.end = start + size - 1;
+
+	list_for_each_entry(p, head, list)
+		memset(&p->res, 0, sizeof(p->res));
+
+	list_for_each_entry(p, head, list)
+		if (allocate_resource(&root, &p->res, p->size,
+				0, (resource_size_t)-1ULL,
+				p->align, NULL, NULL))
+			return false;
+
+	return true;
+}
+
+static resource_size_t calculate_mem_align(struct list_head *head,
+				resource_size_t max_align, resource_size_t size,
+				resource_size_t align_low)
+{
+	struct align_test_res *p;
+	resource_size_t min_align, good_align, aligned_size, start;
+	int count = 0;
+
+	if (max_align <= align_low) {
+		good_align = align_low;
+		goto out;
 	}
 
-	return min_align;
+	good_align = max_align;
+
+	list_for_each_entry(p, head, list)
+		count++;
+
+	if (count <= 1)
+		goto out;
+
+	__sort_align_test(head);
+
+	do {
+		/* check if we can use smaller align */
+		min_align = good_align >> 1;
+		aligned_size = ALIGN(size, min_align);
+
+		/* need to make sure every offset work */
+		for (start = min_align; start < max_align; start += min_align) {
+			/* checked already with last align ? */
+			if (!(start & (good_align - 1)))
+				continue;
+
+			if (!is_align_size_good(head, min_align, aligned_size,
+					       start))
+				goto out;
+		}
+		good_align = min_align;
+	} while (min_align > align_low);
+
+out:
+	return good_align;
 }
 
 /**
@@ -1043,19 +1170,17 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 {
 	struct pci_dev *dev;
 	resource_size_t min_align, align, size, size0, size1;
-	resource_size_t aligns[18];	/* Alignments from 1Mb to 128Gb */
-	int order, max_order;
+	resource_size_t max_align = 0;
 	struct resource *b_res = find_free_bus_resource(bus,
 					mask | IORESOURCE_PREFETCH, type);
 	resource_size_t children_add_size = 0;
 	resource_size_t children_add_align = 0;
 	resource_size_t add_align = 0;
+	LIST_HEAD(align_test_list);
 
 	if (!b_res)
 		return -ENOSPC;
 
-	memset(aligns, 0, sizeof(aligns));
-	max_order = 0;
 	size = 0;
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
@@ -1081,29 +1206,20 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 				continue;
 			}
 #endif
-			/*
-			 * aligns[0] is for 1MB (since bridge memory
-			 * windows are always at least 1MB aligned), so
-			 * keep "order" from being negative for smaller
-			 * resources.
-			 */
 			align = pci_resource_alignment(dev, r);
-			order = __ffs(align) - 20;
-			if (order < 0)
-				order = 0;
-			if (order >= ARRAY_SIZE(aligns)) {
+			if (align > (1ULL<<37)) { /*128 Gb*/
 				dev_warn(&dev->dev, "disabling BAR %d: %pR (bad alignment %#llx)\n",
-					 i, r, (unsigned long long) align);
+					i, r, (unsigned long long) align);
 				r->flags = 0;
 				continue;
 			}
+
+			if (r_size > 1)
+				add_to_align_test_list(&align_test_list,
+							align, r_size);
 			size += r_size;
-			/* Exclude ranges with size > align from
-			   calculation of the alignment. */
-			if (r_size == align)
-				aligns[order] += align;
-			if (order > max_order)
-				max_order = order;
+			if (align > max_align)
+				max_align = align;
 
 			if (realloc_head) {
 				children_add_size += get_res_add_size(realloc_head, r);
@@ -1113,9 +1229,12 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 		}
 	}
 
-	min_align = calculate_mem_align(aligns, max_order);
-	min_align = max(min_align, window_alignment(bus, b_res->flags));
-	size0 = calculate_memsize(size, min_size, 0, resource_size(b_res), min_align);
+	max_align = max(max_align, window_alignment(bus, b_res->flags));
+	min_align = calculate_mem_align(&align_test_list, max_align, size,
+					window_alignment(bus, b_res->flags));
+	size0 = calculate_memsize(size, min_size, 0,
+				  resource_size(b_res), min_align);
+	free_align_test_list(&align_test_list);
 	add_align = max(min_align, add_align);
 	if (children_add_size > add_size)
 		add_size = children_add_size;
