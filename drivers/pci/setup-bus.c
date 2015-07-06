@@ -2201,8 +2201,15 @@ again:
 		res->start = fail_res->start;
 		res->end = fail_res->end;
 		res->flags = fail_res->flags;
-		if (fail_res->dev->subordinate)
+		if (fail_res->dev->subordinate) {
 			res->flags = 0;
+			/* last or third times and later */
+			if (tried_times + 1 == pci_try_num ||
+			    tried_times + 1 > 2) {
+				res->start = 0;
+				res->end = res->start - 1;
+			}
+		}
 	}
 	free_list(&fail_head);
 
@@ -2276,8 +2283,12 @@ again:
 		res->start = fail_res->start;
 		res->end = fail_res->end;
 		res->flags = fail_res->flags;
-		if (fail_res->dev->subordinate)
+		if (fail_res->dev->subordinate) {
 			res->flags = 0;
+			/* last time */
+			res->start = 0;
+			res->end = res->start - 1;
+		}
 	}
 	free_list(&fail_head);
 
