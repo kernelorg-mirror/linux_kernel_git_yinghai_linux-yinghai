@@ -203,9 +203,8 @@ void __init efi_free_boot_services(void)
  */
 int __init efi_reuse_config(u64 tables, int nr_tables)
 {
-	int i, sz, ret = 0;
+	int i, sz;
 	void *p, *tablep;
-	struct efi_setup_data *data;
 
 	if (!efi_setup)
 		return 0;
@@ -213,22 +212,15 @@ int __init efi_reuse_config(u64 tables, int nr_tables)
 	if (!efi_enabled(EFI_64BIT))
 		return 0;
 
-	data = early_memremap(efi_setup, sizeof(*data));
-	if (!data) {
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	if (!data->smbios)
-		goto out_memremap;
+	if (!efi_setup->smbios)
+		return 0;
 
 	sz = sizeof(efi_config_table_64_t);
 
 	p = tablep = early_memremap(tables, nr_tables * sz);
 	if (!p) {
 		pr_err("Could not map Configuration table!\n");
-		ret = -ENOMEM;
-		goto out_memremap;
+		return -ENOMEM;
 	}
 
 	for (i = 0; i < efi.systab->nr_tables; i++) {
@@ -237,15 +229,12 @@ int __init efi_reuse_config(u64 tables, int nr_tables)
 		guid = ((efi_config_table_64_t *)p)->guid;
 
 		if (!efi_guidcmp(guid, SMBIOS_TABLE_GUID))
-			((efi_config_table_64_t *)p)->table = data->smbios;
+			((efi_config_table_64_t *)p)->table = efi_setup->smbios;
 		p += sz;
 	}
 	early_memunmap(tablep, nr_tables * sz);
 
-out_memremap:
-	early_memunmap(data, sizeof(*data));
-out:
-	return ret;
+	return 0;
 }
 
 void __init efi_apply_memmap_quirks(void)

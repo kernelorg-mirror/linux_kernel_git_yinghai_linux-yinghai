@@ -116,7 +116,7 @@ struct efi_setup_data {
 	u64 reserved[8];
 };
 
-extern u64 efi_setup;
+extern struct efi_setup_data *efi_setup;
 
 #ifdef CONFIG_EFI
 

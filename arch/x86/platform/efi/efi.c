@@ -68,7 +68,7 @@ static efi_config_table_type_t arch_tables[] __initdata = {
 	{NULL_GUID, NULL, NULL},
 };
 
-u64 efi_setup;		/* efi setup_data physical address */
+struct efi_setup_data *efi_setup __initdata; /* cached efi setup_data pointer */
 
 static int add_efi_memmap __initdata;
 static int __init setup_add_efi_memmap(char *arg)
@@ -257,20 +257,13 @@ static int __init efi_systab_init(void *phys)
 {
 	if (efi_enabled(EFI_64BIT)) {
 		efi_system_table_64_t *systab64;
-		struct efi_setup_data *data = NULL;
+		struct efi_setup_data *data = efi_setup;
 		u64 tmp = 0;
 
-		if (efi_setup) {
-			data = early_memremap(efi_setup, sizeof(*data));
-			if (!data)
-				return -ENOMEM;
-		}
 		systab64 = early_memremap((unsigned long)phys,
 					 sizeof(*systab64));
 		if (systab64 == NULL) {
 			pr_err("Couldn't map the system table!\n");
-			if (data)
-				early_memunmap(data, sizeof(*data));
 			return -ENOMEM;
 		}
 
@@ -303,8 +296,6 @@ static int __init efi_systab_init(void *phys)
 		tmp |= data ? data->tables : systab64->tables;
 
 		early_memunmap(systab64, sizeof(*systab64));
-		if (data)
-			early_memunmap(data, sizeof(*data));
 #ifdef CONFIG_X86_32
 		if (tmp >> 32) {
 			pr_err("EFI data located above 4GB, disabling EFI.\n");

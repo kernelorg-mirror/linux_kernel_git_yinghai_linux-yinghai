@@ -295,9 +295,17 @@ void __iomem *__init efi_ioremap(unsigned long phys_addr, unsigned long size,
 	return (void __iomem *)__va(phys_addr);
 }
 
+static struct efi_setup_data efi_setup_data __initdata;
+
 void __init parse_efi_setup(u64 phys_addr, u32 data_len)
 {
-	efi_setup = phys_addr + sizeof(struct setup_data);
+	struct efi_setup_data *data;
+
+	data = early_memremap(phys_addr + sizeof(struct setup_data),
+			      sizeof(*data));
+	efi_setup_data = *data;
+	early_memunmap(data, sizeof(*data));
+	efi_setup = &efi_setup_data;
 }
 
 void __init efi_runtime_mkexec(void)
