@@ -1010,6 +1010,61 @@ void __init mem_init(void)
 }
 
 #ifdef CONFIG_DEBUG_RODATA
+static void remove_highmap_2m(unsigned long addr)
+{
+	pgd_t *pgd = pgd_offset_k(addr);
+	pud_t *pud = (pud_t *)pgd_page_vaddr(*pgd) + pud_index(addr);
+	pmd_t *pmd = (pmd_t *)pud_page_vaddr(*pud) + pmd_index(addr);
+
+	set_pmd(pmd, __pmd(0));
+}
+
+static void remove_highmap_2m_partial(unsigned long addr, unsigned long end)
+{
+	int i;
+	pgd_t *pgd = pgd_offset_k(addr);
+	pud_t *pud = (pud_t *)pgd_page_vaddr(*pgd) + pud_index(addr);
+	pmd_t *pmd = (pmd_t *)pud_page_vaddr(*pud) + pmd_index(addr);
+	pte_t *pte = (pte_t *)pmd_page_vaddr(*pmd) + pte_index(addr);
+
+	for (i = pte_index(addr); i < pte_index(end - 1) + 1; i++, pte++)
+		set_pte(pte, __pte(0));
+}
+
+static void cleanup_highmap_late(unsigned long start, unsigned long end)
+{
+	unsigned long addr;
+	unsigned long start_2m_aligned = roundup(start, PMD_SIZE);
+	unsigned long end_2m_aligned = rounddown(end, PMD_SIZE);
+
+	start = PFN_ALIGN(start);
+	end &= PAGE_MASK;
+
+	if (start >= end)
+		return;
+
+	if (start < start_2m_aligned) {
+		unsigned long tmp = min(start_2m_aligned, end);
+
+		set_memory_4k(start, (tmp - start) >> PAGE_SHIFT);
+		remove_highmap_2m_partial(start, tmp);
+	}
+
+	for (addr = start_2m_aligned; addr < end_2m_aligned; addr += PMD_SIZE)
+		remove_highmap_2m(addr);
+
+	if (start <= end_2m_aligned && end_2m_aligned < end) {
+		set_memory_4k(end_2m_aligned,
+				(end - end_2m_aligned) >> PAGE_SHIFT);
+		remove_highmap_2m_partial(end_2m_aligned, end);
+	}
+
+	subtract_range(pfn_highmapped, NR_RANGE,
+			__pa_symbol(start) >> PAGE_SHIFT,
+			__pa_symbol(end) >> PAGE_SHIFT);
+	nr_pfn_highmapped = clean_sort_range(pfn_highmapped, NR_RANGE);
+}
+
 const int rodata_test_data = 0xC3;
 EXPORT_SYMBOL_GPL(rodata_test_data);
 
@@ -1058,6 +1113,7 @@ void mark_rodata_ro(void)
 	unsigned long end = (unsigned long) &__end_rodata_hpage_align;
 	unsigned long text_end = PFN_ALIGN(&__stop___ex_table);
 	unsigned long rodata_end = PFN_ALIGN(&__end_rodata);
+	unsigned long data_start = PFN_ALIGN(&_sdata);
 	unsigned long all_end;
 
 	printk(KERN_INFO "Write protecting the kernel read-only data: %luk\n",
@@ -1080,6 +1136,12 @@ void mark_rodata_ro(void)
 	 */
 	all_end = roundup(_brk_end, PMD_SIZE);
 	set_memory_nx(rodata_start, (all_end - rodata_start) >> PAGE_SHIFT);
+
+	cleanup_highmap_late(text_end, rodata_start);
+	cleanup_highmap_late(rodata_end, data_start);
+	cleanup_highmap_late(PFN_ALIGN(_brk_end), all_end);
+	cleanup_highmap_late((unsigned long)(&__init_begin),
+				(unsigned long)(&__init_end));
 
 	rodata_test();
 
