@@ -340,8 +340,7 @@ phys_pte_init(pte_t *pte_page, unsigned long addr, unsigned long end,
 		next = (addr & PAGE_MASK) + PAGE_SIZE;
 		if (addr >= end) {
 			if (!after_bootmem &&
-			    !e820_any_mapped(addr & PAGE_MASK, next, E820_RAM) &&
-			    !e820_any_mapped(addr & PAGE_MASK, next, E820_RESERVED_KERN))
+			    !e820_any_mapped(addr & PAGE_MASK, next, E820_RAM))
 				set_pte(pte, __pte(0));
 			continue;
 		}
@@ -387,9 +386,8 @@ phys_pmd_init(pmd_t *pmd_page, unsigned long address, unsigned long end,
 
 		next = (address & PMD_MASK) + PMD_SIZE;
 		if (address >= end) {
-			if (!after_bootmem &&
-			    !e820_any_mapped(address & PMD_MASK, next, E820_RAM) &&
-			    !e820_any_mapped(address & PMD_MASK, next, E820_RESERVED_KERN))
+			if (!after_bootmem && !e820_any_mapped(
+					address & PMD_MASK, next, E820_RAM))
 				set_pmd(pmd, __pmd(0));
 			continue;
 		}
@@ -462,8 +460,7 @@ phys_pud_init(pud_t *pud_page, unsigned long addr, unsigned long end,
 		next = (addr & PUD_MASK) + PUD_SIZE;
 		if (addr >= end) {
 			if (!after_bootmem &&
-			    !e820_any_mapped(addr & PUD_MASK, next, E820_RAM) &&
-			    !e820_any_mapped(addr & PUD_MASK, next, E820_RESERVED_KERN))
+			    !e820_any_mapped(addr & PUD_MASK, next, E820_RAM))
 				set_pud(pud, __pud(0));
 			continue;
 		}

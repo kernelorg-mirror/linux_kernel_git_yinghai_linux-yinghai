@@ -195,8 +195,7 @@ static int tboot_setup_sleep(void)
 	tboot->num_mac_regions = 0;
 
 	for (i = 0; i < e820.nr_map; i++) {
-		if ((e820.map[i].type != E820_RAM)
-		 && (e820.map[i].type != E820_RESERVED_KERN))
+		if (e820.map[i].type != E820_RAM)
 			continue;
 
 		add_mac_region(e820.map[i].addr, e820.map[i].size);

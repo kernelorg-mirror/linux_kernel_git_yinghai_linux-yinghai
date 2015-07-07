@@ -45,14 +45,6 @@
  */
 #define E820_PRAM	12
 
-/*
- * reserved RAM used by kernel itself
- * if CONFIG_INTEL_TXT is enabled, memory of this type will be
- * included in the S3 integrity calculation and so should not include
- * any memory that BIOS might alter over the S3 transition
- */
-#define E820_RESERVED_KERN        128
-
 #ifndef __ASSEMBLY__
 #include <linux/types.h>
 struct e820entry {
