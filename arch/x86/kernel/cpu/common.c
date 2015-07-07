@@ -1016,27 +1016,6 @@ out:
 }
 #endif
 
-void __init identify_boot_cpu(void)
-{
-	identify_cpu(&boot_cpu_data);
-	init_amd_e400_c1e_mask();
-#ifdef CONFIG_X86_32
-	sysenter_setup();
-	enable_sep_cpu();
-#endif
-	cpu_detect_tlb(&boot_cpu_data);
-}
-
-void identify_secondary_cpu(struct cpuinfo_x86 *c)
-{
-	BUG_ON(c == &boot_cpu_data);
-	identify_cpu(c);
-#ifdef CONFIG_X86_32
-	enable_sep_cpu();
-#endif
-	mtrr_ap_init();
-}
-
 struct msr_range {
 	unsigned	min;
 	unsigned	max;
@@ -1082,6 +1061,38 @@ static __init int setup_show_msr(char *arg)
 }
 __setup("show_msr=", setup_show_msr);
 
+static void print_cpu_msr(struct cpuinfo_x86 *c)
+{
+	if (c->cpu_index < show_msr)
+		__print_cpu_msr();
+}
+
+void __init identify_boot_cpu(void)
+{
+	identify_cpu(&boot_cpu_data);
+	init_amd_e400_c1e_mask();
+#ifdef CONFIG_X86_32
+	sysenter_setup();
+	enable_sep_cpu();
+#endif
+	cpu_detect_tlb(&boot_cpu_data);
+
+	print_cpu_msr(&boot_cpu_data);
+}
+
+void identify_secondary_cpu(struct cpuinfo_x86 *c)
+{
+	BUG_ON(c == &boot_cpu_data);
+	identify_cpu(c);
+#ifdef CONFIG_X86_32
+	enable_sep_cpu();
+#endif
+
+	print_cpu_msr(c);
+
+	mtrr_ap_init();
+}
+
 static __init int setup_noclflush(char *arg)
 {
 	setup_clear_cpu_cap(X86_FEATURE_CLFLUSH);
@@ -1115,14 +1126,6 @@ void print_cpu_info(struct cpuinfo_x86 *c)
 		printk(KERN_CONT ", stepping: %02x)\n", c->x86_mask);
 	else
 		printk(KERN_CONT ")\n");
-
-	print_cpu_msr(c);
-}
-
-void print_cpu_msr(struct cpuinfo_x86 *c)
-{
-	if (c->cpu_index < show_msr)
-		__print_cpu_msr();
 }
 
 static __init int setup_disablecpuid(char *arg)
