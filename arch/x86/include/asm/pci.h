@@ -80,8 +80,10 @@ extern int pci_mmap_page_range(struct pci_dev *dev, struct vm_area_struct *vma,
 
 #ifdef CONFIG_PCI
 extern void early_quirks(void);
+void add_pci(u64 pa_data);
 #else
 static inline void early_quirks(void) { }
+static inline void add_pci(u64 pa_data) { }
 #endif
 
 extern void pci_iommu_alloc(void);

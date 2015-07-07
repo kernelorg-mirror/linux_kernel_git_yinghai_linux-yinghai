@@ -9,6 +9,7 @@
 #include <linux/pci-acpi.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
+#include <linux/memblock.h>
 #include <linux/dmi.h>
 #include <linux/slab.h>
 
@@ -641,31 +642,44 @@ unsigned int pcibios_assign_all_busses(void)
 	return (pci_probe & PCI_ASSIGN_ALL_BUSSES) ? 1 : 0;
 }
 
+static u64 pci_setup_data;
+void __init add_pci(u64 pa_data)
+{
+	struct setup_data *data;
+
+	data = early_memremap(pa_data, sizeof(*data));
+	memblock_reserve(pa_data, sizeof(*data) + data->len);
+	data->next = pci_setup_data;
+	pci_setup_data = pa_data;
+	early_memunmap(data, sizeof(*data));
+}
+
 int pcibios_add_device(struct pci_dev *dev)
 {
 	struct setup_data *data;
 	struct pci_setup_rom *rom;
 	u64 pa_data;
 
-	pa_data = boot_params.hdr.setup_data;
+	pa_data = pci_setup_data;
 	while (pa_data) {
 		data = ioremap(pa_data, sizeof(*rom));
 		if (!data)
 			return -ENOMEM;
 
-		if (data->type == SETUP_PCI) {
-			rom = (struct pci_setup_rom *)data;
+		rom = (struct pci_setup_rom *)data;
 
-			if ((pci_domain_nr(dev->bus) == rom->segment) &&
-			    (dev->bus->number == rom->bus) &&
-			    (PCI_SLOT(dev->devfn) == rom->device) &&
-			    (PCI_FUNC(dev->devfn) == rom->function) &&
-			    (dev->vendor == rom->vendor) &&
-			    (dev->device == rom->devid)) {
-				dev->rom = pa_data +
-				      offsetof(struct pci_setup_rom, romdata);
-				dev->romlen = rom->pcilen;
-			}
+		if ((pci_domain_nr(dev->bus) == rom->segment) &&
+		    (dev->bus->number == rom->bus) &&
+		    (PCI_SLOT(dev->devfn) == rom->device) &&
+		    (PCI_FUNC(dev->devfn) == rom->function) &&
+		    (dev->vendor == rom->vendor) &&
+		    (dev->device == rom->devid)) {
+			dev->rom = pa_data +
+			      offsetof(struct pci_setup_rom, romdata);
+			dev->romlen = rom->pcilen;
+			dev_printk(KERN_DEBUG, &dev->dev, "set rom to [%#010lx, %#010lx] via SETUP_PCI\n",
+				   (unsigned long)dev->rom,
+				   (unsigned long)(dev->rom + dev->romlen - 1));
 		}
 		pa_data = data->next;
 		iounmap(data);

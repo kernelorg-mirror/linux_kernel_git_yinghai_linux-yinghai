@@ -440,6 +440,8 @@ static void __init parse_setup_data(void)
 		pa_next = data->next;
 		early_memunmap(data, sizeof(*data));
 
+		printk(KERN_DEBUG "setup_data type: %d @ %#010llx\n",
+				data_type, pa_data);
 		switch (data_type) {
 		case SETUP_E820_EXT:
 			parse_e820_ext(pa_data, data_len);
@@ -447,14 +449,20 @@ static void __init parse_setup_data(void)
 		case SETUP_DTB:
 			add_dtb(pa_data);
 			break;
+		case SETUP_PCI:
+			add_pci(pa_data);
+			break;
 		case SETUP_EFI:
 			parse_efi_setup(pa_data, data_len);
 			break;
 		default:
+			pr_warn("Unknown setup_data type: %d @ %#010llx ignored!\n",
+				data_type, pa_data);
 			break;
 		}
 		pa_data = pa_next;
 	}
+	boot_params.hdr.setup_data = 0; /* all done */
 }
 
 static void __init memblock_x86_reserve_range_setup_data(void)
