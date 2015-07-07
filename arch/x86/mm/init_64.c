@@ -290,6 +290,23 @@ void __init init_extra_mapping_uc(unsigned long phys, unsigned long size)
 	__init_extra_mapping(phys, size, _PAGE_CACHE_MODE_UC);
 }
 
+/* three holes at most*/
+#define NR_RANGE 4
+static struct range pfn_highmapped[NR_RANGE];
+static int nr_pfn_highmapped;
+
+int pfn_range_is_highmapped(unsigned long start_pfn, unsigned long end_pfn)
+{
+	int i;
+
+	for (i = 0; i < nr_pfn_highmapped; i++)
+		if ((start_pfn >= pfn_highmapped[i].start) &&
+		    (end_pfn <= pfn_highmapped[i].end))
+			return 1;
+
+	return 0;
+}
+
 /*
  * The head.S code sets up the kernel high mapping:
  *
@@ -324,6 +341,11 @@ void __init cleanup_highmap(void)
 		if (vaddr < (unsigned long) _text || vaddr > end)
 			set_pmd(pmd, __pmd(0));
 	}
+
+	nr_pfn_highmapped = add_range(pfn_highmapped, NR_RANGE,
+			nr_pfn_highmapped,
+			__pa_symbol(_text) >> PAGE_SHIFT,
+			__pa_symbol(roundup(_brk_end, PMD_SIZE)) >> PAGE_SHIFT);
 }
 
 static unsigned long __meminit

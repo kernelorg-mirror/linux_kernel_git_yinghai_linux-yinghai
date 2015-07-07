@@ -158,6 +158,8 @@ static inline int pgd_large(pgd_t pgd) { return 0; }
 extern int kern_addr_valid(unsigned long addr);
 extern void cleanup_highmap(void);
 
+int pfn_range_is_highmapped(unsigned long start_pfn, unsigned long end_pfn);
+
 #define HAVE_ARCH_UNMAPPED_AREA
 #define HAVE_ARCH_UNMAPPED_AREA_TOPDOWN
 

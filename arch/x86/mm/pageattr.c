@@ -90,20 +90,6 @@ void arch_report_meminfo(struct seq_file *m)
 static inline void split_page_count(int level) { }
 #endif
 
-#ifdef CONFIG_X86_64
-
-static inline unsigned long highmap_start_pfn(void)
-{
-	return __pa_symbol(_text) >> PAGE_SHIFT;
-}
-
-static inline unsigned long highmap_end_pfn(void)
-{
-	return __pa_symbol(roundup(_brk_end, PMD_SIZE)) >> PAGE_SHIFT;
-}
-
-#endif
-
 #ifdef CONFIG_DEBUG_PAGEALLOC
 # define debug_pagealloc 1
 #else
@@ -1271,7 +1257,7 @@ static int cpa_process_alias(struct cpa_data *cpa)
 	 * to touch the high mapped kernel as well:
 	 */
 	if (!within(vaddr, (unsigned long)_text, _brk_end) &&
-	    within(cpa->pfn, highmap_start_pfn(), highmap_end_pfn())) {
+	    pfn_range_is_highmapped(cpa->pfn, 1)) {
 		unsigned long temp_cpa_vaddr = (cpa->pfn << PAGE_SHIFT) +
 					       __START_KERNEL_map - phys_base;
 		alias_cpa = *cpa;
