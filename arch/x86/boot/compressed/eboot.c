@@ -1394,6 +1394,7 @@ struct boot_params *efi_main(struct efi_config *c,
 	void *handle;
 	efi_system_table_t *_table;
 	bool is64;
+	unsigned long loaded_addr;
 
 	efi_early = c;
 
@@ -1435,9 +1436,12 @@ struct boot_params *efi_main(struct efi_config *c,
 	 * If the kernel isn't already loaded at the preferred load
 	 * address, relocate it.
 	 */
-	if (hdr->pref_address != hdr->code32_start) {
-		unsigned long bzimage_addr = hdr->code32_start;
-		status = efi_relocate_kernel(sys_table, &bzimage_addr,
+	loaded_addr = hdr->code32_start;
+	loaded_addr |= (unsigned long)((u64)hdr->ext_code32_start << 32);
+	if (hdr->pref_address != loaded_addr) {
+		unsigned long loaded_addr_orig = loaded_addr;
+
+		status = efi_relocate_kernel(sys_table, &loaded_addr,
 					     hdr->init_size, hdr->init_size,
 					     hdr->pref_address,
 					     hdr->kernel_alignment);
@@ -1446,8 +1450,9 @@ struct boot_params *efi_main(struct efi_config *c,
 			goto fail;
 		}
 
-		hdr->pref_address = hdr->code32_start;
-		hdr->code32_start = bzimage_addr;
+		hdr->pref_address = loaded_addr_orig;
+		hdr->code32_start = loaded_addr & 0xffffffff;
+		hdr->ext_code32_start = (unsigned long)((u64)loaded_addr >> 32);
 	}
 
 	status = exit_boot(boot_params, handle, is64);

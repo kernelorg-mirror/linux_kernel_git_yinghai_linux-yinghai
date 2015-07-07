@@ -61,6 +61,9 @@ Protocol 2.12:	(Kernel 3.8) Added the xloadflags field and extension fields
 	 	to struct boot_params for loading bzImage and ramdisk
 		above 4G in 64bit.
 
+Protocol 2.14:	(Kernel 4.0) Added the ext_code32_start to support 64bit
+		EFI kernel to be loaded above 4G.
+
 **** MEMORY LAYOUT
 
 The traditional memory map for the kernel loader, used for Image or
@@ -197,6 +200,7 @@ Offset	Proto	Name		Meaning
 0258/8	2.10+	pref_address	Preferred loading address
 0260/4	2.10+	init_size	Linear memory required during initialization
 0264/4	2.11+	handover_offset	Offset of handover entry point
+0268/4	2.14+	ext_code32_start	Extended part for code32_start
 
 (1) For backwards compatibility, if the setup_sects field contains 0, the
     real value is 4.
@@ -744,6 +748,14 @@ Offset/size:	0x264/4
 
   See EFI HANDOVER PROTOCOL below for more details.
 
+Field name:	ext_code32_start
+Type:		modify (optional, reloc)
+Offset/size:	0x268/4
+Protocol:	2.14+
+
+  This field is the upper 32bits of load address when EFI 64bit kernel
+  is loaded above 4G. And it is used with code32_start to compare to
+  pref_address to decide if kernel need to be relocated further.
 
 **** THE IMAGE CHECKSUM
 
@@ -1126,5 +1138,12 @@ The boot loader *must* fill out the following fields in bp,
     o hdr.cmd_line_ptr
     o hdr.ramdisk_image (if applicable)
     o hdr.ramdisk_size  (if applicable)
+
+for 64bit, when loading above 4G, *must* fill out the following fields,
+
+    o hdr.ext_code32_start
+    o ext_cmd_line_ptr
+    o ext_ramdisk_image (if applicable)
+    o ext_ramdisk_size  (if applicable)
 
 All other fields should be zero.
