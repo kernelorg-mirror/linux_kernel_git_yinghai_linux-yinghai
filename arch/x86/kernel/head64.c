@@ -37,6 +37,9 @@ extern pmd_t early_dynamic_pgts[EARLY_DYNAMIC_PAGE_TABLES][PTRS_PER_PMD];
 static unsigned int __initdata next_early_pgt = 2;
 pmdval_t early_pmd_flags = __PAGE_KERNEL_LARGE & ~(_PAGE_GLOBAL | _PAGE_NX);
 
+#define __va_high(x) ((void *)((unsigned long)(x) + __START_KERNEL_map - phys_base))
+#define __pa_high(x) ((unsigned long)(x) - __START_KERNEL_map + phys_base)
+
 /* Wipe all early page tables except for the kernel symbol map */
 static void __init reset_early_page_tables(void)
 {
@@ -47,7 +50,7 @@ static void __init reset_early_page_tables(void)
 
 	next_early_pgt = 0;
 
-	write_cr3(__pa_nodebug(early_level4_pgt));
+	write_cr3(__pa_high(early_level4_pgt));
 }
 
 /* Create a new PMD entry */
@@ -60,7 +63,7 @@ int __init early_make_pgtable(unsigned long address)
 	pmdval_t pmd, *pmd_p;
 
 	/* Invalid address or early pgt is done ?  */
-	if (physaddr >= MAXMEM || read_cr3() != __pa_nodebug(early_level4_pgt))
+	if (physaddr >= MAXMEM || read_cr3() != __pa_high(early_level4_pgt))
 		return -1;
 
 again:
@@ -73,7 +76,7 @@ again:
 	 * range and we might end up looping forever...
 	 */
 	if (pgd)
-		pud_p = (pudval_t *)((pgd & PTE_PFN_MASK) + __START_KERNEL_map - phys_base);
+		pud_p = (pudval_t *)__va_high(pgd & PTE_PFN_MASK);
 	else {
 		if (next_early_pgt >= EARLY_DYNAMIC_PAGE_TABLES) {
 			reset_early_page_tables();
@@ -83,13 +86,13 @@ again:
 		pud_p = (pudval_t *)early_dynamic_pgts[next_early_pgt++];
 		for (i = 0; i < PTRS_PER_PUD; i++)
 			pud_p[i] = 0;
-		*pgd_p = (pgdval_t)pud_p - __START_KERNEL_map + phys_base + _KERNPG_TABLE;
+		*pgd_p = __pa_high(pud_p) + _KERNPG_TABLE;
 	}
 	pud_p += pud_index(address);
 	pud = *pud_p;
 
 	if (pud)
-		pmd_p = (pmdval_t *)((pud & PTE_PFN_MASK) + __START_KERNEL_map - phys_base);
+		pmd_p = (pmdval_t *)__va_high(pud & PTE_PFN_MASK);
 	else {
 		if (next_early_pgt >= EARLY_DYNAMIC_PAGE_TABLES) {
 			reset_early_page_tables();
@@ -99,7 +102,7 @@ again:
 		pmd_p = (pmdval_t *)early_dynamic_pgts[next_early_pgt++];
 		for (i = 0; i < PTRS_PER_PMD; i++)
 			pmd_p[i] = 0;
-		*pud_p = (pudval_t)pmd_p - __START_KERNEL_map + phys_base + _KERNPG_TABLE;
+		*pud_p = __pa_high(pmd_p) + _KERNPG_TABLE;
 	}
 	pmd = (physaddr & PMD_MASK) + early_pmd_flags;
 	pmd_p[pmd_index(address)] = pmd;
