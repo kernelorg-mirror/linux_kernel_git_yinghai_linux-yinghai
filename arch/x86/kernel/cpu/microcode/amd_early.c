@@ -51,12 +51,12 @@ static struct cpio_data __init find_ucode_in_initrd(void)
 	 */
 	p       = (struct boot_params *)__pa_nodebug(&boot_params);
 	path    = (char *)__pa_nodebug(ucode_path);
-	start   = (void *)p->hdr.ramdisk_image;
-	size    = p->hdr.ramdisk_size;
+	start   = (void *)(unsigned long)get_ramdisk_image(p);
+	size    = get_ramdisk_size(p);
 #else
 	path    = ucode_path;
-	start   = (void *)(boot_params.hdr.ramdisk_image + PAGE_OFFSET);
-	size    = boot_params.hdr.ramdisk_size;
+	start   = (void *)(get_ramdisk_image(&boot_params) + PAGE_OFFSET);
+	size    = get_ramdisk_size(&boot_params);
 #endif
 
 	return find_cpio_data(path, start, size, &offset);
@@ -396,7 +396,7 @@ int __init save_microcode_in_initrd_amd(void)
 	 */
 	if (relocated_ramdisk)
 		container = (u8 *)(__va(relocated_ramdisk) +
-			     (cont - boot_params.hdr.ramdisk_image));
+			     (cont - get_ramdisk_size(&boot_params)));
 	else
 		container = cont_va;
 

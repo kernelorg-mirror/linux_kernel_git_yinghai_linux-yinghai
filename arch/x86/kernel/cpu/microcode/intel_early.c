@@ -736,16 +736,16 @@ void __init load_ucode_intel_bsp(void)
 	struct boot_params *p;
 
 	p	= (struct boot_params *)__pa_nodebug(&boot_params);
-	start	= p->hdr.ramdisk_image;
-	size	= p->hdr.ramdisk_size;
+	start	= get_ramdisk_image(p);
+	size	= get_ramdisk_size(p);
 
 	_load_ucode_intel_bsp(
 			(struct mc_saved_data *)__pa_nodebug(&mc_saved_data),
 			(unsigned long *)__pa_nodebug(&mc_saved_in_initrd),
 			start, size);
 #else
-	start	= boot_params.hdr.ramdisk_image + PAGE_OFFSET;
-	size	= boot_params.hdr.ramdisk_size;
+	start	= get_ramdisk_image(&boot_params) + PAGE_OFFSET;
+	size	= get_ramdisk_size(&boot_params);
 
 	_load_ucode_intel_bsp(&mc_saved_data, mc_saved_in_initrd, start, size);
 #endif
