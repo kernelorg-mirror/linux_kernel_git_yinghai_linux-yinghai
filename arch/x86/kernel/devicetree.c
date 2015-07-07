@@ -2,6 +2,7 @@
  * Architecture specific OF callbacks.
  */
 #include <linux/bootmem.h>
+#include <linux/memblock.h>
 #include <linux/export.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
@@ -23,7 +24,6 @@
 #include <asm/setup.h>
 #include <asm/i8259.h>
 
-__initdata u64 initial_dtb;
 char __initdata cmd_line[COMMAND_LINE_SIZE];
 
 int __initdata of_ioapic;
@@ -43,11 +43,23 @@ void * __init early_init_dt_alloc_memory_arch(u64 size, u64 align)
 	return __alloc_bootmem(size, align, __pa(MAX_DMA_ADDRESS));
 }
 
+#ifdef CONFIG_OF_FLATTREE
+static u64 initial_dtb __initdata;
+static u32 initial_dtb_size __initdata;
 void __init add_dtb(u64 data)
 {
-	initial_dtb = data + offsetof(struct setup_data, data);
-}
+	u32 map_len;
 
+	initial_dtb = data + offsetof(struct setup_data, data);
+
+	map_len = max(PAGE_SIZE - (initial_dtb & ~PAGE_MASK), (u64)128);
+	initial_boot_params = early_memremap(initial_dtb, map_len);
+	initial_dtb_size = of_get_flat_dt_size();
+	early_memunmap(initial_boot_params, map_len);
+	initial_boot_params = NULL;
+	memblock_reserve(initial_dtb, initial_dtb_size);
+}
+#endif
 /*
  * CE4100 ids. Will be moved to machine_device_initcall() once we have it.
  */
@@ -265,31 +277,22 @@ static void __init dtb_apic_setup(void)
 	dtb_ioapic_setup();
 }
 
-#ifdef CONFIG_OF_FLATTREE
 static void __init x86_flattree_get_config(void)
 {
-	u32 size, map_len;
+#ifdef CONFIG_OF_FLATTREE
 	void *dt;
 
 	if (!initial_dtb)
 		return;
 
-	map_len = max(PAGE_SIZE - (initial_dtb & ~PAGE_MASK), (u64)128);
-
-	initial_boot_params = dt = early_memremap(initial_dtb, map_len);
-	size = of_get_flat_dt_size();
-	if (map_len < size) {
-		early_memunmap(dt, map_len);
-		initial_boot_params = dt = early_memremap(initial_dtb, size);
-		map_len = size;
-	}
-
+	initial_boot_params = dt = early_memremap(initial_dtb,
+						  initial_dtb_size);
 	unflatten_and_copy_device_tree();
-	early_memunmap(dt, map_len);
-}
-#else
-static inline void x86_flattree_get_config(void) { }
+	early_memunmap(dt, initial_dtb_size);
+
+	memblock_free(initial_dtb, initial_dtb_size);
 #endif
+}
 
 void __init x86_dtb_init(void)
 {
