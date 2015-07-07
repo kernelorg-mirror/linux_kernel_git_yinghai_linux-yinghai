@@ -120,26 +120,32 @@ static int lines, cols;
 
 #ifdef CONFIG_KERNEL_GZIP
 #include "../../../../lib/decompress_inflate.c"
+static char *suffix_str = "gz";
 #endif
 
 #ifdef CONFIG_KERNEL_BZIP2
 #include "../../../../lib/decompress_bunzip2.c"
+static char *suffix_str = "bz2";
 #endif
 
 #ifdef CONFIG_KERNEL_LZMA
 #include "../../../../lib/decompress_unlzma.c"
+static char *suffix_str = "lzma";
 #endif
 
 #ifdef CONFIG_KERNEL_XZ
 #include "../../../../lib/decompress_unxz.c"
+static char *suffix_str = "xz";
 #endif
 
 #ifdef CONFIG_KERNEL_LZO
 #include "../../../../lib/decompress_unlzo.c"
+static char *suffix_str = "lzo";
 #endif
 
 #ifdef CONFIG_KERNEL_LZ4
 #include "../../../../lib/decompress_unlz4.c"
+static char *suffix_str = "lz4";
 #endif
 
 static void scroll(void)
@@ -486,6 +492,8 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 		(unsigned long)input_data,
 		(unsigned long)input_data + input_len - 1);
 	debug_putstr("\nDecompressing Linux... ");
+	debug_putstr(suffix_str);
+	debug_putstr("... ");
 	decompress(input_data, input_len, NULL, NULL, output, NULL, error);
 	parse_elf(output);
 	handle_relocations(output, output_len, virt_offset);
