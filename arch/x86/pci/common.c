@@ -668,6 +668,48 @@ struct firmware_setup_pci_entry {
 
 static LIST_HEAD(setup_pci_entries);
 
+static phys_addr_t check_copy(phys_addr_t start, unsigned long size)
+{
+	unsigned long start_pfn = PFN_DOWN(start);
+	unsigned long end_pfn = PFN_UP(start + size);
+	unsigned char *p, *q;
+	phys_addr_t pa_p, pa_q;
+	long sz = size;
+
+	if (pfn_range_is_mapped(start_pfn, end_pfn))
+		return start;
+
+	/* allocate and copy */
+	pa_p = memblock_alloc(size, PAGE_SIZE);
+	if (!pa_p)
+		return start;
+
+	p = phys_to_virt(pa_p);
+
+	pa_q = start;
+	while (sz > 0) {
+		long chunk_size = 64<<10;
+
+		if (chunk_size > sz)
+			chunk_size = sz;
+
+		q = early_memremap(pa_q, chunk_size);
+		if (!q) {
+			memblock_free(pa_p, size);
+			return start;
+		}
+		memcpy(p, q, chunk_size);
+		early_memunmap(q, chunk_size);
+		p += chunk_size;
+		pa_q += chunk_size;
+		sz -= chunk_size;
+	}
+
+	memblock_free(start, size);
+
+	return pa_p;
+}
+
 int __init fill_setup_pci_entries(void)
 {
 	struct setup_data *data;
@@ -697,8 +739,9 @@ int __init fill_setup_pci_entries(void)
 		entry->vendor = rom->vendor;
 		entry->devid = rom->devid;
 		entry->pcilen = rom->pcilen;
-		entry->romdata = pa_data +
-				 offsetof(struct pci_setup_rom, romdata);
+		entry->romdata = check_copy(pa_data +
+				      offsetof(struct pci_setup_rom, romdata),
+				      rom->pcilen);
 
 		list_add(&entry->list, &setup_pci_entries);
 
