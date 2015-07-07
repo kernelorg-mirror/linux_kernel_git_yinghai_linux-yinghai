@@ -52,16 +52,22 @@ static void __attribute__((section(".inittext"))) bios_putchar(int ch)
 void __attribute__((section(".inittext"))) putchar(int ch)
 {
 	if (ch == '\n')
-		putchar('\r');	/* \n -> \r\n */
+		bios_putchar('\r');	/* \n -> \r\n */
 
 	bios_putchar(ch);
-
-	if (early_serial_base != 0)
-		serial_putchar(ch);
 }
 
 void __attribute__((section(".inittext"))) puts(const char *str)
 {
+	if (early_serial_base) {
+		const char *s = str;
+		while (*s) {
+			if (*s == '\n')
+				serial_putchar('\r');
+			serial_putchar(*s++);
+		}
+	}
+
 	while (*str)
 		putchar(*str++);
 }
