@@ -344,7 +344,7 @@ static void parse_elf(void *output)
 		return;
 	}
 
-	debug_putstr("Parsing ELF... ");
+	debug_putstr("Parsing ELF...\n");
 
 	phdrs = malloc(sizeof(*phdrs) * ehdr.e_phnum);
 	if (!phdrs)
@@ -369,6 +369,11 @@ static void parse_elf(void *output)
 			 * Here dest is smaller than src always.
 			 */
 			memcpy(dest, output + phdr->p_offset, phdr->p_filesz);
+			debug_printf("   parse_elf: [0x%010lx-0x%010lx] <=== [0x%010lx-0x%010lx]\n",
+				(unsigned long)dest,
+				(unsigned long)dest + phdr->p_filesz - 1,
+				(unsigned long)output + phdr->p_offset,
+				(unsigned long)output + phdr->p_offset + phdr->p_filesz - 1);
 			break;
 		default: /* Ignore other PT_* */ break;
 		}
@@ -475,6 +480,11 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 		error("Wrong destination address");
 #endif
 
+	debug_printf("  decompress: [0x%010lx-0x%010lx] <=== [0x%010lx-0x%010lx]\n",
+		(unsigned long)output,
+		(unsigned long)output + output_len - 1,
+		(unsigned long)input_data,
+		(unsigned long)input_data + input_len - 1);
 	debug_putstr("\nDecompressing Linux... ");
 	decompress(input_data, input_len, NULL, NULL, output, NULL, error);
 	parse_elf(output);
