@@ -440,7 +440,36 @@ setup_data:		.quad 0			# 64-bit physical pointer to
 
 pref_address:		.quad LOAD_PHYSICAL_ADDR	# preferred load addr
 
+/* check arch/x86/boot/compressed/misc.c for the formula about extra_bytes.  */
+#define ZO_z_extra_bytes ((ZO_z_output_len >> 12) + 32768 + 18)
+#if ZO_z_output_len > ZO_z_input_len
+#define ZO_z_extract_offset (ZO_z_output_len + ZO_z_extra_bytes - ZO_z_input_len)
+#else
+#define ZO_z_extract_offset ZO_z_extra_bytes
+#endif
+
+/*
+ * extract_offset has to be bigger than ZO head section.
+ * otherwise during head code running to move ZO to end of buffer,
+ * will overwrite head code itself.
+ */
+#if (ZO__ehead - ZO_startup_32) > ZO_z_extract_offset
+#define ZO_z_min_extract_offset ((ZO__ehead - ZO_startup_32 + 4095) & ~4095)
+#else
+#define ZO_z_min_extract_offset ((ZO_z_extract_offset + 4095) & ~4095)
+#endif
+
 #define ZO_INIT_SIZE	(ZO__end - ZO_startup_32 + ZO_z_min_extract_offset)
+
+/*
+ * ZO__end - ZO_startup_32 is (ZO__ehead - ZO_startup_32) + ZO_z_input_len + (ZO__end - ZO__text)
+ * ZO_z_min_extract_offset >= (ZO_z_output_len + ZO_z_extra_bytes - ZO_z_input_len)
+ * then ZO_INIT_SIZE >= (ZO__ehead - ZO_startup_32) + ZO_z_input_len + (ZO__end - ZO__text) + (ZO_z_output_len + ZO_z_extra_bytes - ZO_z_input_len)
+ * so (ZO_INIT_SIZE - ZO_z_output_len) > (ZO__end - ZO__text)
+ * That means during decompressor running, output would not
+ * overwrite the decompressor itself.
+ */
+
 #define VO_INIT_SIZE	(VO__end - VO__text)
 #if ZO_INIT_SIZE > VO_INIT_SIZE
 #define INIT_SIZE ZO_INIT_SIZE
