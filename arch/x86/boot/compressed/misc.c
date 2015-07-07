@@ -387,6 +387,7 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 	unsigned char *output_orig = output;
 	unsigned long output_run_size;
 	unsigned char *virt_offset;
+	unsigned long init_size;
 
 	real_mode = rmode;
 
@@ -414,6 +415,37 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 
 	output_run_size = output_len > run_size ? output_len : run_size;
 
+	init_size = real_mode->hdr.init_size;
+	debug_putstr("decompress_kernel:\n");
+	debug_printf("       input: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)input_data,
+		 (unsigned long)input_data + input_len - 1);
+	debug_printf("      output: [0x%010lx-0x%010lx] 0x%08lx: output_len\n",
+		 (unsigned long)output,
+		 (unsigned long)output + output_len - 1,
+		 (unsigned long)output_len);
+	debug_printf("              [0x%010lx-0x%010lx] 0x%08lx: run_size\n",
+		 (unsigned long)output,
+		 (unsigned long)output + run_size - 1,
+		 (unsigned long)run_size);
+	debug_printf("              [0x%010lx-0x%010lx] 0x%08lx: output_run_size\n",
+		 (unsigned long)output,
+		 (unsigned long)output + output_run_size - 1,
+		 (unsigned long)output_run_size);
+	debug_printf("              [0x%010lx-0x%010lx] 0x%08lx: init_size\n",
+		 (unsigned long)output,
+		 (unsigned long)output + init_size - 1,
+		 (unsigned long)init_size);
+	debug_printf("ZO text/data: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)input_data + input_len,
+		 (unsigned long)output + init_size - 1);
+	debug_printf("     ZO heap: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)heap,
+		 (unsigned long)heap + BOOT_HEAP_SIZE - 1);
+	debug_printf("  VO bss/brk: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)output + (VO___bss_start - VO__text),
+		 (unsigned long)output + run_size - 1);
+
 	/*
 	 * The memory hole needed for the kernel is the larger of either
 	 * the entire decompressed kernel plus relocation table, or the
@@ -421,6 +453,12 @@ asmlinkage __visible void *decompress_kernel(void *rmode, memptr heap,
 	 */
 	choose_kernel_location(input_data, input_len, &output,
 			       output_run_size, &virt_offset);
+
+	if (output != output_orig)
+		debug_printf("  new output: [0x%010lx-0x%010lx] 0x%08lx: output_run_size\n",
+			 (unsigned long)output,
+			 (unsigned long)output + output_run_size - 1,
+			 (unsigned long)output_run_size);
 
 	/* Validate memory location choices. */
 	if ((unsigned long)output & (MIN_KERNEL_ALIGN - 1))
