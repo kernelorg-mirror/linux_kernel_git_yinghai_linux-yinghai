@@ -69,3 +69,29 @@ void __init reserve_ebda_region(void)
 	/* reserve all memory between lowmem and the 1MB mark */
 	memblock_reserve(lowmem, 0x100000 - lowmem);
 }
+
+void __init setup_early_console(void)
+{
+#ifdef CONFIG_SERIAL_8250_CONSOLE
+	char constr[64], *p, *q;
+
+	/* Can not handle mmio type 8250 uart yet, too early */
+	p = strstr(boot_command_line, "console=uart8250,io,");
+	if (!p)
+		p = strstr(boot_command_line, "console=uart,io,");
+	if (!p)
+		return;
+
+	p += 8;	/* sizeof "console=" */
+	q = strchrnul(p, ' ');
+	if ((q - p) >= sizeof(constr))
+		return;
+
+	memset(constr, 0, sizeof(constr));
+	memcpy(constr, p, q - p);
+
+	lockdep_init();
+
+	setup_early_serial8250_console(constr);
+#endif
+}

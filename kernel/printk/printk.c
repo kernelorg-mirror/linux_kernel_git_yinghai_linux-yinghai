@@ -2454,11 +2454,14 @@ void register_console(struct console *newcon)
 	struct console_cmdline *c;
 
 	if (console_drivers)
-		for_each_console(bcon)
-			if (WARN(bcon == newcon,
-					"console '%s%d' already registered\n",
-					bcon->name, bcon->index))
+		for_each_console(bcon) {
+			/* not again */
+			if (bcon == newcon) {
+				printk(KERN_INFO "console '%s%d' already registered\n",
+					bcon->name, bcon->index);
 				return;
+			}
+	}
 
 	/*
 	 * before we register a new CON_BOOT console, make sure we don't

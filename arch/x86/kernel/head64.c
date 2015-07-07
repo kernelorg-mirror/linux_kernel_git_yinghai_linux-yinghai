@@ -171,6 +171,7 @@ asmlinkage __visible void __init x86_64_start_kernel(char * real_mode_data)
 	load_idt((const struct desc_ptr *)&idt_descr);
 
 	copy_bootdata(__va(real_mode_data));
+	setup_early_console();
 
 	/*
 	 * Load microcode early on BSP.
@@ -189,8 +190,10 @@ asmlinkage __visible void __init x86_64_start_kernel(char * real_mode_data)
 void __init x86_64_start_reservations(char *real_mode_data)
 {
 	/* version is always not zero if it is copied */
-	if (!boot_params.hdr.version)
+	if (!boot_params.hdr.version) {
 		copy_bootdata(__va(real_mode_data));
+		setup_early_console();
+	}
 
 	reserve_ebda_region();
 

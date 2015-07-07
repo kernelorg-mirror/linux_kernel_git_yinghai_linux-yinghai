@@ -152,3 +152,20 @@ int __init early_serial8250_setup(struct earlycon_device *device,
 }
 EARLYCON_DECLARE(uart8250, early_serial8250_setup);
 EARLYCON_DECLARE(uart, early_serial8250_setup);
+
+/* for x86 early early console */
+int __init setup_early_serial8250_console(char *cmdline)
+{
+	char *options;
+
+	options = strstr(cmdline, "uart8250,");
+	if (options)
+		return setup_earlycon(options);
+
+	options = strstr(cmdline, "uart,");
+	if (options)
+		return setup_earlycon(options);
+
+	return 0;
+}
+

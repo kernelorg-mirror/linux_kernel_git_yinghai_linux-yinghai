@@ -33,6 +33,7 @@ asmlinkage __visible void __init i386_start_kernel(void)
 {
 	cr4_init_shadow();
 	sanitize_boot_params(&boot_params);
+	setup_early_console();
 
 	/* Call the subarch specific early setup function */
 	switch (boot_params.hdr.hardware_subarch) {

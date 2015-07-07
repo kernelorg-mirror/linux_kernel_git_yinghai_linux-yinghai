@@ -40,6 +40,8 @@ static inline void vsmp_init(void) { }
 void setup_bios_corruption_check(void);
 
 extern unsigned long saved_video_mode;
+int setup_early_serial8250_console(char *cmdline);
+void setup_early_console(void);
 
 extern void reserve_standard_io_resources(void);
 extern void i386_reserve_resources(void);
