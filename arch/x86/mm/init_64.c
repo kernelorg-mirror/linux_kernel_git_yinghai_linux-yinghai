@@ -1054,9 +1054,9 @@ void mark_rodata_ro(void)
 	 * of the PMD will remain mapped executable.
 	 *
 	 * Any PMD which was setup after the one which covers _brk_end
-	 * has been zapped already via cleanup_highmem().
+	 * has been zapped already via cleanup_highmap().
 	 */
-	all_end = roundup((unsigned long)_brk_end, PMD_SIZE);
+	all_end = roundup(_brk_end, PMD_SIZE);
 	set_memory_nx(rodata_start, (all_end - rodata_start) >> PAGE_SHIFT);
 
 	rodata_test();
