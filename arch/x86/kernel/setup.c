@@ -1180,6 +1180,7 @@ void __init setup_arch(char **cmdline_p)
 	acpi_boot_init();
 	sfi_init();
 	x86_dtb_init();
+	fill_setup_pci_entries();
 
 	/*
 	 * get boot-time SMP configuration:

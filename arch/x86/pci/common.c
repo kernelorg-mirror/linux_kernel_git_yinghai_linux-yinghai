@@ -642,7 +642,7 @@ unsigned int pcibios_assign_all_busses(void)
 	return (pci_probe & PCI_ASSIGN_ALL_BUSSES) ? 1 : 0;
 }
 
-static u64 pci_setup_data;
+static u64 pci_setup_data __initdata;
 void __init add_pci(u64 pa_data)
 {
 	struct setup_data *data;
@@ -654,36 +654,83 @@ void __init add_pci(u64 pa_data)
 	early_memunmap(data, sizeof(*data));
 }
 
-int pcibios_add_device(struct pci_dev *dev)
+struct firmware_setup_pci_entry {
+	struct list_head list;
+	uint16_t vendor;
+	uint16_t devid;
+	uint64_t pcilen;
+	unsigned long segment;
+	unsigned long bus;
+	unsigned long device;
+	unsigned long function;
+	phys_addr_t romdata;
+};
+
+static LIST_HEAD(setup_pci_entries);
+
+int __init fill_setup_pci_entries(void)
 {
 	struct setup_data *data;
 	struct pci_setup_rom *rom;
+	struct firmware_setup_pci_entry *entry;
+	phys_addr_t pa_entry;
 	u64 pa_data;
 
 	pa_data = pci_setup_data;
 	while (pa_data) {
-		data = ioremap(pa_data, sizeof(*rom));
+		data  = early_memremap(pa_data, sizeof(*rom));
 		if (!data)
 			return -ENOMEM;
-
 		rom = (struct pci_setup_rom *)data;
 
-		if ((pci_domain_nr(dev->bus) == rom->segment) &&
-		    (dev->bus->number == rom->bus) &&
-		    (PCI_SLOT(dev->devfn) == rom->device) &&
-		    (PCI_FUNC(dev->devfn) == rom->function) &&
-		    (dev->vendor == rom->vendor) &&
-		    (dev->device == rom->devid)) {
-			dev->rom = pa_data +
-			      offsetof(struct pci_setup_rom, romdata);
-			dev->romlen = rom->pcilen;
+		pa_entry = memblock_alloc(sizeof(*entry), sizeof(long));
+		if (!pa_entry) {
+			early_memunmap(data, sizeof(*rom));
+			return -ENOMEM;
+		}
+
+		entry = phys_to_virt(pa_entry);
+		entry->segment = rom->segment;
+		entry->bus = rom->bus;
+		entry->device = rom->device;
+		entry->function = rom->function;
+		entry->vendor = rom->vendor;
+		entry->devid = rom->devid;
+		entry->pcilen = rom->pcilen;
+		entry->romdata = pa_data +
+				 offsetof(struct pci_setup_rom, romdata);
+
+		list_add(&entry->list, &setup_pci_entries);
+
+		memblock_free(pa_data, sizeof(*rom));
+		pa_data = data->next;
+		early_memunmap(data, sizeof(*rom));
+	}
+
+	pci_setup_data = 0;
+
+	return 0;
+}
+
+int pcibios_add_device(struct pci_dev *dev)
+{
+	struct firmware_setup_pci_entry *entry;
+
+	list_for_each_entry(entry, &setup_pci_entries, list) {
+		if ((pci_domain_nr(dev->bus) == entry->segment) &&
+		    (dev->bus->number == entry->bus) &&
+		    (PCI_SLOT(dev->devfn) == entry->device) &&
+		    (PCI_FUNC(dev->devfn) == entry->function) &&
+		    (dev->vendor == entry->vendor) &&
+		    (dev->device == entry->devid)) {
+			dev->rom = entry->romdata;
+			dev->romlen = entry->pcilen;
 			dev_printk(KERN_DEBUG, &dev->dev, "set rom to [%#010lx, %#010lx] via SETUP_PCI\n",
 				   (unsigned long)dev->rom,
 				   (unsigned long)(dev->rom + dev->romlen - 1));
 		}
-		pa_data = data->next;
-		iounmap(data);
 	}
+
 	return 0;
 }
 
