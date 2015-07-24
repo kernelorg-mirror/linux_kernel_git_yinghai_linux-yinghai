@@ -1163,6 +1163,15 @@ static resource_size_t window_alignment(struct pci_bus *bus,
 	return max(align, arch_align);
 }
 
+int skip_isa_ioresource_align(struct pci_bus *bus)
+{
+	if (pci_has_flag(PCI_CAN_SKIP_ISA_ALIGN) &&
+	    !(bus->bridge_ctl & PCI_BRIDGE_CTL_ISA))
+		return 1;
+
+	return 0;
+}
+
 static resource_size_t size_aligned_for_isa(resource_size_t size)
 {
 	/*

@@ -83,7 +83,7 @@ DEFINE_RAW_SPINLOCK(pci_config_lock);
 
 static int __init can_skip_ioresource_align(const struct dmi_system_id *d)
 {
-	pci_probe |= PCI_CAN_SKIP_ISA_ALIGN;
+	pci_add_flags(PCI_CAN_SKIP_ISA_ALIGN);
 	printk(KERN_INFO "PCI: %s detected, can skip ISA alignment\n", d->ident);
 	return 0;
 }
@@ -619,7 +619,7 @@ char *__init pcibios_setup(char *str)
 		pci_routeirq = 1;
 		return NULL;
 	} else if (!strcmp(str, "skip_isa_align")) {
-		pci_probe |= PCI_CAN_SKIP_ISA_ALIGN;
+		pci_add_flags(PCI_CAN_SKIP_ISA_ALIGN);
 		return NULL;
 	} else if (!strcmp(str, "noioapicquirk")) {
 		noioapicquirk = 1;
