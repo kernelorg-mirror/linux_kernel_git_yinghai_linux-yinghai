@@ -905,7 +905,7 @@ static int pnv_pci_vf_resource_shift(struct pci_dev *dev, int offset)
 	num_vfs = pdn->num_vfs;
 	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
 		res = &dev->resource[i + PCI_IOV_RESOURCES];
-		if (!res->flags || !res->parent)
+		if (resource_disabled(res) || !res->parent)
 			continue;
 
 		if (!pnv_pci_is_mem_pref_64(res->flags))
@@ -936,7 +936,7 @@ static int pnv_pci_vf_resource_shift(struct pci_dev *dev, int offset)
 	 */
 	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
 		res = &dev->resource[i + PCI_IOV_RESOURCES];
-		if (!res->flags || !res->parent)
+		if (resource_disabled(res) || !res->parent)
 			continue;
 
 		if (!pnv_pci_is_mem_pref_64(res->flags))
@@ -1218,7 +1218,7 @@ static int pnv_pci_vf_assign_m64(struct pci_dev *pdev, u16 num_vfs)
 
 	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
 		res = &pdev->resource[i + PCI_IOV_RESOURCES];
-		if (!res->flags || !res->parent)
+		if (resource_disabled(res) || !res->parent)
 			continue;
 
 		if (!pnv_pci_is_mem_pref_64(res->flags))
@@ -2771,7 +2771,7 @@ static void pnv_pci_ioda_fixup_iov_resources(struct pci_dev *pdev)
 
 	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
 		res = &pdev->resource[i + PCI_IOV_RESOURCES];
-		if (!res->flags || res->parent)
+		if (resource_disabled(res) || res->parent)
 			continue;
 		if (!pnv_pci_is_mem_pref_64(res->flags)) {
 			dev_warn(&pdev->dev, " non M64 VF BAR%d: %pR\n",
@@ -2793,7 +2793,7 @@ static void pnv_pci_ioda_fixup_iov_resources(struct pci_dev *pdev)
 
 	for (i = 0; i < PCI_SRIOV_NUM_BARS; i++) {
 		res = &pdev->resource[i + PCI_IOV_RESOURCES];
-		if (!res->flags || res->parent)
+		if (resource_disabled(res) || res->parent)
 			continue;
 		if (!pnv_pci_is_mem_pref_64(res->flags)) {
 			dev_warn(&pdev->dev, "Skipping expanding VF BAR%d: %pR\n",
@@ -2834,7 +2834,7 @@ static void pnv_ioda_setup_pe_seg(struct pci_controller *hose,
 	BUG_ON(!(pe->flags & (PNV_IODA_PE_BUS | PNV_IODA_PE_BUS_ALL)));
 
 	pci_bus_for_each_resource(pe->pbus, res, i) {
-		if (!res || !res->flags ||
+		if (!res || resource_disabled(res) ||
 		    res->start > res->end)
 			continue;
 

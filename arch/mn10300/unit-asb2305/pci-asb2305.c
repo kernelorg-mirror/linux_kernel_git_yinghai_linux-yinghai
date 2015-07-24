@@ -103,7 +103,7 @@ static void __init pcibios_allocate_bus_resources(struct list_head *bus_list)
 			     idx < PCI_NUM_RESOURCES;
 			     idx++) {
 				r = &dev->resource[idx];
-				if (!r->flags)
+				if (resource_disabled(r))
 					continue;
 				if (!r->start ||
 				    pci_claim_bridge_resource(dev, idx) < 0) {
@@ -189,7 +189,7 @@ static int __init pcibios_assign_resources(void)
 		   addresses. */
 		for_each_pci_dev(dev) {
 			r = &dev->resource[PCI_ROM_RESOURCE];
-			if (!r->flags || !r->start)
+			if (resource_disabled(r) || !r->start)
 				continue;
 			if (pci_claim_resource(dev, PCI_ROM_RESOURCE) < 0) {
 				r->end -= r->start;

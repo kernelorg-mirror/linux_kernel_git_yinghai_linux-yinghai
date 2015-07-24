@@ -40,7 +40,7 @@ void pci_update_resource(struct pci_dev *dev, int resno)
 	 * Ignore resources for unimplemented BARs and unused resource slots
 	 * for 64 bit BARs.
 	 */
-	if (!res->flags)
+	if (resource_disabled(res))
 		return;
 
 	if (res->flags & IORESOURCE_UNSET)

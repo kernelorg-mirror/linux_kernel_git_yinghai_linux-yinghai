@@ -248,7 +248,7 @@ static void pdev_check_resources(struct pci_dev *dev,
 		if (r->flags & IORESOURCE_PCI_FIXED)
 			continue;
 
-		if (!(r->flags) || r->parent)
+		if (resource_disabled(r) || r->parent)
 			continue;
 
 		r_align = __pci_resource_alignment(dev, r, realloc_head);
@@ -380,7 +380,7 @@ static void reassign_resources_sorted(struct list_head *realloc_head,
 	list_for_each_entry_safe(add_res, tmp, realloc_head, list) {
 		res = add_res->res;
 		/* skip resource that has been reset */
-		if (!res->flags)
+		if (resource_disabled(res))
 			goto out;
 
 		/* skip this resource if not found in head list */
@@ -2133,7 +2133,7 @@ static void pci_bus_dump_res(struct pci_bus *bus)
 	int i;
 
 	pci_bus_for_each_resource(bus, res, i) {
-		if (!res || !res->end || !res->flags)
+		if (!res || !res->end || resource_disabled(res))
 			continue;
 
 		dev_printk(KERN_DEBUG, &bus->dev, "resource %d %pR\n", i, res);
@@ -2216,7 +2216,7 @@ static int iov_resources_unassigned(struct pci_dev *dev, void *data)
 		struct pci_bus_region region;
 
 		/* Not assigned or rejected by kernel? */
-		if (!r->flags)
+		if (resource_disabled(r))
 			continue;
 
 		pcibios_resource_to_bus(dev->bus, &region, r);
