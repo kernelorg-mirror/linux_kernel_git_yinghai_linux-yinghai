@@ -1126,11 +1126,6 @@ static resource_size_t calculate_iosize(resource_size_t size,
 		size = min_size;
 	if (old_size == 1)
 		old_size = 0;
-	/* To be fixed in 2.5: we should have sort of HAVE_ISA
-	   flag in the struct pci_bus. */
-#if defined(CONFIG_ISA) || defined(CONFIG_EISA)
-	size = (size & 0xff) + ((size & ~0xffUL) << 2);
-#endif
 	size = ALIGN(size + size1, align);
 	if (size < old_size)
 		size = old_size;
@@ -1184,6 +1179,18 @@ static resource_size_t window_alignment(struct pci_bus *bus,
 	return max(align, arch_align);
 }
 
+static resource_size_t size_aligned_for_isa(resource_size_t size)
+{
+	/*
+	 * To be fixed in 2.5: we should have sort of HAVE_ISA
+	 *  flag in the struct pci_bus.
+	 */
+#if defined(CONFIG_ISA) || defined(CONFIG_EISA)
+	size = (size & 0xff) + ((size & ~0xffUL) << 2);
+#endif
+	return size;
+}
+
 /**
  * pbus_size_io() - size the io window of a given bus
  *
@@ -1201,11 +1208,10 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 {
 	struct pci_dev *dev;
 	resource_size_t min_sum_size = 0;
-	resource_size_t sum_add_size;
 	struct resource *b_res = find_free_bus_resource(bus, IORESOURCE_IO,
 							IORESOURCE_IO);
 	resource_size_t size = 0, size0 = 0, size1 = 0;
-	resource_size_t children_add_size = 0;
+	resource_size_t sum_add_size = 0, sum_add_size1 = 0;
 	resource_size_t min_align, align;
 
 	if (!b_res)
@@ -1222,7 +1228,7 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 
 		for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 			struct resource *r = &dev->resource[i];
-			unsigned long r_size;
+			unsigned long r_size, r_add_size;
 
 			if (r->parent || !(r->flags & IORESOURCE_IO))
 				continue;
@@ -1238,18 +1244,27 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 			if (align > min_align)
 				min_align = align;
 
-			if (realloc_head)
-				children_add_size += get_res_add_size(realloc_head, r);
+			if (realloc_head) {
+				r_add_size = get_res_add_size(realloc_head, r);
+				r_add_size += r_size;
+				if (r_add_size < 0x400)
+					/* Might be re-aligned for ISA */
+					sum_add_size += r_add_size;
+				else
+					sum_add_size1 += r_add_size;
+			}
 		}
 	}
 
+	size = size_aligned_for_isa(size);
 	size0 = calculate_iosize(size, min_size, size1,
 			resource_size(b_res), min_align);
-	sum_add_size = children_add_size + size + size1;
+	sum_add_size = size_aligned_for_isa(sum_add_size);
+	sum_add_size += sum_add_size1;
 	if (sum_add_size < min_sum_size)
 		sum_add_size = min_sum_size;
 	size1 = !realloc_head ? size0 :
-		calculate_iosize(size, min_size, sum_add_size - size,
+		calculate_iosize(sum_add_size, min_size, 0,
 			resource_size(b_res), min_align);
 	if (!size0 && !size1) {
 		if (b_res->start || b_res->end)
