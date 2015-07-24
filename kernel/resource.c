@@ -619,7 +619,7 @@ static int find_resource(struct resource *root, struct resource *new,
 }
 
 /**
- * reallocate_resource - allocate a slot in the resource tree given range & alignment.
+ * __reallocate_resource - allocate a slot in the resource tree given range & alignment.
  *	The resource will be relocated if the new size cannot be reallocated in the
  *	current location.
  *
@@ -628,15 +628,13 @@ static int find_resource(struct resource *root, struct resource *new,
  * @newsize: new size of the resource descriptor
  * @constraint: the size and alignment constraints to be met.
  */
-static int reallocate_resource(struct resource *root, struct resource *old,
+static int __reallocate_resource(struct resource *root, struct resource *old,
 			resource_size_t newsize,
 			struct resource_constraint  *constraint)
 {
 	int err=0;
 	struct resource new = *old;
 	struct resource *conflict;
-
-	write_lock(&resource_lock);
 
 	if ((err = __find_resource(root, old, &new, newsize, constraint)))
 		goto out;
@@ -662,14 +660,62 @@ static int reallocate_resource(struct resource *root, struct resource *old,
 		BUG_ON(conflict);
 	}
 out:
-	write_unlock(&resource_lock);
 	return err;
 }
 
+/**
+ * __allocate_resource - allocate empty slot in the resource tree given range & alignment.
+ *	The resource will be reallocated with a new size if it was already
+ *	allocated
+ * @root: root resource descriptor
+ * @new: resource descriptor desired by caller
+ * @size: requested resource region size
+ * @min: minimum boundary to allocate
+ * @max: maximum boundary to allocate
+ * @align: alignment requested, in bytes
+ * @alignf: alignment function, optional, called if not NULL
+ * @alignf_data: arbitrary data to pass to the @alignf function
+ *
+ * Caller need to hold resource_lock if needed.
+ */
+static int __allocate_resource(struct resource *root, struct resource *new,
+				resource_size_t size, resource_size_t min,
+				resource_size_t max, resource_size_t align,
+				resource_size_t (*alignf)(void *,
+						  const struct resource *,
+						  resource_size_t,
+						  resource_size_t),
+				void *alignf_data)
+{
+	int err;
+	struct resource_constraint constraint;
+
+	if (!alignf)
+		alignf = simple_align_resource;
+
+	constraint.min = min;
+	constraint.max = max;
+	constraint.align = align;
+	constraint.alignf = alignf;
+	constraint.alignf_data = alignf_data;
+
+	if (new->parent) {
+		/* resource is already allocated, try reallocating with
+		   the new constraints */
+		return __reallocate_resource(root, new, size, &constraint);
+	}
+
+	err = find_resource(root, new, size, &constraint);
+	if (err >= 0 && __request_resource(root, new))
+		err = -EBUSY;
+
+	return err;
+}
 
 /**
  * allocate_resource - allocate empty slot in the resource tree given range & alignment.
- * 	The resource will be reallocated with a new size if it was already allocated
+ *	The resource will be reallocated with a new size if it was already
+ *	allocated
  * @root: root resource descriptor
  * @new: resource descriptor desired by caller
  * @size: requested resource region size
@@ -688,30 +734,14 @@ int allocate_resource(struct resource *root, struct resource *new,
 						resource_size_t),
 		      void *alignf_data)
 {
-	int err;
-	struct resource_constraint constraint;
-
-	if (!alignf)
-		alignf = simple_align_resource;
-
-	constraint.min = min;
-	constraint.max = max;
-	constraint.align = align;
-	constraint.alignf = alignf;
-	constraint.alignf_data = alignf_data;
-
-	if ( new->parent ) {
-		/* resource is already allocated, try reallocating with
-		   the new constraints */
-		return reallocate_resource(root, new, size, &constraint);
-	}
+	int ret;
 
 	write_lock(&resource_lock);
-	err = find_resource(root, new, size, &constraint);
-	if (err >= 0 && __request_resource(root, new))
-		err = -EBUSY;
+	ret = __allocate_resource(root, new, size, min, max, align,
+				   alignf, alignf_data);
 	write_unlock(&resource_lock);
-	return err;
+
+	return ret;
 }
 
 EXPORT_SYMBOL(allocate_resource);
