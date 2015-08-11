@@ -230,6 +230,8 @@ static inline int pci_ari_enabled(struct pci_bus *bus)
 }
 
 void pci_reassigndev_resource_alignment(struct pci_dev *dev);
+ssize_t pci_get_resource_alignment_param(char *buf, size_t size);
+ssize_t pci_set_resource_alignment_param(const char *buf, size_t count);
 void pci_disable_bridge_window(struct pci_dev *dev);
 
 /* Single Root I/O Virtualization */
