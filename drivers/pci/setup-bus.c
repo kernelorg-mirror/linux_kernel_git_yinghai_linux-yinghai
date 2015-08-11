@@ -1172,15 +1172,12 @@ int skip_isa_ioresource_align(struct pci_bus *bus)
 	return 0;
 }
 
-static resource_size_t size_aligned_for_isa(resource_size_t size)
+static resource_size_t size_aligned_for_isa(resource_size_t size,
+					    struct pci_bus *bus)
 {
-	/*
-	 * To be fixed in 2.5: we should have sort of HAVE_ISA
-	 *  flag in the struct pci_bus.
-	 */
-#if defined(CONFIG_ISA) || defined(CONFIG_EISA)
-	size = (size & 0xff) + ((size & ~0xffUL) << 2);
-#endif
+	if (!skip_isa_ioresource_align(bus))
+		size = (size & 0xff) + ((size & ~0xffUL) << 2);
+
 	return size;
 }
 
@@ -1249,12 +1246,12 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 		}
 	}
 
-	size = size_aligned_for_isa(size);
+	size = size_aligned_for_isa(size, bus);
 	size += size1;
 	if (size || min_size)
 		size0 = calculate_size(size, min_size,
 					resource_size(b_res), min_align);
-	sum_add_size = size_aligned_for_isa(sum_add_size);
+	sum_add_size = size_aligned_for_isa(sum_add_size, bus);
 	sum_add_size += sum_add_size1;
 	if (sum_add_size < min_sum_size)
 		sum_add_size = min_sum_size;
