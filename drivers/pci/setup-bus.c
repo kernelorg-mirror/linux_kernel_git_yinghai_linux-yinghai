@@ -104,19 +104,9 @@ static struct pci_dev_resource *res_to_dev_res(struct list_head *head,
 {
 	struct pci_dev_resource *dev_res;
 
-	list_for_each_entry(dev_res, head, list) {
-		if (dev_res->res == res) {
-			int idx = res - &dev_res->dev->resource[0];
-
-			dev_printk(KERN_DEBUG, &dev_res->dev->dev,
-				 "res[%d]=%pR res_to_dev_res add_size %llx min_align %llx\n",
-				 idx, dev_res->res,
-				 (unsigned long long)dev_res->add_size,
-				 (unsigned long long)dev_res->min_align);
-
+	list_for_each_entry(dev_res, head, list)
+		if (dev_res->res == res)
 			return dev_res;
-		}
-	}
 
 	return NULL;
 }
@@ -127,7 +117,15 @@ static resource_size_t get_res_add_size(struct list_head *head,
 	struct pci_dev_resource *dev_res;
 
 	dev_res = res_to_dev_res(head, res);
-	return dev_res ? dev_res->add_size : 0;
+	if (!dev_res || !dev_res->add_size)
+		return 0;
+
+	dev_printk(KERN_DEBUG, &dev_res->dev->dev,
+		   "BAR %d: %pR get_res_add_size add_size   %llx\n",
+		   (int)(res - &dev_res->dev->resource[0]),
+		   res, (unsigned long long)dev_res->add_size);
+
+	return dev_res->add_size;
 }
 
 static resource_size_t get_res_add_align(struct list_head *head,
@@ -136,7 +134,15 @@ static resource_size_t get_res_add_align(struct list_head *head,
 	struct pci_dev_resource *dev_res;
 
 	dev_res = res_to_dev_res(head, res);
-	return dev_res ? dev_res->min_align : 0;
+	if (!dev_res || !dev_res->min_align)
+		return 0;
+
+	dev_printk(KERN_DEBUG, &dev_res->dev->dev,
+		   "BAR %d: %pR get_res_add_align min_align %llx\n",
+		   (int)(res - &dev_res->dev->resource[0]),
+		   res, (unsigned long long)dev_res->min_align);
+
+	return dev_res->min_align;
 }
 
 
