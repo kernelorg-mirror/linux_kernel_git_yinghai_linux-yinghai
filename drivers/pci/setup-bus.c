@@ -473,20 +473,9 @@ static void restore_resource(struct pci_dev_resource *save_res,
 	res->flags = save_res->flags;
 }
 
-static void __assign_resources_sorted(struct list_head *head,
-				 struct list_head *realloc_head,
-				 struct list_head *fail_head)
+static bool __assign_resources_must_add_sorted(struct list_head *head,
+				 struct list_head *realloc_head)
 {
-	/*
-	 * Should not assign requested resources at first.
-	 *   they could be adjacent, so later reassign can not reallocate
-	 *   them one by one in parent resource window.
-	 * Try to assign requested + add_size at beginning
-	 *  if could do that, could get out early.
-	 *  if could not do that, we still try to assign requested at first,
-	 *    then try to reassign add_size for some resources.
-	 */
-
 	LIST_HEAD(save_head);
 	LIST_HEAD(local_fail_head);
 	struct pci_dev_resource *save_res;
@@ -495,12 +484,8 @@ static void __assign_resources_sorted(struct list_head *head,
 	resource_size_t add_align;
 	struct resource *res;
 
-	/* Check if optional add_size is there */
-	if (!realloc_head || list_empty(realloc_head))
-		goto requested_and_reassign;
-
 	if (!save_resources(head, &save_head))
-		goto requested_and_reassign;
+		return false;
 
 	/* Update res in head list with add_size in realloc_head list */
 	list_for_each_entry(dev_res, head, list) {
@@ -539,7 +524,8 @@ static void __assign_resources_sorted(struct list_head *head,
 			remove_from_list(realloc_head, dev_res->res);
 		free_list(&save_head);
 		free_list(head);
-		return;
+
+		return true;
 	}
 
 	/* check failed type */
@@ -574,7 +560,28 @@ static void __assign_resources_sorted(struct list_head *head,
 
 	free_list(&save_head);
 
-requested_and_reassign:
+	return false;
+}
+
+static void __assign_resources_sorted(struct list_head *head,
+				 struct list_head *realloc_head,
+				 struct list_head *fail_head)
+{
+	/*
+	 * Should not assign requested resources at first.
+	 *   they could be adjacent, so later reassign can not reallocate
+	 *   them one by one in parent resource window.
+	 * Try to assign requested + add_size at beginning
+	 *  if could do that, could get out early.
+	 *  if could not do that, we still try to assign requested at first,
+	 *    then try to reassign add_size for some resources.
+	 */
+
+	/* Check must+optional add */
+	if (realloc_head && !list_empty(realloc_head) &&
+	    __assign_resources_must_add_sorted(head, realloc_head))
+		return;
+
 	__sort_resources(head);
 
 	/* Satisfy the must-have resource requests */
