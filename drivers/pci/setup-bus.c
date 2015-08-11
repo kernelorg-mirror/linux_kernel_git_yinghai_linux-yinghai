@@ -58,6 +58,20 @@ static inline bool is_before(resource_size_t align1, resource_size_t size1,
 	return false;
 }
 
+static inline bool is_before_alt(resource_size_t align, resource_size_t size1,
+			     resource_size_t size2)
+{
+	resource_size_t size1_left, size2_left;
+
+	/*  aligned is before not aligned */
+	size1_left = size1 & (align - 1);
+	size2_left = size2 & (align - 1);
+	if (!size1_left && size2_left)
+		return true;
+
+	return false;
+}
+
 struct pci_dev_resource {
 	struct list_head list;
 	struct resource *res;
@@ -300,6 +314,42 @@ static void __sort_resources(struct list_head *head)
 			align2 = pci_resource_alignment(res2->dev, res2->res);
 			size2 = resource_size(res2->res);
 			if (is_before(align1, size1, align2, size2)) {
+				list_move_tail(&res1->list, &res2->list);
+				break;
+			}
+		}
+	}
+}
+
+static void __sort_resources_alt(struct list_head *head)
+{
+	struct pci_dev_resource *res1, *tmp_res, *res2;
+	resource_size_t align = 0;
+
+
+	__sort_resources(head);
+
+	/* get max align at first */
+	list_for_each_entry(res1, head, list) {
+		resource_size_t align1;
+
+		align1 = pci_resource_alignment(res1->dev, res1->res);
+		if (align1 > align)
+			align = align1;
+	}
+
+	list_for_each_entry_safe(res1, tmp_res, head, list) {
+		resource_size_t size1, size2;
+
+		size1 = resource_size(res1->res);
+
+		/* reorder it */
+		list_for_each_entry(res2, head, list) {
+			if (res2 == res1)
+				break;
+
+			size2 = resource_size(res2->res);
+			if (is_before_alt(align, size1, size2)) {
 				list_move_tail(&res1->list, &res2->list);
 				break;
 			}
@@ -673,7 +723,7 @@ static void __assign_resources_alt_sorted(struct list_head *head,
 		res->end = res->start + alt_res->alt_size - 1;
 	}
 
-	__sort_resources(head);
+	__sort_resources_alt(head);
 	/* Satisfy the alt resource requests */
 	assign_requested_resources_sorted(head, &local_alt_fail_head);
 
@@ -1267,6 +1317,32 @@ static void __sort_align_test(struct list_head *head)
 	}
 }
 
+static void __sort_align_test_alt(struct list_head *head)
+{
+	struct align_test_res *res1, *tmp_res, *res2;
+	resource_size_t align = 0;
+
+	__sort_align_test(head);
+
+	/* get max align at first */
+	list_for_each_entry(res1, head, list)
+		if (res1->align > align)
+			align = res1->align;
+
+	list_for_each_entry_safe(res1, tmp_res, head, list) {
+		/* reorder it */
+		list_for_each_entry(res2, head, list) {
+			if (res2 == res1)
+				break;
+
+			if (is_before_alt(align, res1->size, res2->size)) {
+				list_move_tail(&res1->list, &res2->list);
+				break;
+			}
+		}
+	}
+}
+
 static bool is_align_size_good(struct list_head *head,
 			resource_size_t min_align, resource_size_t size,
 			resource_size_t start)
@@ -1352,7 +1428,7 @@ static resource_size_t calculate_mem_alt_size(struct list_head *head,
 	if (count <= 1)
 		goto out;
 
-	__sort_align_test(head);
+	__sort_align_test_alt(head);
 
 	tmp = max(size, max_align);
 	order = __fls(count);
