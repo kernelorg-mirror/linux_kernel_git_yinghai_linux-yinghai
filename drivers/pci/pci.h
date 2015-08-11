@@ -147,6 +147,7 @@ static inline void pci_msi_init_pci_dev(struct pci_dev *dev) { }
 #endif
 
 void pci_realloc_get_opt(char *);
+bool pci_realloc_user_enabled(void);
 
 static inline int pci_no_d1d2(struct pci_dev *dev)
 {
