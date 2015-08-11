@@ -507,6 +507,7 @@ static void enable_slot(struct acpiphp_slot *slot)
 		}
 	}
 	__pci_bus_assign_resources(bus, &add_list, NULL);
+	__pci_bus_check_realloc(&add_list);
 
 	acpiphp_sanitize_bus(bus);
 	pcie_bus_configure_settings(bus);
