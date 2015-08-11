@@ -204,7 +204,7 @@ static void pcibios_allocate_bridge_resources(struct pci_dev *dev)
 
 	for (idx = PCI_BRIDGE_RESOURCES; idx < PCI_NUM_RESOURCES; idx++) {
 		r = &dev->resource[idx];
-		if (!r->flags)
+		if (resource_disabled(r))
 			continue;
 		if (r->parent)	/* Already allocated */
 			continue;
@@ -333,7 +333,7 @@ static void pcibios_allocate_dev_rom_resource(struct pci_dev *dev)
 	 * addresses.
 	 */
 	r = &dev->resource[PCI_ROM_RESOURCE];
-	if (!r->flags || !r->start)
+	if (resource_disabled(r) || !r->start)
 		return;
 	if (r->parent) /* Already allocated */
 		return;

@@ -705,7 +705,7 @@ static void pcibios_fixup_resources(struct pci_dev *dev)
 	}
 	for (i = 0; i < DEVICE_COUNT_RESOURCE; i++) {
 		struct resource *res = dev->resource + i;
-		if (!res->flags)
+		if (resource_disabled(res))
 			continue;
 		if (res->start == 0) {
 			pr_debug("PCI:%s Resource %d %016llx-%016llx [%x]",
@@ -806,7 +806,7 @@ static void pcibios_fixup_bridge(struct pci_bus *bus)
 	pci_bus_for_each_resource(bus, res, i) {
 		if (!res)
 			continue;
-		if (!res->flags)
+		if (resource_disabled(res))
 			continue;
 		if (i >= 3 && bus->self->transparent)
 			continue;
@@ -985,7 +985,7 @@ static void pcibios_allocate_bus_resources(struct pci_bus *bus)
 		 pci_domain_nr(bus), bus->number);
 
 	pci_bus_for_each_resource(bus, res, i) {
-		if (!res || !res->flags
+		if (!res || resource_disabled(res)
 		    || res->start > res->end || res->parent)
 			continue;
 		if (bus->parent == NULL)
@@ -1087,7 +1087,8 @@ static void __init pcibios_allocate_resources(int pass)
 			r = &dev->resource[idx];
 			if (r->parent)		/* Already allocated */
 				continue;
-			if (!r->flags || (r->flags & IORESOURCE_UNSET))
+			if (resource_disabled(r) ||
+			    (r->flags & IORESOURCE_UNSET))
 				continue;	/* Not assigned at all */
 			/* We only allocate ROMs on pass 1 just in case they
 			 * have been screwed up by firmware
@@ -1218,7 +1219,7 @@ void pcibios_claim_one_bus(struct pci_bus *bus)
 		for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 			struct resource *r = &dev->resource[i];
 
-			if (r->parent || !r->start || !r->flags)
+			if (r->parent || !r->start || resource_disabled(r))
 				continue;
 
 			pr_debug("PCI: Claiming %s: ", pci_name(dev));
@@ -1278,7 +1279,7 @@ static void pcibios_setup_phb_resources(struct pci_controller *hose,
 	res->start = (res->start + io_offset) & 0xffffffffu;
 	res->end = (res->end + io_offset) & 0xffffffffu;
 
-	if (!res->flags) {
+	if (resource_disabled(res)) {
 		pr_warn("PCI: I/O resource not set for host ");
 		pr_cont("bridge %s (domain %d)\n",
 			hose->dn->full_name, hose->global_number);
@@ -1298,7 +1299,7 @@ static void pcibios_setup_phb_resources(struct pci_controller *hose,
 	/* Hookup PHB Memory resources */
 	for (i = 0; i < 3; ++i) {
 		res = &hose->mem_resources[i];
-		if (!res->flags) {
+		if (resource_disabled(res)) {
 			if (i > 0)
 				continue;
 			pr_err("PCI: Memory resource 0 not set for ");

@@ -365,7 +365,7 @@ static int rcar_pcie_setup(int nr, struct pci_sys_data *sys)
 	for (i = 0; i < RCAR_PCI_MAX_RESOURCES; i++) {
 
 		res = &pcie->res[i];
-		if (!res->flags)
+		if (resource_disabled(res))
 			continue;
 
 		rcar_pcie_setup_window(i, pcie);
