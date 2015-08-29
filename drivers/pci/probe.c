@@ -340,6 +340,9 @@ static void pci_read_bridge_io(struct pci_bus *child)
 	struct pci_bus_region region;
 	struct resource *res;
 
+	if (!(child->bus_flags & PCI_BUS_FLAGS_ROOT_SUPPORTS_IO))
+		return;
+
 	io_mask = PCI_IO_RANGE_MASK;
 	io_granularity = 0x1000;
 	if (dev->io_window_1k) {
@@ -2060,6 +2063,8 @@ struct pci_bus *pci_create_root_bus(struct device *parent, int bus,
 		} else
 			bus_addr[0] = '\0';
 		dev_info(&b->dev, "root bus resource %pR%s\n", res, bus_addr);
+		if (resource_type(res) == IORESOURCE_IO)
+			b->bus_flags |= PCI_BUS_FLAGS_ROOT_SUPPORTS_IO;
 	}
 
 	resource_list_for_each_entry(window, &bridge->windows) {

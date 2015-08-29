@@ -233,6 +233,10 @@ static void pdev_assign_resources_prepare(struct pci_dev *dev,
 		if (r->flags & IORESOURCE_PCI_FIXED)
 			continue;
 
+		if ((r->flags & IORESOURCE_IO) &&
+		    !(dev->bus->bus_flags & PCI_BUS_FLAGS_ROOT_SUPPORTS_IO))
+			continue;
+
 		if (resource_disabled(r) || r->parent)
 			continue;
 
@@ -1186,6 +1190,11 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 	if (realloc_head) {
 		min_sum_size = min_size;
 		min_size = 0;
+	}
+
+	if (!(bus->bus_flags & PCI_BUS_FLAGS_ROOT_SUPPORTS_IO)) {
+		b_res->flags |= IORESOURCE_UNSET | IORESOURCE_DISABLED;
+		return;
 	}
 
 	min_align = window_alignment(bus, IORESOURCE_IO);
