@@ -630,7 +630,7 @@ static void pci_claim_bus_resources(struct pci_bus *bus)
 		for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 			struct resource *r = &dev->resource[i];
 
-			if (r->parent || !r->start || !r->flags)
+			if (r->parent || !r->start || resource_disabled(r))
 				continue;
 
 			if (ofpci_verbose)

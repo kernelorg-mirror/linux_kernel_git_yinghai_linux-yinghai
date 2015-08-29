@@ -658,7 +658,7 @@ int pcibios_add_device(struct pci_dev *pdev)
 
 	for (i = 0; i < PCI_BAR_COUNT; i++) {
 		res = &pdev->resource[i];
-		if (res->parent || !res->flags)
+		if (res->parent || resource_disabled(res))
 			continue;
 		pci_claim_resource(pdev, i);
 	}
