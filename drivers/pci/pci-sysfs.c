@@ -318,8 +318,23 @@ static ssize_t bus_rescan_store(struct bus_type *bus, const char *buf,
 }
 static BUS_ATTR(rescan, (S_IWUSR|S_IWGRP), NULL, bus_rescan_store);
 
+static ssize_t pci_resource_alignment_store(struct bus_type *bus,
+					const char *buf, size_t count)
+{
+	return pci_set_resource_alignment_param(buf, count);
+}
+
+static ssize_t pci_resource_alignment_show(struct bus_type *bus, char *buf)
+{
+	return pci_get_resource_alignment_param(buf, PAGE_SIZE);
+}
+
+static BUS_ATTR(resource_alignment, (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH),
+		pci_resource_alignment_show, pci_resource_alignment_store);
+
 static struct attribute *pci_bus_attrs[] = {
 	&bus_attr_rescan.attr,
+	&bus_attr_resource_alignment.attr,
 	NULL,
 };
 
