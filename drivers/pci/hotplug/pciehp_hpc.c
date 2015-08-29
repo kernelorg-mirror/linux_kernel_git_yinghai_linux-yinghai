@@ -325,28 +325,6 @@ int pciehp_check_link_status(struct controller *ctrl)
 	return 0;
 }
 
-static int __pciehp_link_set(struct controller *ctrl, bool enable)
-{
-	struct pci_dev *pdev = ctrl_dev(ctrl);
-	u16 lnk_ctrl;
-
-	pcie_capability_read_word(pdev, PCI_EXP_LNKCTL, &lnk_ctrl);
-
-	if (enable)
-		lnk_ctrl &= ~PCI_EXP_LNKCTL_LD;
-	else
-		lnk_ctrl |= PCI_EXP_LNKCTL_LD;
-
-	pcie_capability_write_word(pdev, PCI_EXP_LNKCTL, lnk_ctrl);
-	ctrl_dbg(ctrl, "%s: lnk_ctrl = %x\n", __func__, lnk_ctrl);
-	return 0;
-}
-
-static int pciehp_link_enable(struct controller *ctrl)
-{
-	return __pciehp_link_set(ctrl, true);
-}
-
 void pciehp_get_attention_status(struct slot *slot, u8 *status)
 {
 	struct controller *ctrl = slot->ctrl;
@@ -496,7 +474,6 @@ int pciehp_power_on_slot(struct slot *slot)
 	struct controller *ctrl = slot->ctrl;
 	struct pci_dev *pdev = ctrl_dev(ctrl);
 	u16 slot_status;
-	int retval;
 
 	/* Clear sticky power-fault bit from previous power failures */
 	pcie_capability_read_word(pdev, PCI_EXP_SLTSTA, &slot_status);
@@ -510,11 +487,10 @@ int pciehp_power_on_slot(struct slot *slot)
 		 pci_pcie_cap(ctrl->pcie->port) + PCI_EXP_SLTCTL,
 		 PCI_EXP_SLTCTL_PWR_ON);
 
-	retval = pciehp_link_enable(ctrl);
-	if (retval)
-		ctrl_err(ctrl, "%s: Can not enable the link!\n", __func__);
+	/* Enable the link */
+	pcie_link_disable_set(ctrl->pcie->port, 0);
 
-	return retval;
+	return 0;
 }
 
 void pciehp_power_off_slot(struct slot *slot)
