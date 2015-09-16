@@ -179,6 +179,10 @@ static inline bool resource_contains(struct resource *r1, struct resource *r2)
 	return r1->start <= r2->start && r1->end >= r2->end;
 }
 
+static inline bool resource_disabled(struct resource *r)
+{
+	return !r->flags || (r->flags & IORESOURCE_DISABLED);
+}
 
 /* Convenience shorthand with allocation */
 #define request_region(start,n,name)		__request_region(&ioport_resource, (start), (n), (name), 0)
