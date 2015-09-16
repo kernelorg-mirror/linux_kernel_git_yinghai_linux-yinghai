@@ -971,6 +971,7 @@ int pci_claim_bridge_resource(struct pci_dev *bridge, int i)
 		return -EINVAL;
 	}
 
+	bridge->resource[i].flags &= ~IORESOURCE_UNSET;
 	if (pci_claim_resource(bridge, i) == 0)
 		return 0;	/* claimed a smaller window */
 
