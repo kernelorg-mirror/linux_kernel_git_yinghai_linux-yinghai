@@ -450,7 +450,7 @@ int pciehp_enable_slot(struct slot *p_slot)
 		}
 	}
 
-	if (POWER_CTRL(p_slot->ctrl)) {
+	if (POWER_CTRL(p_slot->ctrl) && !HP_SUPR_RM(p_slot->ctrl)) {
 		pciehp_get_power_status(p_slot, &getstatus);
 		if (getstatus) {
 			ctrl_info(ctrl, "Already enabled on slot(%s)\n",
@@ -479,7 +479,7 @@ int pciehp_disable_slot(struct slot *p_slot)
 	if (!p_slot->ctrl)
 		return 1;
 
-	if (POWER_CTRL(p_slot->ctrl)) {
+	if (POWER_CTRL(p_slot->ctrl) && !HP_SUPR_RM(p_slot->ctrl)) {
 		pciehp_get_power_status(p_slot, &getstatus);
 		if (!getstatus) {
 			ctrl_info(ctrl, "Already disabled on slot(%s)\n",
