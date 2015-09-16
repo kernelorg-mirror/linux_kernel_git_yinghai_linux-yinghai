@@ -4442,7 +4442,7 @@ void pci_reassigndev_resource_alignment(struct pci_dev *dev)
 	}
 }
 
-static ssize_t pci_set_resource_alignment_param(const char *buf, size_t count)
+ssize_t pci_set_resource_alignment_param(const char *buf, size_t count)
 {
 	if (count > RESOURCE_ALIGNMENT_PARAM_SIZE - 1)
 		count = RESOURCE_ALIGNMENT_PARAM_SIZE - 1;
@@ -4453,7 +4453,7 @@ static ssize_t pci_set_resource_alignment_param(const char *buf, size_t count)
 	return count;
 }
 
-static ssize_t pci_get_resource_alignment_param(char *buf, size_t size)
+ssize_t pci_get_resource_alignment_param(char *buf, size_t size)
 {
 	size_t count;
 	spin_lock(&resource_alignment_lock);
@@ -4461,27 +4461,6 @@ static ssize_t pci_get_resource_alignment_param(char *buf, size_t size)
 	spin_unlock(&resource_alignment_lock);
 	return count;
 }
-
-static ssize_t pci_resource_alignment_show(struct bus_type *bus, char *buf)
-{
-	return pci_get_resource_alignment_param(buf, PAGE_SIZE);
-}
-
-static ssize_t pci_resource_alignment_store(struct bus_type *bus,
-					const char *buf, size_t count)
-{
-	return pci_set_resource_alignment_param(buf, count);
-}
-
-BUS_ATTR(resource_alignment, 0644, pci_resource_alignment_show,
-					pci_resource_alignment_store);
-
-static int __init pci_resource_alignment_sysfs_init(void)
-{
-	return bus_create_file(&pci_bus_type,
-					&bus_attr_resource_alignment);
-}
-late_initcall(pci_resource_alignment_sysfs_init);
 
 static void pci_no_domains(void)
 {
