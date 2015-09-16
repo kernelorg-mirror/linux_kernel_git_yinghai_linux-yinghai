@@ -2292,6 +2292,8 @@ unsigned int pci_rescan_bus_bridge_resize(struct pci_dev *bridge)
 
 	pci_assign_unassigned_bridge_resources(bridge);
 
+	pcie_bus_configure_settings(bus);
+
 	pci_bus_add_devices(bus);
 
 	return max;
@@ -2312,6 +2314,15 @@ unsigned int pci_rescan_bus(struct pci_bus *bus)
 
 	max = pci_scan_child_bus(bus);
 	pci_assign_unassigned_bus_resources(bus);
+
+	if (pci_is_root_bus(bus)) {
+		struct pci_bus *child;
+
+                list_for_each_entry(child, &bus->children, node)
+			pcie_bus_configure_settings(child);
+	} else
+		pcie_bus_configure_settings(bus);
+
 	pci_bus_add_devices(bus);
 
 	return max;
