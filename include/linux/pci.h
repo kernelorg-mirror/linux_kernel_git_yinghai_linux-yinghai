@@ -800,6 +800,7 @@ struct pci_bus *pci_add_new_bus(struct pci_bus *parent, struct pci_dev *dev,
 void pcie_update_link_speed(struct pci_bus *bus, u16 link_status);
 void pcie_link_disable_set(struct pci_dev *dev, int bit);
 int pcie_link_disable_get(struct pci_dev *dev);
+int pcie_link_retrain(struct pci_dev *dev);
 struct pci_slot *pci_create_slot(struct pci_bus *parent, int slot_nr,
 				 const char *name,
 				 struct hotplug_slot *hotplug);
