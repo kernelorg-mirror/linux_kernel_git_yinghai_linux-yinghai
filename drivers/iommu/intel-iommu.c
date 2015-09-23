@@ -1743,7 +1743,8 @@ static int dmar_init_reserved_ranges(void)
 
 		for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 			r = &pdev->resource[i];
-			if (!r->flags || !(r->flags & IORESOURCE_MEM))
+			if (resource_disabled(r) ||
+			    !(r->flags & IORESOURCE_MEM))
 				continue;
 			iova = reserve_iova(&reserved_iova_list,
 					    IOVA_PFN(r->start),

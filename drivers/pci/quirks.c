@@ -337,7 +337,7 @@ static void quirk_bar_fixed(struct pci_dev *dev)
 	for (i = 0; i < PCI_STD_RESOURCE_END; i++) {
 		struct resource *r = &dev->resource[i];
 
-		if (!r->start || !r->flags)
+		if (!r->start || resource_disabled(r))
 			continue;
 		r->flags |= IORESOURCE_PCI_FIXED;
 	}
@@ -351,7 +351,7 @@ static void quirk_allocate_fixed(struct pci_dev *dev)
 	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
 		struct resource *r = &dev->resource[i];
 
-		if (r->parent ||
+		if (r->parent || resource_disabled(r) ||
 		    !(r->flags & IORESOURCE_PCI_FIXED) ||
 		    !(r->flags & (IORESOURCE_IO | IORESOURCE_MEM)))
 			continue;
