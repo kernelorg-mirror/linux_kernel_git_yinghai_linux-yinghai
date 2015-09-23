@@ -28,8 +28,30 @@ static struct device_attribute pcie_link_disable_attr =
 		__ATTR(pcie_link_disable, 0644,
 		       pcie_link_disable_show, pcie_link_disable_store);
 
+static ssize_t
+pcie_link_retrain_store(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+	unsigned long val;
+
+	if (kstrtoul(buf, 0, &val) < 0)
+		return -EINVAL;
+
+	if (val != 1)
+		return -EINVAL;
+
+	pcie_link_retrain(pdev);
+
+	return count;
+}
+
+static struct device_attribute pcie_link_retrain_attr =
+		__ATTR(pcie_link_retrain, 0200, NULL, pcie_link_retrain_store);
+
 static struct attribute *pci_dev_pcie_dev_attrs[] = {
 	&pcie_link_disable_attr.attr,
+	&pcie_link_retrain_attr.attr,
 	NULL,
 };
 
@@ -42,7 +64,8 @@ static umode_t pci_dev_pcie_attrs_are_visible(struct kobject *kobj,
 	if (!pci_is_pcie(pdev))
 		return 0;
 
-	if (a == &pcie_link_disable_attr.attr)
+	if (a == &pcie_link_disable_attr.attr ||
+	    a == &pcie_link_retrain_attr.attr)
 		if ((pci_pcie_type(pdev) != PCI_EXP_TYPE_ROOT_PORT) &&
 		    (pci_pcie_type(pdev) != PCI_EXP_TYPE_DOWNSTREAM))
 			return 0;
