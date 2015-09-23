@@ -410,6 +410,7 @@ struct pci_host_bridge {
 	void *release_data;
 	unsigned int ignore_reset_delay:1;	/* for entire hierarchy */
 	unsigned int has_mem64:1;
+	unsigned int has_ioport:1;
 };
 
 #define	to_pci_host_bridge(n) container_of(n, struct pci_host_bridge, dev)
