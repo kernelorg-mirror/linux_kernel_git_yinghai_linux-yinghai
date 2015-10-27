@@ -433,6 +433,21 @@ static void quirk_amd_nl_class(struct pci_dev *pdev)
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_NL_USB,
 		quirk_amd_nl_class);
 
+
+/*
+ * ALi m1533 pci to isa bridge does not have BAR according to datasheet,
+ * clear the flags, so we will try to claim them or reallocate res.
+ */
+static void quirk_ali1533(struct pci_dev *dev)
+{
+	int i;
+
+	for (i = 0; i < PCI_ROM_RESOURCE; i++)
+		dev->resource[i].flags = 0;
+}
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M1533,
+			 quirk_ali1533);
+
 static void piix4_io_quirk(struct pci_dev *dev, const char *name, unsigned int port, unsigned int enable)
 {
 	u32 devres;
