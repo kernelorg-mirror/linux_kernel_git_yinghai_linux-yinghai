@@ -501,7 +501,7 @@ void pcibios_fixup_device_resources(struct pci_dev *dev)
 	for (idx = 0; idx < PCI_BRIDGE_RESOURCES; idx++) {
 		struct resource *r = &dev->resource[idx];
 
-		if (!r->flags || r->parent || !r->start)
+		if (resource_disabled(r) || r->parent || !r->start)
 			continue;
 
 		pci_claim_resource(dev, idx);
@@ -519,7 +519,7 @@ static void pcibios_fixup_bridge_resources(struct pci_dev *dev)
 	for (idx = PCI_BRIDGE_RESOURCES; idx < PCI_NUM_RESOURCES; idx++) {
 		struct resource *r = &dev->resource[idx];
 
-		if (!r->flags || r->parent || !r->start)
+		if (resource_disabled(r) || r->parent || !r->start)
 			continue;
 
 		pci_claim_bridge_resource(dev, idx);
