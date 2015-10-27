@@ -654,12 +654,12 @@ struct pci_bus *pci_scan_one_pbm(struct pci_pbm_info *pbm,
 	printk("PCI: Scanning PBM %s\n", node->full_name);
 
 	pci_add_resource_offset(&resources, &pbm->io_space,
-				pbm->io_space.start);
+				pbm->io_offset);
 	pci_add_resource_offset(&resources, &pbm->mem_space,
-				pbm->mem_space.start);
+				pbm->mem_offset);
 	if (pbm->mem64_space.flags)
 		pci_add_resource_offset(&resources, &pbm->mem64_space,
-					pbm->mem_space.start);
+					pbm->mem64_offset);
 	pbm->busn.start = pbm->pci_first_busno;
 	pbm->busn.end	= pbm->pci_last_busno;
 	pbm->busn.flags	= IORESOURCE_BUS;
@@ -733,30 +733,28 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 static int __pci_mmap_make_offset_bus(struct pci_dev *pdev, struct vm_area_struct *vma,
 				      enum pci_mmap_state mmap_state)
 {
-	struct pci_pbm_info *pbm = pdev->dev.archdata.host_controller;
-	unsigned long space_size, user_offset, user_size;
-
-	if (mmap_state == pci_mmap_io) {
-		space_size = resource_size(&pbm->io_space);
-	} else {
-		space_size = resource_size(&pbm->mem_space);
-	}
+	unsigned long user_offset, user_size;
+	struct resource res, *root_bus_res;
+	struct pci_bus_region region;
 
 	/* Make sure the request is in range. */
 	user_offset = vma->vm_pgoff << PAGE_SHIFT;
 	user_size = vma->vm_end - vma->vm_start;
 
-	if (user_offset >= space_size ||
-	    (user_offset + user_size) > space_size)
+	region.start = user_offset;
+	region.end = user_offset + user_size - 1;
+	memset(&res, 0, sizeof(res));
+	if (mmap_state == pci_mmap_io)
+		res.flags = IORESOURCE_IO;
+	else
+		res.flags = IORESOURCE_MEM;
+
+	pcibios_bus_to_resource(pdev->bus, &res, &region);
+	root_bus_res = pci_find_root_bus_resource(pdev->bus, &res);
+	if (!root_bus_res)
 		return -EINVAL;
 
-	if (mmap_state == pci_mmap_io) {
-		vma->vm_pgoff = (pbm->io_space.start +
-				 user_offset) >> PAGE_SHIFT;
-	} else {
-		vma->vm_pgoff = (pbm->mem_space.start +
-				 user_offset) >> PAGE_SHIFT;
-	}
+	vma->vm_pgoff = res.start >> PAGE_SHIFT;
 
 	return 0;
 }
@@ -977,16 +975,12 @@ void pci_resource_to_user(const struct pci_dev *pdev, int bar,
 			  const struct resource *rp, resource_size_t *start,
 			  resource_size_t *end)
 {
-	struct pci_pbm_info *pbm = pdev->dev.archdata.host_controller;
-	unsigned long offset;
+	struct pci_bus_region region;
 
-	if (rp->flags & IORESOURCE_IO)
-		offset = pbm->io_space.start;
-	else
-		offset = pbm->mem_space.start;
+	pcibios_resource_to_bus(pdev->bus, &region, (struct resource *)rp);
 
-	*start = rp->start - offset;
-	*end = rp->end - offset;
+	*start = region.start;
+	*end = region.end;
 }
 
 void pcibios_set_master(struct pci_dev *dev)
