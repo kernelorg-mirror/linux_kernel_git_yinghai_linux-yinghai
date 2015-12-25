@@ -60,6 +60,8 @@ static inline int pci_has_flag(int flag)
 {
 	return pci_flags & flag;
 }
+
+int skip_isa_ioresource_align(struct pci_bus *bus);
 #else
 static inline void pci_set_flags(int flags) { }
 static inline void pci_add_flags(int flags) { }
