@@ -140,7 +140,7 @@ static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
 	type_mask |= IORESOURCE_TYPE_BITS;
 
 	pci_bus_for_each_resource(bus, r, i) {
-		if (!r)
+		if (!r || resource_disabled(r))
 			continue;
 
 		/* type_mask must match */
