@@ -226,6 +226,10 @@ static void pdev_assign_resources_prepare(struct pci_dev *dev,
 		if (resource_disabled(r) || r->parent)
 			continue;
 
+		if ((r->flags & IORESOURCE_IO) &&
+		    !pci_find_host_bridge(dev->bus)->has_ioport)
+			continue;
+
 		r_align = __pci_resource_alignment(dev, r, realloc_head);
 		if (!r_align) {
 			dev_warn(&dev->dev, "BAR %d: %pR has bogus alignment\n",
@@ -1187,6 +1191,11 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 	if (realloc_head) {
 		min_sum_size = min_size;
 		min_size = 0;
+	}
+
+	if (!pci_find_host_bridge(bus)->has_ioport) {
+		b_res->flags |= IORESOURCE_UNSET | IORESOURCE_DISABLED;
+		return;
 	}
 
 	min_align = window_alignment(bus, IORESOURCE_IO);
