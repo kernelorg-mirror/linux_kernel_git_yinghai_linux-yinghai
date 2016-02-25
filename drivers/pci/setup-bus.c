@@ -1104,22 +1104,7 @@ static struct resource *find_free_bus_resource(struct pci_bus *bus,
 	return NULL;
 }
 
-static resource_size_t calculate_iosize(resource_size_t size,
-		resource_size_t min_size,
-		resource_size_t old_size,
-		resource_size_t align)
-{
-	if (size < min_size)
-		size = min_size;
-	if (old_size == 1)
-		old_size = 0;
-	size = ALIGN(size, align);
-	if (size < old_size)
-		size = old_size;
-	return size;
-}
-
-static resource_size_t calculate_memsize(resource_size_t size,
+static resource_size_t calculate_size(resource_size_t size,
 		resource_size_t min_size,
 		resource_size_t old_size,
 		resource_size_t align)
@@ -1245,14 +1230,14 @@ static void pbus_size_io(struct pci_bus *bus, resource_size_t min_size,
 
 	size = size_aligned_for_isa(size);
 	size += size1;
-	size0 = calculate_iosize(size, min_size,
+	size0 = calculate_size(size, min_size,
 			resource_size(b_res), min_align);
 	sum_add_size = size_aligned_for_isa(sum_add_size);
 	sum_add_size += sum_add_size1;
 	if (sum_add_size < min_sum_size)
 		sum_add_size = min_sum_size;
 	size1 = !realloc_head ? size0 :
-		calculate_iosize(sum_add_size, min_size,
+		calculate_size(sum_add_size, min_size,
 			resource_size(b_res), min_align);
 	if (!size0 && !size1) {
 		if (b_res->start || b_res->end)
@@ -1581,7 +1566,7 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 	if (size || min_size) {
 		min_align = calculate_mem_align(&align_test_list, max_align,
 						size, window_align);
-		size0 = calculate_memsize(size, min_size,
+		size0 = calculate_size(size, min_size,
 				  resource_size(b_res), min_align);
 	}
 	free_align_test_list(&align_test_list);
@@ -1606,7 +1591,7 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 		min_add_align = calculate_mem_align(&align_test_add_list,
 					max_add_align, sum_add_size,
 					window_align);
-		size1 = calculate_memsize(sum_add_size, min_size,
+		size1 = calculate_size(sum_add_size, min_size,
 				 resource_size(b_res), min_add_align);
 	}
 	free_align_test_list(&align_test_add_list);
