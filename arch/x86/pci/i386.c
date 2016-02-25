@@ -128,15 +128,6 @@ static void __init pcibios_fw_addr_list_del(void)
 	pcibios_fw_addr_done = true;
 }
 
-static int
-skip_isa_ioresource_align(struct pci_dev *dev) {
-
-	if ((pci_probe & PCI_CAN_SKIP_ISA_ALIGN) &&
-	    !(dev->bus->bridge_ctl & PCI_BRIDGE_CTL_ISA))
-		return 1;
-	return 0;
-}
-
 /*
  * We need to avoid collisions with `mirrored' VGA ports
  * and other strange ISA hardware, so we always want the
@@ -158,7 +149,7 @@ pcibios_align_resource(void *data, const struct resource *res,
 	resource_size_t start = res->start;
 
 	if (res->flags & IORESOURCE_IO) {
-		if (skip_isa_ioresource_align(dev))
+		if (skip_isa_ioresource_align(dev->bus))
 			return start;
 		if (start & 0x300)
 			start = (start + 0x3ff) & ~0x3ff;
