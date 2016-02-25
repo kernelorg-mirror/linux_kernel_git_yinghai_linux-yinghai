@@ -361,7 +361,7 @@ static int rcar_pcie_setup(struct list_head *resource, struct rcar_pcie *pci)
 	resource_list_for_each_entry(win, &pci->resources) {
 		struct resource *res = win->res;
 
-		if (!res->flags)
+		if (resource_disabled(res))
 			continue;
 
 		switch (resource_type(res)) {
