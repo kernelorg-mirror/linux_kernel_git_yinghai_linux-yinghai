@@ -142,7 +142,7 @@ static int pci_bus_alloc_from_region(struct pci_bus *bus, struct resource *res,
 	pci_bus_for_each_resource(bus, r, i) {
 		resource_size_t min_used = min;
 
-		if (!r)
+		if (!r || resource_disabled(r))
 			continue;
 
 		/* type_mask must match */
