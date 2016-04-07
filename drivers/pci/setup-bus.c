@@ -1318,6 +1318,15 @@ static void sort_align_test(struct list_head *head)
 	}
 }
 
+resource_size_t __weak pcibios_align_end_resource(void *data,
+					  const struct resource *res,
+					  resource_size_t size,
+					  resource_size_t align)
+{
+	/* default is not aligned to end */
+	return res->start;
+}
+
 static bool is_align_size_good(struct list_head *head,
 			resource_size_t min_align, resource_size_t size,
 			resource_size_t start)
@@ -1335,7 +1344,7 @@ static bool is_align_size_good(struct list_head *head,
 	list_for_each_entry(p, head, list)
 		if (allocate_resource(&root, &p->res, p->size,
 				0, (resource_size_t)-1ULL,
-				p->align, NULL, NULL))
+				p->align, pcibios_align_end_resource, NULL))
 			return false;
 
 	return true;
