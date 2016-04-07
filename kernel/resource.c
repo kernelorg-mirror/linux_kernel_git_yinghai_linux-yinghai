@@ -611,7 +611,7 @@ static void resource_clip(struct resource *res, resource_size_t min,
  * alignment constraints
  */
 static int __find_resource(struct resource *root, struct resource *old,
-			 struct resource *new,
+			 struct resource *new, struct resource *availx,
 			 resource_size_t  size,
 			 struct resource_constraint *constraint)
 {
@@ -651,6 +651,11 @@ static int __find_resource(struct resource *root, struct resource *old,
 			if (resource_contains(&avail, &alloc)) {
 				new->start = alloc.start;
 				new->end = alloc.end;
+				if (availx) {
+					availx->start = avail.start;
+					availx->end = avail.end;
+					availx->flags = avail.flags;
+				}
 				return 0;
 			}
 		}
@@ -663,16 +668,6 @@ next:		if (!this || this->end == root->end)
 		this = this->sibling;
 	}
 	return -EBUSY;
-}
-
-/*
- * Find empty slot in the resource tree given range and alignment.
- */
-static int find_resource(struct resource *root, struct resource *new,
-			resource_size_t size,
-			struct resource_constraint  *constraint)
-{
-	return  __find_resource(root, NULL, new, size, constraint);
 }
 
 /**
@@ -694,8 +689,8 @@ static int reallocate_resource(struct resource *root, struct resource *old,
 	struct resource *conflict;
 
 	write_lock(&resource_lock);
-
-	if ((err = __find_resource(root, old, &new, newsize, constraint)))
+	err = __find_resource(root, old, &new, NULL, newsize, constraint);
+	if (err)
 		goto out;
 
 	if (resource_contains(&new, old)) {
@@ -723,10 +718,16 @@ out:
 	return err;
 }
 
+struct good_resource {
+	struct list_head list;
+	struct resource avail;
+	struct resource new;
+};
 
 /**
  * allocate_resource - allocate empty slot in the resource tree given range & alignment.
- * 	The resource will be reallocated with a new size if it was already allocated
+ *	The resource will be reallocated with a new size if it was already
+ *	allocated
  * @root: root resource descriptor
  * @new: resource descriptor desired by caller
  * @size: requested resource region size
@@ -747,6 +748,9 @@ int allocate_resource(struct resource *root, struct resource *new,
 {
 	int err;
 	struct resource_constraint constraint;
+	LIST_HEAD(head);
+	struct good_resource *good, *tmp;
+	resource_size_t avail_size = (resource_size_t)-1ULL;
 
 	if (!alignf)
 		alignf = simple_align_resource;
@@ -763,11 +767,53 @@ int allocate_resource(struct resource *root, struct resource *new,
 		return reallocate_resource(root, new, size, &constraint);
 	}
 
+	/* find all suitable ones and add to the list */
+	for (;;) {
+		good = kzalloc(sizeof(*good), GFP_KERNEL);
+		if (!good) {
+			err = -ENOMEM;
+			break;
+		}
+
+		good->new.start = new->start;
+		good->new.end = new->end;
+		good->new.flags = new->flags;
+
+		write_lock(&resource_lock);
+		err = __find_resource(root, NULL, &good->new, &good->avail,
+					size, &constraint);
+		if (err || __request_resource(root, &good->avail)) {
+			err = -EBUSY;
+			kfree(good);
+			write_unlock(&resource_lock);
+			break;
+		}
+		write_unlock(&resource_lock);
+
+		list_add(&good->list, &head);
+	}
+
+	/* pick up the smallest one */
 	write_lock(&resource_lock);
-	err = find_resource(root, new, size, &constraint);
+	list_for_each_entry(good, &head, list) {
+		if (resource_size(&good->avail) < avail_size) {
+			avail_size = resource_size(&good->avail);
+			new->start = good->new.start;
+			new->end = good->new.end;
+			err = 0;
+		}
+		__release_resource(&good->avail, false);
+	}
 	if (err >= 0 && __request_resource(root, new))
 		err = -EBUSY;
 	write_unlock(&resource_lock);
+
+	/* delete the list */
+	list_for_each_entry_safe(good, tmp, &head, list) {
+		list_del(&good->list);
+		kfree(good);
+	}
+
 	return err;
 }
 
