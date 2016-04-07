@@ -761,7 +761,7 @@ static int __pci_mmap_make_offset_bus(struct pci_dev *pdev, struct vm_area_struc
 	bus = pdev->bus;
 	while (bus->parent)
 		bus = bus->parent;
-	root_bus_res = pci_find_bus_resource(bus, &res);
+	root_bus_res = pci_find_bus_resource(bus, &res, res.flags);
 	if (!root_bus_res)
 		return -EINVAL;
 
