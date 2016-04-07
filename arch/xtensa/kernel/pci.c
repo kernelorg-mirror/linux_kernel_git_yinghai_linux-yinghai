@@ -142,7 +142,7 @@ static void __init pci_controller_apertures(struct pci_controller *pci_ctrl,
 
 	io_offset = (unsigned long)pci_ctrl->io_space.base;
 	res = &pci_ctrl->io_resource;
-	if (!res->flags) {
+	if (resource_disabled(res)) {
 		if (io_offset)
 			printk (KERN_ERR "I/O resource not set for host"
 				" bridge %d\n", pci_ctrl->index);
@@ -156,7 +156,7 @@ static void __init pci_controller_apertures(struct pci_controller *pci_ctrl,
 
 	for (i = 0; i < 3; i++) {
 		res = &pci_ctrl->mem_resources[i];
-		if (!res->flags) {
+		if (resource_disabled(res)) {
 			if (i > 0)
 				continue;
 			printk(KERN_ERR "Memory resource not set for "

@@ -28,7 +28,7 @@ int pci_enable_rom(struct pci_dev *pdev)
 	struct pci_bus_region region;
 	u32 rom_addr;
 
-	if (!res->flags)
+	if (resource_disabled(res))
 		return -1;
 
 	/* Nothing to enable if we're using a shadow copy in RAM */

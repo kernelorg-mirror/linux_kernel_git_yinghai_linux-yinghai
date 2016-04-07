@@ -434,7 +434,7 @@ found:
 		else
 			bar64 = __pci_read_base(dev, pci_bar_unknown, res,
 						pos + PCI_SRIOV_BAR + i * 4);
-		if (!res->flags)
+		if (resource_disabled(res))
 			continue;
 		if (resource_size(res) & (PAGE_SIZE - 1)) {
 			rc = -EIO;

@@ -2308,7 +2308,7 @@ void pci_bus_release_busn_res(struct pci_bus *b)
 	struct resource *res = &b->busn_res;
 	int ret;
 
-	if (!res->flags || !res->parent)
+	if (resource_disabled(res) || !res->parent)
 		return;
 
 	ret = release_resource(res);
