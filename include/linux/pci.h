@@ -765,6 +765,8 @@ static inline void pci_add_flags(int flags) { pci_flags |= flags; }
 static inline void pci_clear_flags(int flags) { pci_flags &= ~flags; }
 static inline int pci_has_flag(int flag) { return pci_flags & flag; }
 
+int skip_isa_ioresource_align(struct pci_bus *bus);
+
 void pcie_bus_configure_settings(struct pci_bus *bus);
 
 enum pcie_bus_config_types {
