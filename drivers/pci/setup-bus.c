@@ -1133,9 +1133,9 @@ static resource_size_t calculate_memsize(resource_size_t size,
 		size = min_size;
 	if (old_size == 1)
 		old_size = 0;
+	size = ALIGN(size, align);
 	if (size < old_size)
 		size = old_size;
-	size = ALIGN(size, align);
 	return size;
 }
 
@@ -1595,6 +1595,17 @@ static int pbus_size_mem(struct pci_bus *bus, unsigned long mask,
 		b_res->flags = 0;
 		return 0;
 	}
+
+	/*
+	 * It happens when boot path is not passing realloc
+	 * and later rescan is passing realloc.
+	 * The old value from boot path is bigger, and calculate_size will
+	 * use old value as size0 and size1, and also have
+	 * chance optional align is smaller than must only align.
+	 */
+	if(size0 == size1 && min_align > min_add_align)
+		min_align = min_add_align;
+
 	b_res->start = min_align;
 	b_res->end = size0 + min_align - 1;
 	b_res->flags |= IORESOURCE_STARTALIGN;
