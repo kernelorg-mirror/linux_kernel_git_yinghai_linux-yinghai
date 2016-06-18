@@ -1018,6 +1018,16 @@ static int pci_mmap_resource(struct kobject *kobj, struct bin_attribute *attr,
 	if (i >= PCI_ROM_RESOURCE)
 		return -ENODEV;
 
+	/*
+	 * resource start have to be PAGE_SIZE aligned, as we pass
+	 * back virt address include round down of resource_start,
+	 * that caller can not figure out directly.
+	 * when it is not aligned, that mean it is io port, should go
+	 * pci_read_resource_io()/pci_write_resource_io() path.
+	 */
+	if (res->start & ~PAGE_MASK)
+		return -EINVAL;
+
 	if (res->flags & IORESOURCE_MEM && iomem_is_exclusive(res->start))
 		return -EINVAL;
 
