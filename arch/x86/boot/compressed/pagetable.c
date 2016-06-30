@@ -45,8 +45,6 @@ static void *alloc_pgt_page(void *context)
 	/* Validate there is space available for a new page. */
 	if (pages->pgt_buf_offset >= pages->pgt_buf_size) {
 		debug_putstr("out of pgt_buf in " __FILE__ "!?\n");
-		debug_putaddr(pages->pgt_buf_offset);
-		debug_putaddr(pages->pgt_buf_size);
 		return NULL;
 	}
 

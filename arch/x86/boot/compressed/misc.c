@@ -152,23 +152,6 @@ void __putstr(const char *s)
 	outb(0xff & (pos >> 1), vidport+1);
 }
 
-void __puthex(unsigned long value)
-{
-	char alpha[2] = "0";
-	int bits;
-
-	for (bits = sizeof(value) * 8 - 4; bits >= 0; bits -= 4) {
-		unsigned long digit = (value >> bits) & 0xf;
-
-		if (digit < 0xA)
-			alpha[0] = '0' + digit;
-		else
-			alpha[0] = 'a' + (digit - 0xA);
-
-		__putstr(alpha);
-	}
-}
-
 #if CONFIG_X86_NEED_RELOCS
 static void handle_relocations(void *output, unsigned long output_len,
 			       unsigned long virt_addr)
@@ -364,13 +347,6 @@ asmlinkage __visible void *extract_kernel(void *rmode, memptr heap,
 
 	free_mem_ptr     = heap;	/* Heap */
 	free_mem_end_ptr = heap + BOOT_HEAP_SIZE;
-
-	/* Report initial kernel position details. */
-	debug_putaddr(input_data);
-	debug_putaddr(input_len);
-	debug_putaddr(output);
-	debug_putaddr(output_len);
-	debug_putaddr(kernel_total_size);
 
 	/*
 	 * The memory hole needed for the kernel is the larger of either
