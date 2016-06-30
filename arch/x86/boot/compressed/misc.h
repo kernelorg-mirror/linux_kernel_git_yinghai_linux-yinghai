@@ -37,13 +37,20 @@ void __putstr(const char *s);
 #define error_putstr(__x)  __putstr(__x)
 #define error_puthex(__x)  __puthex(__x)
 
+/* printf.c */
+int sprintf(char *buf, const char *fmt, ...);
+int printf(const char *fmt, ...);
+
 #ifdef CONFIG_X86_VERBOSE_BOOTUP
 
 #define debug_putstr(__x)  __putstr(__x)
+#define debug_printf printf
 
 #else
 
 static inline void debug_putstr(const char *s)
+{ }
+static inline int debug_printf(const char *fmt, ...)
 { }
 
 #endif
