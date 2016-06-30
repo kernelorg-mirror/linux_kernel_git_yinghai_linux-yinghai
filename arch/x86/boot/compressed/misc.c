@@ -322,6 +322,9 @@ asmlinkage __visible void *extract_kernel(void *rmode, memptr heap,
 {
 	const unsigned long kernel_total_size = VO__end - VO__text;
 	unsigned long virt_addr = (unsigned long)output;
+	unsigned char *output_orig = output;
+	unsigned long output_run_size = max(output_len, kernel_total_size);
+	unsigned long init_size;
 
 	/* Retain x86 boot parameters pointer passed from startup_32/64. */
 	boot_params = rmode;
@@ -348,6 +351,37 @@ asmlinkage __visible void *extract_kernel(void *rmode, memptr heap,
 	free_mem_ptr     = heap;	/* Heap */
 	free_mem_end_ptr = heap + BOOT_HEAP_SIZE;
 
+	init_size = boot_params->hdr.init_size;
+	debug_putstr("decompress_kernel:\n");
+	debug_printf("       input: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)input_data,
+		 (unsigned long)input_data + input_len - 1);
+	debug_printf("      output: [0x%010lx-0x%010lx] 0x%08lx: output_len\n",
+		 (unsigned long)output,
+		 (unsigned long)output + output_len - 1,
+		 (unsigned long)output_len);
+	debug_printf("              [0x%010lx-0x%010lx] 0x%08lx: run_size\n",
+		 (unsigned long)output,
+		 (unsigned long)output + kernel_total_size - 1,
+		 (unsigned long)kernel_total_size);
+	debug_printf("              [0x%010lx-0x%010lx] 0x%08lx: output_run_size\n",
+		 (unsigned long)output,
+		 (unsigned long)output + output_run_size - 1,
+		 (unsigned long)output_run_size);
+	debug_printf("              [0x%010lx-0x%010lx] 0x%08lx: init_size\n",
+		 (unsigned long)output,
+		 (unsigned long)output + init_size - 1,
+		 (unsigned long)init_size);
+	debug_printf("ZO text/data: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)input_data + input_len,
+		 (unsigned long)output + init_size - 1);
+	debug_printf("     ZO heap: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)heap,
+		 (unsigned long)heap + BOOT_HEAP_SIZE - 1);
+	debug_printf("  VO bss/brk: [0x%010lx-0x%010lx]\n",
+		 (unsigned long)output + (VO___bss_start - VO__text),
+		 (unsigned long)output + kernel_total_size - 1);
+
 	/*
 	 * The memory hole needed for the kernel is the larger of either
 	 * the entire decompressed kernel plus relocation table, or the
@@ -355,8 +389,15 @@ asmlinkage __visible void *extract_kernel(void *rmode, memptr heap,
 	 */
 	choose_random_location((unsigned long)input_data, input_len,
 				(unsigned long *)&output,
-				max(output_len, kernel_total_size),
-				&virt_addr);
+				output_run_size, &virt_addr);
+
+	if (output != output_orig)
+		debug_printf("  new output: [0x%010lx-0x%010lx] 0x%08lx: output_run_size\n",
+			 (unsigned long)output,
+			 (unsigned long)output + output_run_size - 1,
+			 output_run_size);
+	if ((unsigned long)output != virt_addr)
+		debug_printf("   virt_addr:  0x%010lx\n", virt_addr);
 
 	/* Validate memory location choices. */
 	if ((unsigned long)output & (MIN_KERNEL_ALIGN - 1))
