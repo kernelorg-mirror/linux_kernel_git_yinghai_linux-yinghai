@@ -240,6 +240,8 @@ static int __pci_assign_resource(struct pci_bus *bus, struct pci_dev *dev,
 	struct resource *res = dev->resource + resno;
 	resource_size_t min;
 	int ret;
+	unsigned long mmio64 = pci_find_host_bridge(bus)->has_mem64 ?
+				IORESOURCE_MEM_64 : 0;
 
 	min = (res->flags & IORESOURCE_IO) ? PCIBIOS_MIN_IO : PCIBIOS_MIN_MEM;
 
@@ -251,7 +253,7 @@ static int __pci_assign_resource(struct pci_bus *bus, struct pci_dev *dev,
 	 * things differently than they were sized, not everything will fit.
 	 */
 	ret = pci_bus_alloc_resource(bus, res, size, align, min,
-				     IORESOURCE_PREFETCH | IORESOURCE_MEM_64,
+				     IORESOURCE_PREFETCH | mmio64,
 				     pcibios_align_resource, dev);
 	if (ret == 0)
 		return 0;
@@ -260,7 +262,8 @@ static int __pci_assign_resource(struct pci_bus *bus, struct pci_dev *dev,
 	 * If the prefetchable window is only 32 bits wide, we can put
 	 * 64-bit prefetchable resources in it.
 	 */
-	if ((res->flags & (IORESOURCE_PREFETCH | IORESOURCE_MEM_64)) ==
+	if (mmio64 &&
+	    (res->flags & (IORESOURCE_PREFETCH | IORESOURCE_MEM_64)) ==
 	     (IORESOURCE_PREFETCH | IORESOURCE_MEM_64)) {
 		ret = pci_bus_alloc_resource(bus, res, size, align, min,
 					     IORESOURCE_PREFETCH,
@@ -275,7 +278,7 @@ static int __pci_assign_resource(struct pci_bus *bus, struct pci_dev *dev,
 	 * non-prefetchable, the first call already tried the only possibility
 	 * so we don't need to try again.
 	 */
-	if (res->flags & (IORESOURCE_PREFETCH | IORESOURCE_MEM_64))
+	if (res->flags & (IORESOURCE_PREFETCH | mmio64))
 		ret = pci_bus_alloc_resource(bus, res, size, align, min, 0,
 					     pcibios_align_resource, dev);
 
