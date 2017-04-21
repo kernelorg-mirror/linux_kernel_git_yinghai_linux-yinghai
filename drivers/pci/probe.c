@@ -818,6 +818,13 @@ int pci_register_host_bridge(struct pci_host_bridge *bridge)
 			addr[0] = '\0';
 
 		dev_info(&bus->dev, "root bus resource %pR%s\n", res, addr);
+
+		if (resource_type(res) == IORESOURCE_MEM) {
+			if ((res->end - offset) > 0xffffffff)
+				bridge->has_mem64 = 1;
+			if ((res->start - offset) > 0xffffffff)
+				res->flags |= IORESOURCE_MEM_64;
+		}
 	}
 
 	down_write(&pci_bus_sem);
