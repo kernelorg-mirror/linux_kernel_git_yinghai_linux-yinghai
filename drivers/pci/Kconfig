@@ -134,6 +134,12 @@ config PCI_HYPERV
           The PCI device frontend driver allows the kernel to import arbitrary
           PCI devices from a PCI backend to support PCI driver domains.
 
+config PCI_TEST
+	tristate "PCI test"
+	depends on PCI && X86_64
+	help
+	  PCI test module to verify PCI resource allocation with simulated data
+
 source "drivers/pci/hotplug/Kconfig"
 source "drivers/pci/dwc/Kconfig"
 source "drivers/pci/host/Kconfig"
