@@ -301,6 +301,8 @@ void release_child_resources(struct resource *r)
 	write_unlock(&resource_lock);
 }
 
+EXPORT_SYMBOL_GPL(release_child_resources);
+
 /**
  * request_resource_conflict - request and reserve an I/O or memory resource
  * @root: root resource descriptor

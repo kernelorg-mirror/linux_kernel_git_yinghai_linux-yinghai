@@ -1839,6 +1839,7 @@ dump:
 	/* dump the resource on buses */
 	pci_bus_dump_resources(bus);
 }
+EXPORT_SYMBOL_GPL(pci_assign_unassigned_root_bus_resources);
 
 void __init pci_assign_unassigned_resources(void)
 {

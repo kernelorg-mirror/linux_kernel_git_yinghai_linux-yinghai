@@ -383,6 +383,7 @@ void pcibios_resource_survey_bus(struct pci_bus *bus)
 	if (!(pci_probe & PCI_ASSIGN_ROMS))
 		pcibios_allocate_rom_resources(bus);
 }
+EXPORT_SYMBOL_GPL(pcibios_resource_survey_bus);
 
 void __init pcibios_resource_survey(void)
 {
