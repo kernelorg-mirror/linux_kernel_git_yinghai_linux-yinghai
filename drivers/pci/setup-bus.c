@@ -805,7 +805,7 @@ static struct resource *find_free_bus_resource(struct pci_bus *bus,
 	struct resource *r;
 
 	pci_bus_for_each_resource(bus, r, i) {
-		if (r == &ioport_resource || r == &iomem_resource)
+		if (r == ioport_res(bus) || r == iomem_res(bus))
 			continue;
 		if (r && (r->flags & type_mask) == type && !r->parent)
 			return r;

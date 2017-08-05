@@ -1617,7 +1617,7 @@ static void quirk_alder_ioapic(struct pci_dev *pdev)
 	 * not touch this (and it's already covered by the fixmap), so
 	 * forcibly insert it into the resource tree */
 	if (pci_resource_start(pdev, 0) && pci_resource_len(pdev, 0))
-		insert_resource(&iomem_resource, &pdev->resource[0]);
+		insert_resource(iomem_res(pdev->bus), &pdev->resource[0]);
 
 	/* The next five BARs all seem to be rubbish, so just clean
 	 * them out */

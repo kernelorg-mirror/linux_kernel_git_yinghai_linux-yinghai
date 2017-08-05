@@ -524,6 +524,9 @@ struct pci_bus {
 	void		*sysdata;	/* hook for sys-specific extension */
 	struct proc_dir_entry *procdir;	/* directory entry in /proc/bus/pci */
 
+	struct resource *iomem_res;	/* pointer to root iomem_resource */
+	struct resource *ioport_res;	/* pointer to root ioport_resource */
+
 	unsigned char	number;		/* bus number */
 	unsigned char	primary;	/* number of primary bridge */
 	unsigned char	max_bus_speed;	/* enum pci_bus_speed */
@@ -544,6 +547,16 @@ struct pci_bus {
 };
 
 #define to_pci_bus(n)	container_of(n, struct pci_bus, dev)
+
+static inline struct resource *iomem_res(struct pci_bus *bus)
+{
+	return bus->iomem_res ? : &iomem_resource;
+}
+
+static inline struct resource *ioport_res(struct pci_bus *bus)
+{
+	return bus->ioport_res ? : &ioport_resource;
+}
 
 /*
  * Returns true if the PCI bus is root (behind host-PCI bridge),

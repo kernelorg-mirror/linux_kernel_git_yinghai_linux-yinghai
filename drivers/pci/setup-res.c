@@ -215,9 +215,9 @@ static int pci_revert_fw_address(struct resource *res, struct pci_dev *dev,
 	root = pci_find_parent_resource(dev, res);
 	if (!root) {
 		if (res->flags & IORESOURCE_IO)
-			root = &ioport_resource;
+			root = ioport_res(dev->bus);
 		else
-			root = &iomem_resource;
+			root = iomem_res(dev->bus);
 	}
 
 	dev_info(&dev->dev, "BAR %d: trying firmware assignment %pR\n",

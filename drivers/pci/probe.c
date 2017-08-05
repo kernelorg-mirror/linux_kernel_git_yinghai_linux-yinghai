@@ -881,6 +881,8 @@ static struct pci_bus *pci_alloc_child_bus(struct pci_bus *parent,
 	child->msi = parent->msi;
 	child->sysdata = parent->sysdata;
 	child->bus_flags = parent->bus_flags;
+	child->iomem_res = parent->iomem_res;
+	child->ioport_res = parent->ioport_res;
 
 	/* initialize some portions of the bus device, but don't register it
 	 * now as the parent is not properly set up yet.
