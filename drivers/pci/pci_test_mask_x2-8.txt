@@ -1,0 +1,319 @@
+mask: 8086:3407 00:00.0 Host bridge: Intel Corporation 5520/5500/X58 I/O Hub to ESI Port (rev 22)
+00: 00 00 00 00 ff ff 10 00 22 00 00 06 00 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:3408 00:01.0 PCI bridge: Intel Corporation 5520/5500/X58 I/O Hub PCI Express Root Port 1 (rev 22) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=01, subordinate=01, sec-latency=0
+	I/O behind bridge: 00001000-00001fff
+	Memory behind bridge: abf00000-abffffff
+00: 00 00 00 00 ff ff 10 00 22 00 04 06 40 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 00
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00
+
+mask: 8086:340a 00:03.0 PCI bridge: Intel Corporation 5520/5500/X58 I/O Hub PCI Express Root Port 3 (rev 22) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=02, subordinate=02, sec-latency=0
+	Memory behind bridge: af100000-af2fffff
+	Prefetchable memory behind bridge: 00000fc07dc00000-00000fc07e7fffff
+00: 00 00 00 00 ff ff 10 40 22 00 04 06 40 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00
+
+mask: 8086:340c 00:05.0 PCI bridge: Intel Corporation 5520/X58 I/O Hub PCI Express Root Port 5 (rev 22) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=03, subordinate=03, sec-latency=0
+	I/O behind bridge: 00002000-00002fff
+	Memory behind bridge: afc00000-afdfffff
+	Prefetchable memory behind bridge: 00000fc000000000-00000fc0006fffff
+00: 00 00 00 00 ff ff 10 00 22 00 04 06 40 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00
+
+mask: 8086:340e 00:07.0 PCI bridge: Intel Corporation 5520/5500/X58 I/O Hub PCI Express Root Port 7 (rev 22) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=04, subordinate=04, sec-latency=0
+	I/O behind bridge: 00003000-00003fff
+	Memory behind bridge: af400000-afbfffff
+	Prefetchable memory behind bridge: 00000fc07e800000-00000fc07fdfffff
+00: 00 00 00 00 ff ff 10 00 22 00 04 06 40 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00
+
+mask: 8086:3410 00:09.0 PCI bridge: Intel Corporation 7500/5520/5500/X58 I/O Hub PCI Express Root Port 9 (rev 22) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=05, subordinate=05, sec-latency=0
+00: 00 00 00 00 ff ff 10 00 22 00 04 06 40 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 00
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00
+
+mask: 8086:342e 00:14.0 PIC: Intel Corporation 7500/5520/5500/X58 I/O Hub System Management Registers (rev 22) (prog-if 00 [8259])
+00: 00 00 00 00 ff ff 10 00 22 00 00 08 40 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:3438 00:14.3 PIC: Intel Corporation 7500/5520/5500/X58 I/O Hub Throttle Registers (rev 22) (prog-if 00 [8259])
+00: 00 00 00 00 ff ff 00 00 22 00 00 08 40 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:3a37 00:1a.0 USB controller: Intel Corporation 82801JI (ICH10 Family) USB UHCI Controller #4 (prog-if 00 [UHCI])
+	Region 4: I/O ports at 0a00 [size=32]
+00: 00 00 00 00 ff ff 90 02 00 00 03 0c 00 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0a 01 00 00
+
+mask: 8086:3a38 00:1a.1 USB controller: Intel Corporation 82801JI (ICH10 Family) USB UHCI Controller #5 (prog-if 00 [UHCI])
+	Region 4: I/O ports at 0c00 [size=32]
+00: 00 00 00 00 ff ff 90 02 00 00 03 0c 00 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0e 02 00 00
+
+mask: 8086:3a39 00:1a.2 USB controller: Intel Corporation 82801JI (ICH10 Family) USB UHCI Controller #6 (prog-if 00 [UHCI])
+	Region 4: I/O ports at 0e00 [size=32]
+00: 00 00 00 00 ff ff 90 02 00 00 03 0c 00 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0f 04 00 00
+
+mask: 8086:3a3c 00:1a.7 USB controller: Intel Corporation 82801JI (ICH10 Family) USB2 EHCI Controller #2 (prog-if 20 [EHCI])
+	Region 0: Memory at af0fa000 (32-bit, non-prefetchable) [size=1K]
+00: 00 00 00 00 ff ff 90 02 00 20 03 0c 00 00 00 00
+10: 00 fc ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 03 00 00
+
+mask: 8086:3a40 00:1c.0 PCI bridge: Intel Corporation 82801JI (ICH10 Family) PCI Express Root Port 1 (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=08, subordinate=0f, sec-latency=0
+	I/O behind bridge: 00004000-00004fff
+	Memory behind bridge: ae600000-ae6fffff
+	Prefetchable memory behind bridge: 00000fc07d800000-00000fc07d9fffff
+00: 00 00 00 00 ff ff 10 00 00 00 04 06 40 00 81 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 05 01 03 00
+
+mask: 8086:3a34 00:1d.0 USB controller: Intel Corporation 82801JI (ICH10 Family) USB UHCI Controller #1 (prog-if 00 [UHCI])
+	Region 4: I/O ports at 0200 [size=32]
+00: 00 00 00 00 ff ff 90 02 00 00 03 0c 00 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 03 01 00 00
+
+mask: 8086:3a35 00:1d.1 USB controller: Intel Corporation 82801JI (ICH10 Family) USB UHCI Controller #2 (prog-if 00 [UHCI])
+	Region 4: I/O ports at 0600 [size=32]
+00: 00 00 00 00 ff ff 90 02 00 00 03 0c 00 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0f 02 00 00
+
+mask: 8086:3a36 00:1d.2 USB controller: Intel Corporation 82801JI (ICH10 Family) USB UHCI Controller #3 (prog-if 00 [UHCI])
+	Region 4: I/O ports at 0880 [size=32]
+00: 00 00 00 00 ff ff 90 02 00 00 03 0c 00 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: e0 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 03 00 00
+
+mask: 8086:3a3a 00:1d.7 USB controller: Intel Corporation 82801JI (ICH10 Family) USB2 EHCI Controller #1 (prog-if 20 [EHCI])
+	Region 0: Memory at af0f8000 (32-bit, non-prefetchable) [size=1K]
+00: 00 00 00 00 ff ff 90 02 00 20 03 0c 00 00 00 00
+10: 00 fc ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 03 01 00 00
+
+mask: 8086:244e 00:1e.0 PCI bridge: Intel Corporation 82801 PCI Bridge (rev 90) (prog-if 01 [Subtractive decode])
+	Bus: primary=00, secondary=07, subordinate=07, sec-latency=32
+	I/O behind bridge: 00005000-00005fff
+	Memory behind bridge: ae700000-aeffffff
+00: 00 00 00 00 ff ff 10 00 90 01 04 06 00 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 20 f0 f0 80 22
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 ff 00 1b 00
+
+mask: 8086:3a18 00:1f.0 ISA bridge: Intel Corporation 82801JIB (ICH10) LPC Interface Controller
+00: 00 00 00 00 ff ff 10 02 00 00 01 06 00 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:3a22 00:1f.2 SATA controller: Intel Corporation 82801JI (ICH10 Family) SATA AHCI Controller (prog-if 01 [AHCI 1.0])
+	Region 0: I/O ports at 0d80 [size=8]
+	Region 1: I/O ports at 0d00 [size=4]
+	Region 2: I/O ports at 0b00 [size=8]
+	Region 3: I/O ports at 0a80 [size=4]
+	Region 4: I/O ports at 0980 [size=32]
+	Region 5: Memory at af0f4000 (32-bit, non-prefetchable) [size=2K]
+00: 00 00 00 00 ff ff b0 02 00 01 06 01 00 00 00 00
+10: f8 ff ff ff fc ff ff ff f8 ff ff ff fc ff ff ff
+20: e0 ff ff ff 00 f8 ff ff 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0f 02 00 00
+
+mask: 8086:3a30 00:1f.3 SMBus: Intel Corporation 82801JI (ICH10 Family) SMBus Controller
+	Region 0: Memory at abeff000 (64-bit, non-prefetchable) [size=256]
+	Region 4: I/O ports at 0400 [size=32]
+00: 00 00 00 00 ff ff 80 02 00 00 05 0c 00 00 00 00
+10: 00 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+20: e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 03 00 00
+
+mask: 1000:0079 01:00.0 RAID bus controller: LSI Logic / Symbios Logic MegaRAID SAS 2108 [Liberator] (rev 05)
+	Region 0: I/O ports at 1c00 [size=256]
+	Region 1: Memory at abffc000 (64-bit, non-prefetchable) [size=16K]
+	Region 3: Memory at abf80000 (64-bit, non-prefetchable) [size=256K]
+	Expansion ROM at abf60000 [disabled] [size=128K]
+00: 00 00 00 00 ff ff 10 00 05 00 04 01 40 00 00 00
+10: 00 ff ff ff 00 c0 ff ff ff ff ff ff 00 00 fc ff
+20: ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 fe ff 00 00 00 00 00 00 00 00 0a 01 00 00
+
+mask: 15b3:673c 02:00.0 InfiniBand: Mellanox Technologies MT26428 [ConnectX VPI PCIe 2.0 5GT/s - IB QDR / 10GigE] (rev b0)
+	Region 0: Memory at fc07dc00000 (64-bit, non-prefetchable) [size=1M]
+	Region 2: Memory at fc07e000000 (64-bit, prefetchable) [size=8M]
+00: 00 00 00 00 ff ff 10 00 b0 00 06 0c 40 00 00 00
+10: 00 00 f0 ff ff ff ff ff 00 00 80 ff ff ff ff ff
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0a 01 00 00
+
+mask: 8086:1507 03:00.0 Ethernet controller: Intel Corporation Ethernet Express Module X520-P2 (rev 01)
+	Region 0: Memory at fc000000000 (64-bit, non-prefetchable) [size=1M]
+	Region 2: I/O ports at 2000 [size=32]
+	Region 4: Memory at fc000200000 (64-bit, non-prefetchable) [size=16K]
+	Expansion ROM at afc00000 [disabled] [size=512K]
+		Region 0: Memory at 00000fc000204000 (64-bit, non-prefetchable)
+		Region 3: Memory at 00000fc000304000 (64-bit, non-prefetchable)
+00: 00 00 00 00 ff ff 10 00 01 00 00 02 40 00 80 00
+10: 00 00 f0 ff ff ff ff ff e0 ff ff ff 00 00 00 00
+20: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+30: 00 00 f8 ff 00 00 00 00 00 00 00 00 0a 01 00 00
+180: 01 00 00 00 00 c0 ff ff ff ff ff ff 00 00 00 00
+190: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+
+mask: 8086:10f7 04:00.0 Ethernet controller: Intel Corporation 10 Gigabit BR KX4 Dual Port Network Connection (rev 01)
+	Region 0: Memory at fc07e800000 (64-bit, non-prefetchable) [size=8M]
+	Region 2: I/O ports at 3000 [size=32]
+	Region 4: Memory at fc07f800000 (64-bit, non-prefetchable) [size=16K]
+	Expansion ROM at af400000 [disabled] [size=4M]
+		Region 0: Memory at 00000fc07f804000 (64-bit, non-prefetchable)
+		Region 3: Memory at 00000fc07f904000 (64-bit, non-prefetchable)
+00: 00 00 00 00 ff ff 10 00 01 00 00 02 40 00 80 00
+10: 00 00 80 ff ff ff ff ff e0 ff ff ff 00 00 00 00
+20: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+30: 00 00 c0 ff 00 00 00 00 00 00 00 00 0a 01 00 00
+180: 01 00 00 00 00 c0 ff ff ff ff ff ff 00 00 00 00
+190: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+
+mask: 1a03:2000 07:05.0 VGA compatible controller: ASPEED Technology, Inc. ASPEED Graphics Family (rev 10) (prog-if 00 [VGA controller])
+	Region 0: Memory at ae800000 (32-bit, non-prefetchable) [size=8M]
+	Region 1: Memory at ae7e0000 (32-bit, non-prefetchable) [size=128K]
+	Region 2: I/O ports at 5e00 [size=128]
+	Expansion ROM at <unassigned> [disabled]
+00: 00 00 00 00 ff ff 10 02 10 00 00 03 00 00 00 00
+10: 00 00 80 ff 00 00 fe ff 80 ff ff ff 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0a 01 00 00
+
+mask: 8086:10c9 08:00.0 Ethernet controller: Intel Corporation 82576 Gigabit Network Connection (rev 01)
+	Region 0: Memory at ae660000 (32-bit, non-prefetchable) [size=128K]
+	Region 1: Memory at ae640000 (32-bit, non-prefetchable) [size=128K]
+	Region 2: I/O ports at 4c80 [size=32]
+	Region 3: Memory at ae63c000 (32-bit, non-prefetchable) [size=16K]
+	Expansion ROM at ae600000 [disabled] [size=128K]
+		Region 0: Memory at 00000fc07d800000 (64-bit, non-prefetchable)
+		Region 3: Memory at 00000fc07d820000 (64-bit, non-prefetchable)
+00: 00 00 00 00 ff ff 10 00 01 00 00 02 40 00 80 00
+10: 00 00 fe ff 00 00 fe ff e0 ff ff ff 00 c0 ff ff
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 fe ff 00 00 00 00 00 00 00 00 0a 01 00 00
+180: 01 00 00 00 00 c0 ff ff ff ff ff ff 00 00 00 00
+190: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+
+mask: 8086:3420 40:00.0 PCI bridge: Intel Corporation 7500/5520/5500/X58 I/O Hub PCI Express Root Port 0 (rev 22) (prog-if 00 [Normal decode])
+	Bus: primary=40, secondary=41, subordinate=41, sec-latency=0
+	I/O behind bridge: 00006000-00006fff
+	Memory behind bridge: cc000000-cc0fffff
+	Prefetchable memory behind bridge: 00000fc080000000-00000fc0800fffff
+00: 00 00 00 00 ff ff 10 00 22 00 04 06 40 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00
+
+mask: 111d:806c 43:00.0 PCI bridge: Integrated Device Technology, Inc. [IDT] PES16T4A/4T4G2 PCI Express Gen2 Switch (rev 02) (prog-if 00 [Normal decode])
+	Bus: primary=43, secondary=44, subordinate=46, sec-latency=0
+	I/O behind bridge: 00007000-00008fff
+	Memory behind bridge: ccc00000-cd1fffff
+	Prefetchable memory behind bridge: 00000fc081800000-00000fc081afffff
+00: 00 00 00 00 ff ff 10 00 02 00 04 06 40 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 00
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00
+
+mask: 1077:2532 45:00.0 Fibre Channel: QLogic Corp. ISP2532-based 8Gb Fibre Channel to PCI Express HBA (rev 02)
+	Region 0: I/O ports at 7000 [disabled] [size=256]
+	Region 1: Memory at fc081a00000 (64-bit, non-prefetchable) [size=16K]
+	Region 3: Memory at fc081800000 (64-bit, non-prefetchable) [size=1M]
+	Expansion ROM at ccc00000 [disabled] [size=256K]
+00: 00 00 00 00 ff ff 10 00 02 00 04 0c 40 00 80 00
+10: 00 ff ff ff 00 c0 ff ff ff ff ff ff 00 00 f0 ff
+20: ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 fc ff 00 00 00 00 00 00 00 00 0b 01 00 00
+
+mask: 8086:105e 46:00.0 Ethernet controller: Intel Corporation 82571EB Gigabit Ethernet Controller (rev 06)
+	Region 0: Memory at cd100000 (32-bit, non-prefetchable) [size=128K]
+	Region 1: Memory at cd120000 (32-bit, non-prefetchable) [size=128K]
+	Region 2: I/O ports at 8000 [size=32]
+	Expansion ROM at cd140000 [disabled] [size=128K]
+00: 00 00 00 00 ff ff 10 00 06 00 00 02 40 00 80 00
+10: 00 00 fe ff 00 00 fe ff e0 ff ff ff 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 fe ff 00 00 00 00 00 00 00 00 0f 01 00 00
+
+mask: 1077:8000 47:00.0 Ethernet controller: QLogic Corp. 10GbE Converged Network Adapter (TCP/IP Networking) (rev 02)
+	Region 0: I/O ports at 9000 [size=256]
+	Region 1: Memory at fc081f00000 (64-bit, non-prefetchable) [size=16K]
+	Region 3: Memory at fc081b00000 (64-bit, non-prefetchable) [size=1M]
+	Expansion ROM at cc100000 [disabled] [size=256K]
+00: 00 00 00 00 ff ff 10 00 02 00 00 02 40 00 80 00
+10: 00 ff ff ff 00 c0 ff ff ff ff ff ff 00 00 f0 ff
+20: ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 fc ff 00 00 00 00 00 00 00 00 0a 01 00 00
+
+mask: 1077:8001 47:00.2 Fibre Channel: QLogic Corp. 10GbE Converged Network Adapter (FCoE) (rev 02)
+	Region 0: I/O ports at 9800 [size=256]
+	Region 1: Memory at fc081f08000 (64-bit, non-prefetchable) [size=16K]
+	Region 3: Memory at fc081d00000 (64-bit, non-prefetchable) [size=1M]
+	Expansion ROM at cc180000 [disabled] [size=256K]
+00: 00 00 00 00 ff ff 10 00 02 00 04 0c 40 00 80 00
+10: 00 ff ff ff 00 c0 ff ff ff ff ff ff 00 00 f0 ff
+20: ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 fc ff 00 00 00 00 00 00 00 00 0b 03 00 00
+
+mask: 10df:fc40 86:00.0 Fibre Channel: Emulex Corporation Saturn-X: LightPulse Fibre Channel Host Adapter (rev 03)
+	Region 0: Memory at fc101808000 (64-bit, non-prefetchable) [size=4K]
+	Region 2: Memory at fc101800000 (64-bit, non-prefetchable) [size=16K]
+	Region 4: I/O ports at c000 [size=256]
+	Expansion ROM at ecb00000 [disabled] [size=256K]
+00: 00 00 00 00 ff ff 10 00 03 00 04 0c 40 00 80 00
+10: 00 f0 ff ff ff ff ff ff 00 c0 ff ff ff ff ff ff
+20: 00 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 fc ff 00 00 00 00 00 00 00 00 0f 01 00 00
+
+mask: 1000:0072 c3:00.0 Serial Attached SCSI controller: LSI Logic / Symbios Logic SAS2008 PCI-Express Fusion-MPT SAS-2 [Falcon] (rev 03)
+	Region 0: I/O ports at f000 [disabled] [size=256]
+	Region 1: Memory at fc181c40000 (64-bit, non-prefetchable) [size=16K]
+	Region 3: Memory at fc181800000 (64-bit, non-prefetchable) [size=256K]
+	Expansion ROM at f9400000 [disabled] [size=512K]
+                Region 0: Memory at 00000fc181c44000 (64-bit, non-prefetchable)
+                Region 2: Memory at 00000fc181840000 (64-bit, non-prefetchable)
+00: 00 00 00 00 ff ff 10 00 03 00 07 01 40 00 00 00
+10: 00 ff ff ff 00 c0 ff ff ff ff ff ff 00 00 fc ff
+20: ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 f8 ff 00 00 00 00 00 00 00 00 0a 01 00 00
+170: 01 00 00 00 00 c0 ff ff ff ff ff ff 00 c0 ff ff
+180: ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+
