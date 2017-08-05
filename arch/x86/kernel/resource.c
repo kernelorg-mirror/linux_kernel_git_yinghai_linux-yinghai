@@ -35,14 +35,25 @@ static void remove_e820_regions(struct resource *avail)
 	}
 }
 
-void arch_remove_reservations(struct resource *avail)
+static int is_from_iomem_resource(struct resource *root)
+{
+	while (root->parent)
+		root = root->parent;
+
+	if (root == &iomem_resource)
+		return 1;
+
+	return 0;
+}
+
+void arch_remove_reservations(struct resource *root, struct resource *avail)
 {
 	/*
 	 * Trim out BIOS area (high 2MB) and E820 regions. We do not remove
 	 * the low 1MB unconditionally, as this area is needed for some ISA
 	 * cards requiring a memory range, e.g. the i82365 PCMCIA controller.
 	 */
-	if (avail->flags & IORESOURCE_MEM) {
+	if ((avail->flags & IORESOURCE_MEM) && is_from_iomem_resource(root)) {
 		resource_clip(avail, BIOS_ROM_BASE, BIOS_ROM_END);
 
 		remove_e820_regions(avail);

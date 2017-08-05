@@ -570,7 +570,8 @@ int region_intersects(resource_size_t start, size_t size, unsigned long flags,
 }
 EXPORT_SYMBOL_GPL(region_intersects);
 
-void __weak arch_remove_reservations(struct resource *avail)
+void __weak arch_remove_reservations(struct resource *root,
+					 struct resource *avail)
 {
 }
 
@@ -622,7 +623,7 @@ static int __find_resource(struct resource *root, struct resource *old,
 			goto next;
 
 		resource_clip(&tmp, constraint->min, constraint->max);
-		arch_remove_reservations(&tmp);
+		arch_remove_reservations(root, &tmp);
 
 		/* Check for overflow after ALIGN() */
 		avail.start = ALIGN(tmp.start, constraint->align);
