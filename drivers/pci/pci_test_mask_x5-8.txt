@@ -1,0 +1,176 @@
+mask: 8086:2f00 00:00.0 Host bridge: Intel Corporation Xeon E5 v3/Core i7 DMI2 (rev 04)
+00: 00 00 00 00 ff ff 10 00 04 00 00 06 10 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 90 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:2f04 00:02.0 PCI bridge: Intel Corporation Xeon E5 v3/Core i7 PCI Express Root Port 2 (rev 04) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=01, subordinate=02, sec-latency=0
+	I/O behind bridge: 00005000-00005fff
+	Memory behind bridge: 9f400000-9f5fffff
+	Prefetchable memory behind bridge: 0000381ff8100000-0000381ff89fffff
+00: 00 00 00 00 ff ff 10 00 04 00 04 06 10 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 01 13 00
+
+mask: 8086:2f08 00:03.0 PCI bridge: Intel Corporation Xeon E5 v3/Core i7 PCI Express Root Port 3 (rev 04) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=03, subordinate=03, sec-latency=0
+	I/O behind bridge: 00004000-00004fff
+	Memory behind bridge: 9ee00000-9f0fffff
+00: 00 00 00 00 ff ff 10 00 04 00 04 06 10 00 81 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 01 13 00
+
+mask: 8086:2f0a 00:03.2 PCI bridge: Intel Corporation Xeon E5 v3/Core i7 PCI Express Root Port 3 (rev 04) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=04, subordinate=04, sec-latency=0
+	I/O behind bridge: 00001000-00001fff
+	Memory behind bridge: 9f600000-9f7fffff
+	Prefetchable memory behind bridge: 0000380000000000-000038020bffffff
+00: 00 00 00 00 ff ff 10 00 04 00 04 06 10 00 81 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 01 13 00
+
+mask: 8086:2f28 00:05.0 System peripheral: Intel Corporation Xeon E5 v3/Core i7 Address Map, VTd_Misc, System Management (rev 04)
+00: 00 00 00 00 ff ff 10 00 04 00 80 08 10 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:2f29 00:05.1 System peripheral: Intel Corporation Xeon E5 v3/Core i7 Hot Plug (rev 04)
+00: 00 00 00 00 ff ff 10 00 04 00 80 08 10 00 00 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:2f2a 00:05.2 System peripheral: Intel Corporation Xeon E5 v3/Core i7 RAS, Control Status and Global Errors (rev 04)
+00: 00 00 00 00 ff ff 10 00 04 00 80 08 10 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:2f2c 00:05.4 PIC: Intel Corporation Xeon E5 v3/Core i7 I/O APIC (rev 04) (prog-if 20 [IO(X)-APIC])
+	Region 0: Memory at 9f303000 (32-bit, non-prefetchable) [size=4K]
+00: 00 00 00 00 ff ff 10 00 04 20 00 08 10 00 80 00
+10: 00 f0 ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:1d3e 00:11.0 PCI bridge: Intel Corporation C600/X79 series chipset PCI Express Virtual Root Port (rev 06) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=05, subordinate=05, sec-latency=0
+00: 00 00 00 00 ff ff 10 00 06 00 04 06 10 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 01 13 00
+
+mask: 8086:1d2d 00:1a.0 USB controller: Intel Corporation C600/X79 series chipset USB2 Enhanced Host Controller #2 (rev 06) (prog-if 20 [EHCI])
+	Region 0: Memory at 9f301000 (32-bit, non-prefetchable) [size=1K]
+00: 86 80 2d 1d 46 01 90 02 06 20 03 0c 00 00 00 00
+10: 00 fc ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 50 00 00 00 00 00 00 00 0b 01 00 00
+
+mask: 8086:1d10 00:1c.0 PCI bridge: Intel Corporation C600/X79 series chipset PCI Express Root Port 1 (rev b6) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=06, subordinate=07, sec-latency=0
+	I/O behind bridge: 00003000-00003fff
+	Memory behind bridge: 9f100000-9f1fffff
+	Prefetchable memory behind bridge: 0000381ff8000000-0000381ff80fffff
+00: 00 00 00 00 ff ff 10 00 b6 00 04 06 10 00 81 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 20
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 01 13 00
+
+mask: 8086:1d1e 00:1c.7 PCI bridge: Intel Corporation C600/X79 series chipset PCI Express Root Port 8 (rev b6) (prog-if 00 [Normal decode])
+	Bus: primary=00, secondary=08, subordinate=08, sec-latency=0
+	Memory behind bridge: 90000000-91bfffff
+00: 00 00 00 00 ff ff 10 00 b6 00 04 06 10 00 81 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 00 f0 f0 00 00
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 00 00 00 00 00 00 00 00 05 04 18 00
+
+mask: 8086:1d26 00:1d.0 USB controller: Intel Corporation C600/X79 series chipset USB2 Enhanced Host Controller #1 (rev 06) (prog-if 20 [EHCI])
+	Region 0: Memory at 9f300000 (32-bit, non-prefetchable) [size=1K]
+00: 00 00 00 00 ff ff 90 02 06 20 03 0c 00 00 00 00
+10: 00 fc ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 07 01 00 00
+
+mask: 8086:244e 00:1e.0 PCI bridge: Intel Corporation 82801 PCI Bridge (rev a6) (prog-if 01 [Subtractive decode])
+	Bus: primary=00, secondary=09, subordinate=09, sec-latency=32
+00: 00 00 00 00 ff ff 10 00 a6 01 04 06 00 00 01 00
+10: 00 00 00 00 00 00 00 00 00 ff ff 20 f0 f0 80 22
+20: f0 ff f0 ff f0 ff f0 ff ff ff ff ff ff ff ff ff
+30: 00 00 00 00 50 00 00 00 00 00 00 00 ff 00 13 00
+
+mask: 8086:1d41 00:1f.0 ISA bridge: Intel Corporation C600/X79 series chipset LPC Controller (rev 06)
+00: 00 00 00 00 ff ff 10 02 06 00 01 06 00 00 80 00
+10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+mask: 8086:1d22 00:1f.3 SMBus: Intel Corporation C600/X79 series chipset SMBus Host Controller (rev 06)
+	Region 0: Memory at 381ff8a00000 (64-bit, non-prefetchable) [disabled] [size=256]
+	Region 4: I/O ports at 2000 [disabled] [size=32]
+00: 00 00 00 00 ff ff 80 02 06 00 05 0c 00 00 00 00
+10: 00 ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+20: e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 03 03 00 00
+
+mask: 8086:1528 01:00.0 Ethernet controller: Intel Corporation Ethernet Controller 10-Gigabit X540-AT2 (rev 01)
+	Region 0: Memory at 381ff8200000 (64-bit, prefetchable) [size=2M]
+	Region 2: I/O ports at 5000 [disabled] [size=32]
+	Region 4: Memory at 381ff8100000 (64-bit, prefetchable) [size=16K]
+	Expansion ROM at 9f400000 [disabled] [size=512K]
+                Region 0: Memory at 0000381ff8600000 (64-bit, non-prefetchable)
+                Region 3: Memory at 0000381ff8700000 (64-bit, non-prefetchable)
+00: 00 00 00 00 ff ff 10 00 01 00 00 02 10 00 80 00
+10: 00 00 e0 ff ff ff ff ff e0 ff ff ff 00 00 00 00
+20: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+30: 00 00 f8 ff 00 00 00 00 00 00 00 00 0a 02 00 00
+180: 00 00 00 00 00 c0 ff ff ff ff ff ff 00 00 00 00
+190: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+
+mask: 1000:005d 03:00.0 RAID bus controller: LSI Logic / Symbios Logic MegaRAID SAS-3 3108 [Invader] (rev 02)
+	Region 0: I/O ports at 4000 [size=256]
+	Region 1: Memory at 9f000000 (64-bit, non-prefetchable) [size=64K]
+	Region 3: Memory at 9ef00000 (64-bit, non-prefetchable) [size=1M]
+	Expansion ROM at 9ee00000 [disabled] [size=1M]
+00: 00 00 00 00 ff ff 10 00 02 00 04 01 10 00 00 00
+10: 00 ff ff ff 00 00 ff ff ff ff ff ff 00 00 f0 ff
+20: ff ff ff ff 00 00 00 00 00 00 00 00 00 10 61 93
+30: 00 00 f0 ff 00 00 00 00 00 00 00 00 0b 01 00 00
+
+mask: 15b3:1003 04:00.0 InfiniBand: Mellanox Technologies MT27500 Family [ConnectX-3]
+	Region 0: Memory at 380208000000 (64-bit, non-prefetchable) [size=1M]
+	Region 2: Memory at 380000000000 (64-bit, prefetchable) [size=128M]
+		Region 2: Memory at 0000380008000000 (64-bit, prefetchable)
+00: 00 00 00 00 ff ff 10 00 00 00 06 0c 10 00 00 00
+10: 00 00 f0 ff ff ff ff ff 00 00 00 f8 ff ff ff ff
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 01 00 00
+130: 00 00 00 00 00 00 00 f8 ff ff ff ff 00 00 00 00
+
+mask: 8086:1521 06:00.0 Ethernet controller: Intel Corporation I350 Gigabit Network Connection (rev 01)
+	Region 0: Memory at 9f120000 (32-bit, non-prefetchable) [size=128K]
+	Region 2: I/O ports at 3020 [size=32]
+	Region 3: Memory at 9f144000 (32-bit, non-prefetchable) [size=16K]
+		Region 0: Memory at 0000381ff8060000 (64-bit, prefetchable)
+		Region 3: Memory at 0000381ff8040000 (64-bit, prefetchable)
+00: 00 00 00 00 ff ff 10 00 01 00 00 02 10 00 80 00
+10: 00 00 fe ff 00 00 00 00 e0 ff ff ff 00 c0 ff ff
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 00 00 00 00 00 00 00 00 0b 01 00 00
+180: 00 00 00 00 00 c0 ff ff ff ff ff ff 00 00 00 00
+190: 00 c0 ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+
+mask: 102b:0522 08:00.0 VGA compatible controller: Matrox Electronics Systems Ltd. MGA G200e [Pilot] ServerEngines (SEP1) (rev 05) (prog-if 00 [VGA controller])
+	Region 0: Memory at 90000000 (32-bit, non-prefetchable) [size=16M]
+	Region 1: Memory at 91810000 (32-bit, non-prefetchable) [size=16K]
+	Region 2: Memory at 91000000 (32-bit, non-prefetchable) [size=8M]
+	Expansion ROM at 91800000 [disabled] [size=64K]
+00: 00 00 00 00 ff ff 10 00 05 00 00 03 10 00 00 00
+10: 00 00 00 ff 00 c0 ff ff 00 00 80 ff 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30: 00 00 ff ff dc 00 00 00 00 00 00 00 0b 01 00 00
